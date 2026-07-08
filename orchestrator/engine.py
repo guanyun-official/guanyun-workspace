@@ -8,7 +8,7 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 
-from . import alerts, config, feishu_io, guard, llm
+from . import alerts, config, feishu_io, guard, llm, reminders
 from .runbook import Action, route
 from .runbook import _ts as _rb_ts
 
@@ -21,6 +21,20 @@ def _account_of(fields: dict) -> str:
         v0 = v[0]
         return v0.get("text", "") if isinstance(v0, dict) else str(v0)
     return str(v or "未知账号")
+
+
+def _shoot_hint(fields: dict) -> str:
+    """F2:催拍带上要拍什么。优先 脚本·分镜,退回 关联衣服/内容类型。"""
+    for key in ("脚本·分镜", "内容类型", "关联衣服"):
+        v = fields.get(key)
+        txt = ""
+        if isinstance(v, list):
+            txt = ",".join(x.get("text", "") for x in v if isinstance(x, dict))
+        elif v:
+            txt = str(v)
+        if txt.strip():
+            return f"拍:{txt.strip()[:40]}"
+    return "拍:见记录"
 
 
 def _title_of(fields: dict) -> str:
@@ -71,9 +85,13 @@ def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dic
                 if act is Action.LIST_IDEA:
                     summary["ideas"].append(name)
                 elif act is Action.REMIND_SHOOT:
-                    summary["shoot"].append(f"{name} {config.record_url('笔记表', rid)}")
+                    if reminders.should_remind(rid, "shoot", now):  # F1 节流:每日最多一次
+                        summary["shoot"].append(f"{name}({_shoot_hint(f)}) {config.record_url('笔记表', rid)}")
+                        reminders.mark(rid, "shoot", now)
                 elif act is Action.REMIND_REVIEW:
-                    summary["review"].append(f"{name} {config.record_url('笔记表', rid)}")
+                    if reminders.should_remind(rid, "review", now):
+                        summary["review"].append(f"{name} {config.record_url('笔记表', rid)}")
+                        reminders.mark(rid, "review", now)
                 elif act is Action.GEN_COPY:
                     if not guard.copy_quota_left(generated):
                         continue
@@ -202,6 +220,8 @@ def _digest(s: dict, now: datetime) -> str:
         lines.append(f"催审(>{config.REVIEW_OVERDUE_HOURS}h) {len(s['review'])}:{'、'.join(s['review'][:5])}")
     if s["packages"]:
         lines.append(f"发布包 {len(s['packages'])} 个已推送")
+    if s.get("metrics_todo"):  # F3:幽灵动作显形
+        lines.append(f"待回流采集 {len(s['metrics_todo'])}:{'、'.join(s['metrics_todo'][:5])}")
     if s["errors"]:
         lines.append(f"⚠️ 错误 {len(s['errors'])}:{s['errors'][:2]}")
     if s["copy_cost_cny"]:
