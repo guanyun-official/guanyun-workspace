@@ -1,0 +1,34 @@
+"""通用策略解释器:mode来自strategy声明(改data变行为),引擎零账号特定逻辑。"""
+import sys, unittest
+from pathlib import Path
+from unittest import mock
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+def _rec(f): return {"fields": f, "record_id": "r"}
+
+class TestPlanner(unittest.TestCase):
+    def _run(self, strategies, tables):
+        import scripts.planner as pl
+        with mock.patch.object(pl, "load_strategies", return_value=strategies), \
+             mock.patch.object(pl.feishu_io, "list_records", side_effect=lambda t: tables[t]):
+            return pl.plan()
+    def test_manual_strategy_skips_engine(self):
+        s = {"实验号": {"account":"实验号","mode":"手动","cadence":{"posts_per_day":0,"pattern":"manual"}}}
+        tables = {"衣服总表":[], "笔记表":[], "素材表":[]}
+        p = self._run(s, tables)
+        self.assertFalse(p["实验号"]["自动"])          # 声明manual→引擎不自动
+    def test_drip_ready_and_shoot_from_strategy(self):
+        s = {"A号": {"account":"A号","mode":"缓发","cadence":{"posts_per_day":1,"pattern":"drip"},
+                    "material_needs":{"ct":["上身视频"]},"runway_alert_days":3,"autonomy":"approve"}}
+        tables = {
+            "衣服总表":[_rec({"衣服编号":"S1","款式名称":"甲"}),_rec({"衣服编号":"S2","款式名称":"乙"})],
+            "笔记表":[],
+            "素材表":[_rec({"拍摄状态":"已拍","关联衣服":"S1","类型":"上身视频"})],  # S1有素材
+        }
+        p = self._run(s, tables)
+        self.assertTrue(p["A号"]["自动"])
+        self.assertEqual(p["A号"]["今日缓发"]["sku"], "S1")   # 有素材→可缓发
+        self.assertTrue(any(x["sku"]=="S2" for x in p["A号"]["拍摄需求"]))  # S2缺→催拍
+    def test_unlaunched_skipped(self):
+        s = {"官号": {"account":"官号","mode":"叙事","cadence":{"posts_per_day":0},"posts_per_week":2,"launched":False}}
+        p = self._run(s, {"衣服总表":[], "笔记表":[], "素材表":[]})
+        self.assertFalse(p["官号"]["自动"])          # launched:false→不自动

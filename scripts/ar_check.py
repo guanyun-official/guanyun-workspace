@@ -33,8 +33,10 @@ try:
     for r in notes:
         a=route(r["fields"],now)
         acts[a.value]=acts.get(a.value,0)+1
-    has_plan=(ROOT/"scripts/plan_day.py").exists()
-    ck("每天发什么","route处理已有+plan_day主动提议每号发哪件(素材就绪排序)", len(acts)>0 and has_plan, f"动作{acts}+plan_day提议")
+    has_planner=(ROOT/"scripts/planner.py").exists()
+    n_strat=len(list((ROOT/"brands/观云/accounts").glob("*.strategy.json")))
+    ck("每天发什么","planner读账号strategy缓发排产(每号声明模式)", len(acts)>0 and has_planner and n_strat>=3, f"动作{acts}+planner+{n_strat}个strategy声明")
+    ck("模式泛化","加模式=写strategy声明零代码(引擎通用解释)", has_planner and n_strat>=3, f"{n_strat}个账号模式=data,planner通用解释")
 except Exception as e:
     ck("每天发什么","route", False, str(e)[:80])
 

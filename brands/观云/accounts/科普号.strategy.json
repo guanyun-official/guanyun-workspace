@@ -1,0 +1,12 @@
+{
+  "account": "科普号",
+  "mode": "考据慢发",
+  "cadence": {"posts_per_day": 1, "pattern": "drip"},
+  "sourcing": "shoot_then_drip",
+  "content_types": ["文物对照", "工艺科普"],
+  "content_mix": {"文物对照": 0.6, "工艺科普": 0.4},
+  "material_needs": {"文物对照": ["文物对照图", "商品图"], "工艺科普": ["工艺特写", "面料·纹理特写", "制作过程视频"]},
+  "runway_alert_days": 3,
+  "autonomy": "approve",
+  "notes": "考据向慢工;图文为主视频为辅;素材见底催拍文物对照图/工艺特写"
+}

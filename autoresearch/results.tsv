@@ -6,3 +6,4 @@ iter	change	metric	decision
 4	账号画像注入(每号风格data注入,account-teardown填充)	100.0	keep
 5	摄入即挂SKU+孤儿清单(解决素材没挂钩乱)	100.0	keep
 6	场景饱和(网盘直连=外部边界非设计缺陷)+多模态理解已验证	SATURATED	stop
+6	账号模式=声明式strategy(泛化引擎解释,加模式零代码)+四号模式设计	100.0	keep

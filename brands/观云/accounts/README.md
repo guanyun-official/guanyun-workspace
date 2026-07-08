@@ -8,3 +8,10 @@
 - 更新 = 每号内容风格漂移时重跑 account-teardown 覆盖(git 可回溯)。
 
 **红线**:画像里只存**可迁移打法/风格规律**,绝不存原帖文案片段(防搬运,与 account-teardown 出口闸一致)。
+
+## 账号模式 = 声明式 strategy(泛化,非一模式一脚本)
+
+每号一个 `{账号}.strategy.json` 声明其运营模式(cadence 缓发节奏/material_needs 素材需求/autonomy 自主程度/sourcing 素材来源)。
+`scripts/planner.py` 是**通用解释器**:读任意账号 strategy → 算 缓发+余量+催拍,**引擎零账号特定代码**。
+**加新账号/改模式 = 写/改 strategy JSON,不动代码。** 模式举例:考据慢发(科普号)/集中拍上身+缓发(ootd号)/实验号手动(玉子)/品牌叙事低频(官号)。
+三层:能力=skill(怎么做) · 模式=strategy(每号怎么运营,data) · 引擎=planner+orchestrator(读声明执行,泛化)。
