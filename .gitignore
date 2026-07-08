@@ -1,0 +1,15 @@
+# 技能经 skills.lock.json 安装(scripts/install_skills.sh 产出 symlink),不入库
+skills/
+# 第三方 vendor 产物不入库
+vendor/
+# 密钥只存本地 .env(泄漏即轮换),绝不入库
+.env
+# 运行产物
+logs/
+workspaces/
+__pycache__/
+*.pyc
+# 本地幂等账本(feishu_workbench 运行态)
+.feishu_workbench/
+# macOS
+.DS_Store
