@@ -33,7 +33,8 @@ try:
     for r in notes:
         a=route(r["fields"],now)
         acts[a.value]=acts.get(a.value,0)+1
-    ck("每天发什么","route对每条笔记给确定动作", len(acts)>0, f"动作分布:{acts}")
+    has_plan=(ROOT/"scripts/plan_day.py").exists()
+    ck("每天发什么","route处理已有+plan_day主动提议每号发哪件(素材就绪排序)", len(acts)>0 and has_plan, f"动作{acts}+plan_day提议")
 except Exception as e:
     ck("每天发什么","route", False, str(e)[:80])
 
