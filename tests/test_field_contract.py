@@ -32,6 +32,11 @@ def _schema_select_options(table_name: str, field_name: str) -> set[str]:
     return set()
 
 
+def _schema_field_types(table_name: str) -> dict:
+    d = json.loads((ROOT / "schema" / "test" / f"{table_name}.json").read_text(encoding="utf-8"))
+    return {f["field_name"]: f["type"] for f in d["fields"]}
+
+
 class TestFieldConstantContract(unittest.TestCase):
     # 每个字段词汇类都声明自己 TABLE,测试自动遍历——将来新增词汇类只需加进这里
     FIELDSETS = [bitable.NoteFields, bitable.MaterialFields,
@@ -68,6 +73,31 @@ class TestStatusValueContract(unittest.TestCase):
         self.assertEqual(
             illegal, [],
             f"NoteStatus 这些取值不在「{bitable.NoteStatus.FIELD}」select 枚举(UI 改/删选项?):{illegal}")
+
+
+# 类型契约:这些字段的 schema 类型是代码的硬假设。(字段常量, 所属表, 期望类型, 漂了会怎样)
+_NF, _RLF = bitable.NoteFields, bitable.RunLogFields
+TYPE_CONTRACT = [
+    (_NF.STATUS, _NF.TABLE, "select", "NoteStatus 枚举锁与状态写回都依赖 select 类型"),
+    (_NF.AI_DECLARED, _NF.TABLE, "checkbox", "guard.assert_ai_declared 靠真值判断——类型漂了 AI 声明红线门失灵"),
+    (_NF.PUBLISHED_AT, _NF.TABLE, "datetime", "parse_ts 依赖毫秒时间戳——漂了回流窗口/控量判断出错"),
+    (_NF.PLANNED_AT, _NF.TABLE, "datetime", "parse_ts 依赖毫秒时间戳——漂了催审入场计时出错"),
+    (_NF.LINKED_MATERIALS, _NF.TABLE, "link", "link_record_ids 靠 link 结构——漂了发布包配套素材清单丢失"),
+    (_RLF.TIME, _RLF.TABLE, "datetime", "_monthly_cost_cny 按本月过滤日志——漂了成本核算/预算熔断失灵"),
+]
+
+
+class TestFieldTypeContract(unittest.TestCase):
+    """类型契约锁:名字对但类型漂(datetime→text 等)是名字锁的盲区——代码会静默错:
+    parse_ts 取不到日期、checkbox 真值门失灵、link 解析空。把类型关键字段的 schema 类型也钉死,
+    与名字锁、取值锁合成三层契约。纯读本地 schema,零网络。"""
+
+    def test_type_critical_fields_keep_their_type(self):
+        for field, table, want, why in TYPE_CONTRACT:
+            types = _schema_field_types(table)
+            self.assertEqual(
+                types.get(field), want,
+                f"{table}.{field} 类型漂移:schema={types.get(field)!r} 期望={want!r}——{why}")
 
 
 class TestCostFieldMigrationGuard(unittest.TestCase):
