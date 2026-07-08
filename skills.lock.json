@@ -41,6 +41,16 @@
         "video-editing"
       ],
       "install": "symlink"
+    },
+    {
+      "name": "content-loop-local",
+      "local": "/Users/bamboo/Githubs/guanyun-workspace/local-skills",
+      "ref": "workspace-native",
+      "sha": "local",
+      "skills": [
+        "content-loop"
+      ],
+      "install": "symlink"
     }
   ]
 }
