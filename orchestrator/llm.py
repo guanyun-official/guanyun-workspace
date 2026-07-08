@@ -20,22 +20,33 @@ def _text_of(v) -> str:
     return str(v or "")
 
 
+def _account_profile(account: str, brand: str = "观云") -> str:
+    """加载账号画像(每号一份 data,account-teardown 填充)注入生成。缺则空(降级通用品牌法)。"""
+    if not account:
+        return ""
+    p = config.WORKSPACE / "brands" / brand / "accounts" / f"{account}.md"
+    return p.read_text(encoding="utf-8")[:1200] if p.exists() else ""
+
+
 def gen_copy(note_fields: dict, mode: str = "stub") -> tuple[str, float]:
     """返回 (文案草稿, 成本_元)。mode: stub|real。"""
     title = _text_of(note_fields.get("标题")) or _text_of(note_fields.get("排期编号"))
     ctype = _text_of(note_fields.get("内容类型"))
+    account = _text_of(note_fields.get("账号(自动)"))
+    profile = _account_profile(account)  # 每号风格注入(缺则降级)
     if mode != "real":
-        return (f"[stub 占位文案|{ctype}] {title}——由 --llm real 生成正式稿。", 0.0)
+        tag = f"|画像✓" if profile else ""
+        return (f"[stub 占位文案|{ctype}|{account}{tag}] {title}——由 --llm real 生成正式稿。", 0.0)
 
     hint = _text_of(note_fields.get("脚本·分镜"))[:300]
     # 提示词自带品牌要点(P6演练教训:让 headless 去翻仓库会烧穿预算帽),零工具直出
     prompt = (
         f"为观云(传统文化服装品牌,非遗面料复原/改良传统服饰)写一篇小红书笔记文案。\n"
-        f"笔记:「{title}」 内容类型:{ctype}\n"
+        f"笔记:「{title}」 内容类型:{ctype} 账号:{account}\n"
         f"{'线索:' + hint if hint else ''}\n"
-        f"调性:清冷、唯美、克制,不硬广;考据有据(文物对照类:钩子标题→出处稀缺性→形制工艺考据→非遗价值升华;"
-        f"ootd类:意境句式起笔→文化底蕴→版型面料→场景升华;科普类:专业可信、口语化)。\n"
-        f"格式:第一行标题(≤20字),空行,正文(≤1000字,分段,可用少量 emoji),最后一行 3-5 个#标签。\n"
+        + (f"【本账号画像(务必贴合其既有风格)】\n{profile}\n" if profile else
+           "调性:清冷、唯美、克制,不硬广;考据有据(文物对照:钩子→出处稀缺→形制工艺考据→非遗升华;ootd:意境起笔→文化→版型面料→场景)。\n")
+        + f"格式:第一行标题(≤20字),空行,正文(≤1000字,分段,可用少量 emoji),最后一行 3-5 个#标签。\n"
         f"只输出成稿文本,不要解释、不要读文件。"
     )
     r = subprocess.run(
