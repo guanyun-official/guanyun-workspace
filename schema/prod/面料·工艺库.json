@@ -3,8 +3,22 @@
   "table_name": "面料·工艺库",
   "fields": [
     {
-      "field_name": "被引用次数",
-      "type": "formula"
+      "field_name": "是否非遗",
+      "type": "select",
+      "options": [
+        "是",
+        "否"
+      ]
+    },
+    {
+      "field_name": "衣服总表-面料",
+      "type": "link",
+      "link_table": "tbl2ZnYoLX3d0QtE"
+    },
+    {
+      "field_name": "素材表-关联面料·工艺",
+      "type": "link",
+      "link_table": "tbles5eiDykCBxD1"
     },
     {
       "field_name": "科普说明",
@@ -20,16 +34,8 @@
       "link_table": "tblHi1Htg5wntydY"
     },
     {
-      "field_name": "名称",
-      "type": "text"
-    },
-    {
-      "field_name": "是否非遗",
-      "type": "select",
-      "options": [
-        "是",
-        "否"
-      ]
+      "field_name": "被引用次数",
+      "type": "formula"
     },
     {
       "field_name": "类型",
@@ -40,19 +46,13 @@
       ]
     },
     {
-      "field_name": "衣服总表-面料",
-      "type": "link",
-      "link_table": "tbl2ZnYoLX3d0QtE"
-    },
-    {
-      "field_name": "素材表-关联面料·工艺",
-      "type": "link",
-      "link_table": "tbles5eiDykCBxD1"
-    },
-    {
       "field_name": "衣服总表-工艺",
       "type": "link",
       "link_table": "tbl2ZnYoLX3d0QtE"
+    },
+    {
+      "field_name": "名称",
+      "type": "text"
     }
   ]
 }

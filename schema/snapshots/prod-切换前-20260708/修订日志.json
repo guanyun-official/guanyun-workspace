@@ -1,0 +1,34 @@
+{
+  "table_id": "tbleWyxtJD57a59X",
+  "table_name": "修订日志",
+  "fields": [
+    {
+      "field_name": "最终版本",
+      "type": "text"
+    },
+    {
+      "field_name": "来源",
+      "type": "text"
+    },
+    {
+      "field_name": "初始需求",
+      "type": "text"
+    },
+    {
+      "field_name": "关联技能",
+      "type": "text"
+    },
+    {
+      "field_name": "时间",
+      "type": "datetime"
+    },
+    {
+      "field_name": "原始产出",
+      "type": "text"
+    },
+    {
+      "field_name": "修改意见",
+      "type": "text"
+    }
+  ]
+}

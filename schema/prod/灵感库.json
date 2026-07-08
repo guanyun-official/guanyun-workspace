@@ -3,7 +3,11 @@
   "table_name": "灵感库",
   "fields": [
     {
-      "field_name": "镜头",
+      "field_name": "缺点",
+      "type": "text"
+    },
+    {
+      "field_name": "链接",
       "type": "text"
     },
     {
@@ -16,11 +20,12 @@
       "type": "text"
     },
     {
-      "field_name": "文案",
-      "type": "text"
+      "field_name": "转化为笔记",
+      "type": "link",
+      "link_table": "tblHi1Htg5wntydY"
     },
     {
-      "field_name": "链接",
+      "field_name": "文案",
       "type": "text"
     },
     {
@@ -38,16 +43,11 @@
       "link_table": "tbl2ZnYoLX3d0QtE"
     },
     {
-      "field_name": "标题",
+      "field_name": "镜头",
       "type": "text"
     },
     {
-      "field_name": "转化为笔记",
-      "type": "link",
-      "link_table": "tblHi1Htg5wntydY"
-    },
-    {
-      "field_name": "缺点",
+      "field_name": "标题",
       "type": "text"
     }
   ]

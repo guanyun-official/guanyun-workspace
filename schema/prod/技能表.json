@@ -8,14 +8,6 @@
       "link_table": "tblSidOqOT1B4dj9"
     },
     {
-      "field_name": "使用说明",
-      "type": "text"
-    },
-    {
-      "field_name": "简介",
-      "type": "text"
-    },
-    {
       "field_name": "输入方式",
       "type": "select",
       "options": [
@@ -23,10 +15,6 @@
         "关键词触发",
         "直接对话"
       ]
-    },
-    {
-      "field_name": "触发方式",
-      "type": "text"
     },
     {
       "field_name": "状态",
@@ -42,7 +30,19 @@
       "type": "datetime"
     },
     {
-      "field_name": "技能名称",
+      "field_name": "输出落表",
+      "type": "text"
+    },
+    {
+      "field_name": "使用说明",
+      "type": "text"
+    },
+    {
+      "field_name": "简介",
+      "type": "text"
+    },
+    {
+      "field_name": "触发方式",
       "type": "text"
     },
     {
@@ -66,7 +66,7 @@
       ]
     },
     {
-      "field_name": "输出落表",
+      "field_name": "技能名称",
       "type": "text"
     },
     {

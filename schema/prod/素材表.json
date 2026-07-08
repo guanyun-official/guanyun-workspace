@@ -3,29 +3,16 @@
   "table_name": "素材表",
   "fields": [
     {
-      "field_name": "被引用次数",
-      "type": "formula"
-    },
-    {
-      "field_name": "关联衣服",
-      "type": "link",
-      "link_table": "tbl2ZnYoLX3d0QtE"
-    },
-    {
-      "field_name": "链接",
-      "type": "text"
-    },
-    {
-      "field_name": "素材编号",
-      "type": "text"
-    },
-    {
       "field_name": "适用账号",
       "type": "link",
       "link_table": "tblveO3Wzm3Foo6v"
     },
     {
-      "field_name": "生成参数",
+      "field_name": "被引用次数",
+      "type": "formula"
+    },
+    {
+      "field_name": "拍摄人",
       "type": "text"
     },
     {
@@ -33,21 +20,17 @@
       "type": "text"
     },
     {
-      "field_name": "来源",
+      "field_name": "素材编号",
+      "type": "text"
+    },
+    {
+      "field_name": "颜色",
       "type": "select",
       "options": [
-        "实拍",
-        "AI生成"
+        "月影蓝",
+        "藕荷色",
+        "茶色"
       ]
-    },
-    {
-      "field_name": "文件",
-      "type": "attachment"
-    },
-    {
-      "field_name": "关联面料·工艺",
-      "type": "link",
-      "link_table": "tbljjcr9gLk7cPbn"
     },
     {
       "field_name": "笔记表-关联素材",
@@ -73,6 +56,14 @@
       ]
     },
     {
+      "field_name": "来源",
+      "type": "select",
+      "options": [
+        "实拍",
+        "AI生成"
+      ]
+    },
+    {
       "field_name": "拍摄状态",
       "type": "select",
       "options": [
@@ -81,20 +72,29 @@
       ]
     },
     {
-      "field_name": "颜色",
-      "type": "select",
-      "options": [
-        "月影蓝",
-        "藕荷色",
-        "茶色"
-      ]
+      "field_name": "关联面料·工艺",
+      "type": "link",
+      "link_table": "tbljjcr9gLk7cPbn"
     },
     {
-      "field_name": "备注",
+      "field_name": "关联衣服",
+      "type": "link",
+      "link_table": "tbl2ZnYoLX3d0QtE"
+    },
+    {
+      "field_name": "链接",
       "type": "text"
     },
     {
-      "field_name": "拍摄人",
+      "field_name": "文件",
+      "type": "attachment"
+    },
+    {
+      "field_name": "生成参数",
+      "type": "text"
+    },
+    {
+      "field_name": "备注",
       "type": "text"
     }
   ]

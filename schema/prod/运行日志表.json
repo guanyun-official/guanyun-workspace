@@ -3,22 +3,6 @@
   "table_name": "运行日志表",
   "fields": [
     {
-      "field_name": "摘要",
-      "type": "text"
-    },
-    {
-      "field_name": "涉及记录",
-      "type": "text"
-    },
-    {
-      "field_name": "执行体",
-      "type": "text"
-    },
-    {
-      "field_name": "涉及表",
-      "type": "text"
-    },
-    {
       "field_name": "动作",
       "type": "text"
     },
@@ -41,6 +25,22 @@
     },
     {
       "field_name": "详情",
+      "type": "text"
+    },
+    {
+      "field_name": "涉及表",
+      "type": "text"
+    },
+    {
+      "field_name": "执行体",
+      "type": "text"
+    },
+    {
+      "field_name": "摘要",
+      "type": "text"
+    },
+    {
+      "field_name": "涉及记录",
       "type": "text"
     }
   ]

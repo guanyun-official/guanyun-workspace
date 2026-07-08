@@ -12,6 +12,8 @@ BLOCK="$MARK_BEGIN
 0 9 * * * cd $ROOT && $PY -m orchestrator.run --mode daily --llm real >> logs/cron.log 2>&1
 */30 9-21 * * * cd $ROOT && $PY -m orchestrator.run --mode heartbeat --llm real >> logs/cron.log 2>&1
 30 23 * * * cd $ROOT && $PY scripts/backup_tables.py >> logs/cron.log 2>&1
+# 周复盘飞轮(D2):周日20点,agent读运行日志+效果→提SKILL.md改进(人审PR,不自动merge)
+0 20 * * 0 cd $ROOT && claude -p \"读运行日志表本周记录与已回流笔记的热度分,总结哪类内容/衣服/关键词表现好,对 qiaohe-skill 的 write-xiaohongshu 或 guanyun-OOTD-text 提出 SKILL.md 改进建议并开 PR,不要自动 merge\" --max-turns 20 --max-budget-usd 1.0 >> logs/weekly.log 2>&1
 $MARK_END"
 
 case "${1:-print}" in

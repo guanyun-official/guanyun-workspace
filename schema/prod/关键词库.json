@@ -3,6 +3,15 @@
   "table_name": "关键词库",
   "fields": [
     {
+      "field_name": "被引用数",
+      "type": "formula"
+    },
+    {
+      "field_name": "笔记表-标签·关键词",
+      "type": "link",
+      "link_table": "tblHi1Htg5wntydY"
+    },
+    {
       "field_name": "灵感库-关联关键词",
       "type": "link",
       "link_table": "tblP4jlRNZGCiIU2"
@@ -19,15 +28,6 @@
         "类别",
         "文案口号"
       ]
-    },
-    {
-      "field_name": "被引用数",
-      "type": "formula"
-    },
-    {
-      "field_name": "笔记表-标签·关键词",
-      "type": "link",
-      "link_table": "tblHi1Htg5wntydY"
     }
   ]
 }
