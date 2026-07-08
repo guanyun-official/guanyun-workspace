@@ -48,14 +48,16 @@ if [ ! -f skills.lock.json ]; then
 else
   if OUT=$(python3 - <<'PY' 2>&1
 import json, os, sys
-lock = json.load(open("skills.lock.json"))
-srcs = lock["sources"]
-assert isinstance(srcs, list) and srcs, "sources 为空"
-for s in srcs:
-    for k in ("name", "repo", "local", "ref", "sha", "skills", "install"):
-        assert k in s, f"source {s.get('name','?')} 缺键 {k}"
+sys.path.insert(0, ".")
+from orchestrator import skills_lock
+lock = json.loads(open("skills.lock.json").read())
+errs = skills_lock.validate(lock)                 # 结构语义:远程须 repo+40位sha;本地 sha='local' 免 repo
+for s in lock["sources"]:                          # 部署校验:local 路径须存在
     local = os.path.expanduser(s["local"])
-    assert os.path.isdir(local), f"local 路径不存在: {local}"
+    if not os.path.isdir(local):
+        errs.append(f"local 路径不存在: {local}")
+assert not errs, "; ".join(errs)
+srcs = lock["sources"]
 print("sources=%d skills=%d" % (len(srcs), sum(len(s["skills"]) for s in srcs)))
 PY
   ); then
