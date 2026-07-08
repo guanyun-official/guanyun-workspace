@@ -10,6 +10,7 @@ from pathlib import Path
 
 from . import alerts, config, feishu_io, guard, llm
 from .runbook import Action, route
+from .runbook import _ts as _rb_ts
 
 LOCK_FILE = config.WORKSPACE / "locks" / "orchestrator.lock"
 
@@ -46,10 +47,16 @@ def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dic
     try:
         notes = feishu_io.list_records("笔记表")
         generated = 0
+        # 月度成本熔断(审查 M1):real 模式先核算,超限本轮拒绝生成
+        monthly_cost = _monthly_cost_cny() if llm_mode == "real" else 0.0
+        budget_blown = monthly_cost > config.BUDGET_MONTHLY_CNY
+        if budget_blown:
+            alerts.send(f"⚠️ 月成本 ¥{monthly_cost:.1f} 超阈 ¥{config.BUDGET_MONTHLY_CNY:.0f},本轮停止文案生成",
+                        title="成本熔断")
         pending_pub_by_account: dict[str, int] = {}
         for r in notes:
             f = r["fields"]
-            if f.get("状态") in ("待发布", "已发") and _is_today(f.get("实际发布日"), now):
+            if counts_toward_publish_quota(f, now):
                 acc = _account_of(f)
                 pending_pub_by_account[acc] = pending_pub_by_account.get(acc, 0) + 1
 
@@ -70,6 +77,9 @@ def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dic
                 elif act is Action.GEN_COPY:
                     if not guard.copy_quota_left(generated):
                         continue
+                    if budget_blown:
+                        summary["errors"].append(f"{name}: 月度预算熔断,跳过生成")
+                        continue
                     text, cost = llm.gen_copy(f, llm_mode)
                     feishu_io.update_record("笔记表", rid, {
                         "文案草稿": text, "状态": "草稿待发", "AI声明": True,
@@ -79,12 +89,11 @@ def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dic
                     feishu_io.log_run(f"文案草稿生成:{name}", "生成文案", skill="write-xiaohongshu",
                                       note_ref=name, detail=f"cost_cny={cost} llm={llm_mode}")
                 elif act is Action.ASSEMBLE_PACKAGE:
-                    fx = dict(f)
-                    fx.setdefault("AI声明", True)  # 文案由 AI 生成:组装时置位
-                    guard.assert_ai_declared(fx)
+                    # AI声明门动真格(审查 H2):不代填。GEN_COPY 会置位;人工路径必须人在表里勾。
+                    guard.assert_ai_declared(f)
                     acc = _account_of(f)
                     guard.assert_publish_quota(pending_pub_by_account.get(acc, 0))
-                    feishu_io.update_record("笔记表", rid, {"状态": "待发布", "AI声明": True})
+                    feishu_io.update_record("笔记表", rid, {"状态": "待发布"})
                     pending_pub_by_account[acc] = pending_pub_by_account.get(acc, 0) + 1
                     pkg = _package_text(f, name)
                     summary["packages"].append(pkg)
@@ -135,6 +144,14 @@ def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dic
         lf.close()
 
 
+def counts_toward_publish_quota(fields: dict, now: datetime) -> bool:
+    """控量口径(审查 H1):待发布=已排队占额(无论有没有实际发布日);已发只算今天的。纯函数可测。"""
+    st = fields.get("状态")
+    if st == "待发布":
+        return True
+    return st == "已发" and _is_today(fields.get("实际发布日"), now)
+
+
 def _monthly_cost_cny() -> float:
     """月度 LLM 成本累计:扫运行日志表本月 cost_cny= 明细(运维三件套之二)。"""
     total = 0.0
@@ -142,8 +159,8 @@ def _monthly_cost_cny() -> float:
     try:
         for r in feishu_io.list_records("运行日志表"):
             f = r["fields"]
-            ts = f.get("时间")
-            if not ts or datetime.fromtimestamp(int(ts) / 1000).strftime("%Y-%m") != month:
+            t = _rb_ts(f.get("时间"))
+            if not t or t.strftime("%Y-%m") != month:
                 continue
             detail = str(f.get("详情") or "")
             if "cost_cny=" in detail:

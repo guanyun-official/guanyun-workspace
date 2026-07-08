@@ -12,7 +12,7 @@ echo "① 纯函数单测(runbook+guard)"
 if python3 -m unittest discover -s tests 2>&1 | grep -q "^OK"; then pass "unittest OK"; else fail "unittest 失败"; fi
 
 echo "② 模拟一天(播种→引擎→断言→清场)"
-if GY_DAILY_COPY_LIMIT=10 python3 scripts/sim_day.py >/tmp/gy_sim.log 2>&1; then
+if GY_PER_RUN_COPY_LIMIT=10 python3 scripts/sim_day.py >/tmp/gy_sim.log 2>&1; then
   pass "sim_day 通过($(grep -c '✓' /tmp/gy_sim.log) 项断言)"
 else
   fail "sim_day 失败(见 /tmp/gy_sim.log)"; tail -5 /tmp/gy_sim.log | sed 's/^/    /'

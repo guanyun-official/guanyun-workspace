@@ -36,4 +36,4 @@ def assert_publish_quota(published_today_for_account: int) -> None:
 
 def copy_quota_left(generated_this_run: int) -> bool:
     """每轮文案生成配额(成本闸):超额返回 False(跳过,不抛错——非异常路径)。"""
-    return generated_this_run < config.DAILY_COPY_LIMIT
+    return generated_this_run < config.PER_RUN_COPY_LIMIT

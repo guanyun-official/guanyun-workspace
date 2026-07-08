@@ -79,6 +79,12 @@ def create_record(table_name: str, fields: dict) -> str:
     return d["record"]["record_id"]
 
 
+def delete_record(table_name: str, record_id: str) -> None:
+    _guard_write()
+    tid = config.tables()[table_name]
+    _call("DELETE", f"/open-apis/bitable/v1/apps/{config.BASE_TOKEN}/tables/{tid}/records/{record_id}")
+
+
 def log_run(summary: str, action: str, result: str = "成功", *, skill: str = "", note_ref: str = "",
             table: str = "笔记表", detail: str = "") -> None:
     """写运行日志表(9 字段契约)。日志失败只打印不阻断主流程。"""

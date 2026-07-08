@@ -75,7 +75,29 @@ class TestGuard(unittest.TestCase):
 
     def test_copy_quota(self):
         self.assertTrue(guard.copy_quota_left(0))
-        self.assertFalse(guard.copy_quota_left(config.DAILY_COPY_LIMIT))
+        self.assertFalse(guard.copy_quota_left(config.PER_RUN_COPY_LIMIT))
+
+
+class TestReviewRegressions(unittest.TestCase):
+    """P4 里程碑审查回归:H1 控量口径 / M2 _ts 容错。"""
+
+    def test_h1_pending_publish_counts_without_publish_date(self):
+        from orchestrator.engine import counts_toward_publish_quota
+        self.assertTrue(counts_toward_publish_quota({"状态": "待发布"}, NOW))  # 无实际发布日也占额
+        self.assertTrue(counts_toward_publish_quota(
+            {"状态": "已发", "实际发布日": MS(NOW)}, NOW))
+        self.assertFalse(counts_toward_publish_quota(
+            {"状态": "已发", "实际发布日": MS(datetime(2026, 7, 1))}, NOW))  # 非今日已发不占
+        self.assertFalse(counts_toward_publish_quota({"状态": "草稿待发"}, NOW))
+
+    def test_m2_ts_tolerates_list_and_dict(self):
+        from orchestrator.runbook import _ts
+        ms = MS(datetime(2026, 7, 6))
+        self.assertIsNotNone(_ts(ms))
+        self.assertIsNotNone(_ts([{"value": ms}]))
+        self.assertIsNotNone(_ts({"value": [ms]}))
+        self.assertIsNone(_ts([]))
+        self.assertIsNone(_ts(None))
 
 
 if __name__ == "__main__":

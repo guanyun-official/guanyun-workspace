@@ -51,7 +51,13 @@ def route(fields: dict, now: datetime, review_overdue_hours: int = 24, metrics_c
 
 
 def _ts(v) -> datetime | None:
-    """bitable 日期字段=毫秒时间戳(int)或空;容错字符串。"""
+    """bitable 日期字段=毫秒时间戳(int)或空;容错 list[dict]/dict(lookup/公式形态)与字符串(审查 M2)。"""
+    if isinstance(v, list):
+        v = v[0] if v else None
+    if isinstance(v, dict):
+        v = v.get("value") or v.get("text")
+        if isinstance(v, list):
+            v = v[0] if v else None
     if not v:
         return None
     if isinstance(v, (int, float)):

@@ -24,9 +24,11 @@ SEEDS = {
     "_SIM-P4-D": {"状态": "已发", "标题": "SIM回流收口", "实际发布日": MS(NOW - timedelta(days=8))},
     "_SIM-P4-E": {"状态": "待拍素材", "标题": "SIM催拍"},
     "_SIM-P4-F": {"状态": "想法储备", "标题": "SIM储备"},
+    "_SIM-P4-G": {"状态": "已批准", "标题": "SIM无声明拒绝", "文案草稿": "人工稿"},  # 无AI声明→硬闸应拒
 }
 EXPECT_STATE = {"_SIM-P4-A": "草稿待发", "_SIM-P4-B": "待发布", "_SIM-P4-C": "已发",
-                "_SIM-P4-D": "已回流", "_SIM-P4-E": "待拍素材", "_SIM-P4-F": "想法储备"}
+                "_SIM-P4-D": "已回流", "_SIM-P4-E": "待拍素材", "_SIM-P4-F": "想法储备",
+                "_SIM-P4-G": "已批准"}  # 卡在已批准=硬闸生效
 
 
 def main() -> int:
@@ -59,12 +61,12 @@ def main() -> int:
             fails.append(name)
     assert "SIM催拍" in "".join(s.get("shoot", [])) or any("_SIM-P4-E" in x for x in s.get("shoot", [])), "催拍未列入巡检"
     assert any("_SIM-P4-F" in x for x in s.get("ideas", [])), "储备未列入日报清单"
-    print("  ✓ 催拍/储备 进入摘要")
+    assert any("_SIM-P4-G" in e and "AI声明" in e for e in s.get("errors", [])), "AI声明门未拒绝无声明记录"
+    print("  ✓ 催拍/储备进入摘要;AI声明门拒绝无声明记录")
 
     print("④ 清场(_SIM 全删,只删本脚本建的 record_id)")
-    tid = config.tables()["笔记表"]
     for rid in rids.values():
-        feishu_io._call("DELETE", f"/open-apis/bitable/v1/apps/{config.BASE_TOKEN}/tables/{tid}/records/{rid}")
+        feishu_io.delete_record("笔记表", rid)
 
     if fails:
         print("❌ 模拟一天失败:", fails)
