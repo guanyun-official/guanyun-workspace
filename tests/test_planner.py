@@ -26,8 +26,22 @@ class TestPlanner(unittest.TestCase):
         }
         p = self._run(s, tables)
         self.assertTrue(p["A号"]["自动"])
-        self.assertEqual(p["A号"]["今日缓发"]["sku"], "S1")   # 有素材→可缓发
-        self.assertTrue(any(x["sku"]=="S2" for x in p["A号"]["拍摄需求"]))  # S2缺→催拍
+        self.assertEqual(p["A号"]["今日缓发"]["sku"], "S1")   # 有目标成片→可发
+        self.assertTrue(any(x["sku"]=="S2" for x in p["A号"]["拍摄需求"]))  # S2无任何素材→催拍
+
+    def test_raw_material_is_editable_not_shoot(self):
+        # 用户洞察:有原始素材(非目标成片)→交剪辑skill,不催拍
+        s = {"A号": {"account":"A号","cadence":{"posts_per_day":1},
+                    "material_needs":{"ct":["上身视频"]},"autonomy":"approve"}}
+        tables = {
+            "衣服总表":[_rec({"衣服编号":"S3","款式名称":"丙"})],
+            "笔记表":[],
+            "素材表":[_rec({"拍摄状态":"已拍","关联衣服":"S3","类型":"商品图"})],  # 有原料但非上身视频
+        }
+        p = self._run(s, tables)
+        self.assertEqual(p["A号"]["今日可剪"]["sku"], "S3")     # 有原料→可剪
+        self.assertFalse(any(x["sku"]=="S3" for x in p["A号"]["拍摄需求"]))  # 不催拍
+        self.assertEqual(p["A号"]["余量天数"], 1)              # 可剪算进余量
     def test_unlaunched_skipped(self):
         s = {"官号": {"account":"官号","mode":"叙事","cadence":{"posts_per_day":0},"posts_per_week":2,"launched":False}}
         p = self._run(s, {"衣服总表":[], "笔记表":[], "素材表":[]})

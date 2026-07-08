@@ -61,21 +61,28 @@ def plan(only: str | None = None, brand: str = "观云") -> dict:
         need_types = _all_needed_types(s)
         used = {_txt(n.get("关联衣服")) for n in notes
                 if _txt(n.get("账号(自动)")) == name and n.get("状态") in USED_STATES}
-        ready, shoot = [], []
+        # 三档(呼应用户素材洞察:原始素材池→剪辑skill剪出每号成片):
+        #   ready=有该号所需成片类型,直接发 / editable=有原始素材,AI按该号风格剪出所需(不催拍) / shoot=无任何素材,催拍
+        ready, editable, shoot = [], [], []
         for sku, style in clothes.items():
             if sku in used:
                 continue
             have = sku_types.get(sku, set())
             if need_types and (have & need_types):
                 ready.append({"sku": sku, "款式": style, "有素材": sorted(have & need_types)})
-            else:
-                shoot.append({"sku": sku, "款式": style, "要拍": sorted(need_types - have) or ["(无需求配置)"]})
+            elif have:  # 有原料但非目标成片→交剪辑skill,不催拍
+                editable.append({"sku": sku, "款式": style, "原料": sorted(have), "剪成": sorted(need_types)})
+            else:       # 无任何素材→催拍
+                shoot.append({"sku": sku, "款式": style, "要拍": sorted(need_types) or ["(无需求配置)"]})
         alert = s.get("runway_alert_days", 3)
+        runway = len(ready) + len(editable)  # 可发+可剪=真实余量(原料能剪出成片)
         out[name] = {
             "模式": s.get("mode"), "自动": True, "自主": s.get("autonomy"),
             "节奏": f"{cadence.get('posts_per_day') or s.get('posts_per_week')}/{'天' if cadence.get('posts_per_day') else '周'}",
-            "余量天数": len(ready), "素材见底": len(ready) < alert,
-            "今日缓发": ready[0] if ready else None, "就绪队列": ready, "拍摄需求": shoot,
+            "余量天数": runway, "素材见底": runway < alert,
+            "今日缓发": ready[0] if ready else None,
+            "今日可剪": editable[0] if not ready and editable else None,  # 无现成成片但有原料→AI剪
+            "就绪队列": ready, "待剪队列": editable, "拍摄需求": shoot,
         }
     return out
 
@@ -90,15 +97,20 @@ def main() -> int:
         if not d.get("自动"):
             print(f"\n━━ {name} ━━  [{d['模式']}] 引擎不自动 — {d['说明']}")
             continue
-        print(f"\n━━ {name} ━━  [{d['模式']}] {d['节奏']} 自主={d['自主']}  余量{d['余量天数']}天"
+        print(f"\n━━ {name} ━━  [{d['模式']}] {d['节奏']} 自主={d['自主']}  余量{d['余量天数']}天(可发+可剪)"
               + ("  ⚠️素材见底" if d["素材见底"] else ""))
         if d["今日缓发"]:
             t = d["今日缓发"]
-            print(f"  📮 今日发:{t['款式']}({t['sku']}) 用素材{t['有素材']}")
+            print(f"  📮 今日发:{t['款式']}({t['sku']}) 用现成成片{t['有素材']}")
+        elif d["今日可剪"]:
+            t = d["今日可剪"]
+            print(f"  ✂️ 今日剪:{t['款式']}({t['sku']}) 原料{t['原料']}→AI按本号风格剪成{t['剪成']}")
         else:
             print("  📮 队列空,今日无可发")
+        if d["待剪队列"]:
+            print(f"  ✂️ 可剪队列({len(d['待剪队列'])}):{'、'.join(x['sku'] for x in d['待剪队列'][:5])}(有原料,交剪辑skill)")
         if d["拍摄需求"]:
-            print(f"  📸 拍摄需求:")
+            print(f"  📸 拍摄需求({len(d['拍摄需求'])},无任何素材才催拍):")
             for x in d["拍摄需求"][:4]:
                 print(f"     {x['款式']}({x['sku']}) 要拍:{'/'.join(x['要拍'])}")
     return 0
