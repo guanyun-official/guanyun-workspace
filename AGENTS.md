@@ -89,3 +89,7 @@ guanyun-workspace/
 ├── brands/              # 品牌静态资产(自 AI-marketing 迁入)
 └── docs/                # PLAN.md 等
 ```
+
+## 开发 or 运营?（先读 docs/运行模式.md）
+- **运营环境 = 测试库 `ZhzJbf…`**(当前 .env + TEST_MODE=1 即上线态);生产库 `N9IVbi…` 焊死不碰。**"上线"= 在测试库挂 cron,不是切生产库。**
+- 改系统 → 开发 loop(check_p* 全绿 + ar_check 100 + issue 清零);跑内容 → 运营 loop(`install_cron.sh --install`)。
