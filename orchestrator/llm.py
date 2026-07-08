@@ -11,21 +11,36 @@ from . import config
 USD_CNY = 7.2
 
 
+def _text_of(v) -> str:
+    """bitable 字段通用取文本:link/lookup=list[dict(text)],富文本=list[dict],标量原样。"""
+    if isinstance(v, list):
+        return ",".join(x.get("text", "") if isinstance(x, dict) else str(x) for x in v)
+    if isinstance(v, dict):
+        return str(v.get("text") or v.get("link") or "")
+    return str(v or "")
+
+
 def gen_copy(note_fields: dict, mode: str = "stub") -> tuple[str, float]:
     """返回 (文案草稿, 成本_元)。mode: stub|real。"""
-    title = note_fields.get("标题") or note_fields.get("排期编号", "")
-    ctype = note_fields.get("内容类型", "")
+    title = _text_of(note_fields.get("标题")) or _text_of(note_fields.get("排期编号"))
+    ctype = _text_of(note_fields.get("内容类型"))
     if mode != "real":
         return (f"[stub 占位文案|{ctype}] {title}——由 --llm real 生成正式稿。", 0.0)
 
+    hint = _text_of(note_fields.get("脚本·分镜"))[:300]
+    # 提示词自带品牌要点(P6演练教训:让 headless 去翻仓库会烧穿预算帽),零工具直出
     prompt = (
-        f"你在观云内容工作区(已挂载技能)。为笔记「{title}」(内容类型:{ctype})写小红书文案草稿:"
-        f"标题≤20字+正文≤1000字+3-5标签。品牌调性按 brands/观云;方法按 skills/write-xiaohongshu 与 "
-        f"skills/guanyun-OOTD-text(如适用)。只输出成稿文本,不要解释。"
+        f"为观云(传统文化服装品牌,非遗面料复原/改良传统服饰)写一篇小红书笔记文案。\n"
+        f"笔记:「{title}」 内容类型:{ctype}\n"
+        f"{'线索:' + hint if hint else ''}\n"
+        f"调性:清冷、唯美、克制,不硬广;考据有据(文物对照类:钩子标题→出处稀缺性→形制工艺考据→非遗价值升华;"
+        f"ootd类:意境句式起笔→文化底蕴→版型面料→场景升华;科普类:专业可信、口语化)。\n"
+        f"格式:第一行标题(≤20字),空行,正文(≤1000字,分段,可用少量 emoji),最后一行 3-5 个#标签。\n"
+        f"只输出成稿文本,不要解释、不要读文件。"
     )
     r = subprocess.run(
-        ["claude", "-p", prompt, "--output-format", "json", "--max-turns", "6",
-         "--max-budget-usd", str(config.PER_RUN_BUDGET_USD)],
+        ["claude", "-p", prompt, "--output-format", "json", "--max-turns", "2",
+         "--max-budget-usd", str(config.PER_RUN_BUDGET_USD), "--allowedTools", ""],
         capture_output=True, text=True, timeout=600, cwd=str(config.WORKSPACE),
     )
     d = json.loads(r.stdout[r.stdout.find("{"):])

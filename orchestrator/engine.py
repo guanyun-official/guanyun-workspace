@@ -114,6 +114,10 @@ def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dic
                 summary["errors"].append(f"{name}: {ge}")
                 feishu_io.log_run(f"硬闸拒绝:{name}", act.value, result="失败", note_ref=name, detail=str(ge))
                 alerts.send(f"硬闸拒绝 {name}: {ge}")
+            except Exception as e:  # noqa: BLE001  单条失败不炸整轮(P6演练发现):记错继续,下轮自然重试
+                summary["errors"].append(f"{name}: {type(e).__name__}: {e}")
+                feishu_io.log_run(f"动作失败:{name}", act.value, result="失败", note_ref=name,
+                                  detail=f"{type(e).__name__}: {e}"[:600])
 
         if mode == "daily":
             mc = _monthly_cost_cny()
