@@ -247,8 +247,30 @@ def counts_toward_publish_quota(fields: dict, now: datetime) -> bool:
     return st == NS.PUBLISHED and _is_today(fields.get(NF.PUBLISHED_AT), now)
 
 
+# 运行日志表数值成本字段(元)——待人工迁移在测试库添加(issue#10 M3)。
+# 字段一旦建好,_cost_of_log 自动优先读它;此前历史日志继续走 详情 里 cost_cny= 的回退解析。
+COST_FIELD = "成本_元"
+
+
+def _cost_of_log(fields: dict) -> float:
+    """一条运行日志的 LLM 成本(元)。优先结构化数值字段,回退解析 详情 里的 cost_cny=。
+    把脆弱的字符串 split 隔离进这一处纯函数——可单测、契约可锁,不再散在核算循环里(审查 M3)。"""
+    v = fields.get(COST_FIELD)
+    if isinstance(v, bool):  # Bitable 不会给 bool,但 bool 是 int 子类,先挡掉防误算
+        v = None
+    if isinstance(v, (int, float)):
+        return float(v)
+    detail = str(fields.get(RLF.DETAIL) or "")
+    if "cost_cny=" in detail:
+        try:
+            return float(detail.split("cost_cny=")[1].split()[0])
+        except (ValueError, IndexError):
+            return 0.0
+    return 0.0
+
+
 def _monthly_cost_cny() -> float:
-    """月度 LLM 成本累计:扫运行日志表本月 cost_cny= 明细(运维三件套之二)。"""
+    """月度 LLM 成本累计:扫运行日志表本月成本(运维三件套之二)。"""
     total = 0.0
     month = datetime.now().strftime("%Y-%m")
     try:
@@ -257,12 +279,7 @@ def _monthly_cost_cny() -> float:
             t = _rb_ts(f.get(RLF.TIME))
             if not t or t.strftime("%Y-%m") != month:
                 continue
-            detail = str(f.get(RLF.DETAIL) or "")
-            if "cost_cny=" in detail:
-                try:
-                    total += float(detail.split("cost_cny=")[1].split()[0])
-                except (ValueError, IndexError):
-                    pass
+            total += _cost_of_log(f)
     except Exception as e:  # noqa: BLE001
         print(f"[月成本核算降级] {e}")
     return round(total, 2)

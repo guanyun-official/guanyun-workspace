@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from orchestrator import alerts, engine, feishu_io, reminders  # noqa: E402
 from orchestrator.bitable import NoteFields as NF  # noqa: E402
 from orchestrator.bitable import NoteStatus as NS  # noqa: E402
+from orchestrator.bitable import RunLogFields as RLF  # noqa: E402
 
 MS = lambda dt: int(dt.timestamp() * 1000)  # noqa: E731
 NOW = datetime.now()
@@ -94,6 +95,33 @@ class TestActionHandlers(unittest.TestCase):
         self.assertEqual(len(summary["review"]), 1, "超时未审应催审")
         self.assertIn("PQ-REV", summary["review"][0])
         self.assertEqual(updates, [], "催审只提醒不写回")
+
+
+class TestCostAccounting(unittest.TestCase):
+    """成本核算契约(M3):_cost_of_log 优先结构化数值字段,回退解析 详情 里的 cost_cny=。
+
+    why:月成本核算是预算熔断(防 real 模式 LLM 烧穿)的基准。这段字符串 split 一漂
+    (详情格式变了/取不到),核算静默归零 → 熔断永不触发 → 跑量烧钱无人察觉。把契约钉死:
+    结构化字段在则用它、否则从 详情 稳健取、取不到算 0 绝不炸。纯函数,零网络。"""
+
+    def test_prefers_structured_cost_field(self):
+        self.assertEqual(engine._cost_of_log({engine.COST_FIELD: 1.25, RLF.DETAIL: "cost_cny=9.9"}), 1.25,
+                         "结构化 成本_元 字段在时应优先于 详情 解析")
+
+    def test_falls_back_to_detail_parse(self):
+        self.assertEqual(engine._cost_of_log({RLF.DETAIL: "cost_cny=0.35 llm=real 格式=图文"}), 0.35)
+
+    def test_missing_cost_is_zero(self):
+        self.assertEqual(engine._cost_of_log({RLF.DETAIL: "无成本信息"}), 0.0)
+        self.assertEqual(engine._cost_of_log({}), 0.0)
+
+    def test_malformed_detail_is_zero_not_crash(self):
+        self.assertEqual(engine._cost_of_log({RLF.DETAIL: "cost_cny=abc"}), 0.0)
+        self.assertEqual(engine._cost_of_log({RLF.DETAIL: "cost_cny="}), 0.0)
+
+    def test_bool_not_miscounted(self):
+        # bool 是 int 子类,不挡掉的话 True 会被当成 ¥1.0 误算
+        self.assertEqual(engine._cost_of_log({engine.COST_FIELD: True, RLF.DETAIL: "cost_cny=2.0"}), 2.0)
 
 
 if __name__ == "__main__":
