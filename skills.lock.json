@@ -1,0 +1,42 @@
+{
+  "_note": "技能安装清单(docs/PLAN.md §P1 / 审查 C1)。scripts/install_skills.sh 按此把技能 symlink 进 skills/(不入库)。技能目录:qiaohe-skill 在仓库根,video-engine 在 skills/ 下(install 脚本自动探测)。升级技能 = 源仓库拉新 → 更新 sha → 重跑 install。",
+  "sources": [
+    {
+      "name": "qiaohe-skill",
+      "repo": "https://github.com/guanyun-official/qiaohe-skill.git",
+      "local": "~/Githubs/qiaohe-skill",
+      "ref": "main",
+      "sha": "43358990994a913d110ae214a138399f3f21630a",
+      "skills": [
+        "content-writing",
+        "feishu-requirement-manager",
+        "guanyun-OOTD-text",
+        "issue-tracker",
+        "qiaohe-amateur-miner",
+        "qiaohe-video-script",
+        "searxng",
+        "write-xiaohongshu",
+        "xhs-audience-miner",
+        "xhs-extract-master",
+        "xiaohongshu",
+        "xiaohongshu-cover-generator",
+        "xiaohongshu-images",
+        "xiaohongshu-note-analyzer"
+      ],
+      "install": "symlink"
+    },
+    {
+      "name": "video-engine",
+      "repo": "https://github.com/xinzhuwang-wxz/video-engine.git",
+      "local": "~/Githubs/video-engine",
+      "ref": "main",
+      "sha": "493ac7f8388c73612d23838c01dc41ec3e013ce6",
+      "skills": [
+        "video-storyboard",
+        "video-previz",
+        "video-editing"
+      ],
+      "install": "symlink"
+    }
+  ]
+}
