@@ -215,9 +215,11 @@ def _digest(s: dict, now: datetime) -> str:
     if s["ideas"]:
         lines.append(f"想法储备 {len(s['ideas'])}:{'、'.join(s['ideas'][:5])}")
     if s["shoot"]:
-        lines.append(f"催拍 {len(s['shoot'])}:{'、'.join(s['shoot'][:5])}")
+        lines.append(f"催拍 {len(s['shoot'])}:")
+        lines += [f"· {x}" for x in s["shoot"][:5]]  # F4:每条一行,手机可扫
     if s["review"]:
-        lines.append(f"催审(>{config.REVIEW_OVERDUE_HOURS}h) {len(s['review'])}:{'、'.join(s['review'][:5])}")
+        lines.append(f"催审(>{config.REVIEW_OVERDUE_HOURS}h) {len(s['review'])}:")
+        lines += [f"· {x}" for x in s["review"][:5]]
     if s["packages"]:
         lines.append(f"发布包 {len(s['packages'])} 个已推送")
     if s.get("metrics_todo"):  # F3:幽灵动作显形
