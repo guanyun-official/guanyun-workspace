@@ -16,7 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from orchestrator import bitable
+from orchestrator import bitable, engine
 
 
 def _schema_field_names(table_name: str) -> set[str]:
@@ -68,6 +68,28 @@ class TestStatusValueContract(unittest.TestCase):
         self.assertEqual(
             illegal, [],
             f"NoteStatus 这些取值不在「{bitable.NoteStatus.FIELD}」select 枚举(UI 改/删选项?):{illegal}")
+
+
+class TestCostFieldMigrationGuard(unittest.TestCase):
+    """M3 迁移守卫:成本_元 数值字段一旦在测试库运行日志表建好,engine.COST_FIELD 必须与
+    schema 里的实际字段名严格一致,并登记进 RunLogFields。否则 _cost_of_log 会永远静默走
+    detail 回退——正是契约锁要防的静默漂移。字段还没建时本测试自动跳过(不误报)。
+
+    这道守卫是自激活的:字段一出现,断言立即生效,逼开发者把 COST_FIELD 对齐 schema
+    并补进常量层;不用记得在迁移后手动加测试。"""
+
+    def test_cost_field_aligned_once_migrated(self):
+        runlog = _schema_field_names(bitable.RunLogFields.TABLE)
+        cost_like = sorted(f for f in runlog if "成本" in f or "花费" in f)
+        if not cost_like:
+            self.skipTest("成本_元 数值字段尚未迁移到测试库运行日志表(issue#10 M3);字段建好后本测试自动生效")
+        self.assertIn(
+            engine.COST_FIELD, runlog,
+            f"运行日志表已有成本类字段 {cost_like},但 engine.COST_FIELD={engine.COST_FIELD!r} 不在其中"
+            f"——_cost_of_log 会永远走 detail 回退(静默漂移),请把 COST_FIELD 对齐 schema 实际字段名")
+        self.assertIn(
+            engine.COST_FIELD, bitable.declared_field_names(bitable.RunLogFields),
+            f"{engine.COST_FIELD!r} 已建但未登记进 RunLogFields——请补常量,让契约锁覆盖它")
 
 
 if __name__ == "__main__":
