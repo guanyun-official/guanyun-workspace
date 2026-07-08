@@ -15,8 +15,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from orchestrator import bitable, feishu_io  # noqa: E402
+from orchestrator.bitable import ClothesFields as CF  # noqa: E402
+from orchestrator.bitable import MaterialFields as MF  # noqa: E402
+from orchestrator.bitable import MaterialStatus as MS  # noqa: E402
+from orchestrator.bitable import NoteFields as NF  # noqa: E402
+from orchestrator.bitable import NoteStatus as NS  # noqa: E402
 
-USED_STATES = {"已发", "待发布", "已批准", "草稿待发", "待出文案"}
+# 已占用该 SKU 的在制状态(有此状态的笔记 → planner 不再重复排该 SKU)
+USED_STATES = {NS.NEED_COPY, NS.DRAFT_PENDING, NS.APPROVED, NS.TO_PUBLISH, NS.PUBLISHED}
 
 _txt = bitable.text  # 候选A:统一字段取文本
 
@@ -36,17 +42,17 @@ def _all_needed_types(strategy: dict) -> set:
 
 def plan(only: str | None = None, brand: str = "观云") -> dict:
     strategies = load_strategies(brand)
-    clothes = {_txt(c["fields"].get("衣服编号")): _txt(c["fields"].get("款式名称"))
-               for c in feishu_io.list_records("衣服总表") if _txt(c["fields"].get("衣服编号"))}
+    clothes = {_txt(c["fields"].get(CF.CODE)): _txt(c["fields"].get(CF.NAME))
+               for c in feishu_io.list_records("衣服总表") if _txt(c["fields"].get(CF.CODE))}
     notes = [n["fields"] for n in feishu_io.list_records("笔记表")]
     mats = [m["fields"] for m in feishu_io.list_records("素材表")]
 
     sku_types: dict[str, set] = {}
     for m in mats:
-        if m.get("拍摄状态") == "已拍":
-            for sku in _txt(m.get("关联衣服")).split(","):
+        if m.get(MF.SHOT_STATUS) == MS.SHOT:
+            for sku in _txt(m.get(MF.LINKED_CLOTHES)).split(","):
                 if sku.strip():
-                    sku_types.setdefault(sku.strip(), set()).add(str(m.get("类型")))
+                    sku_types.setdefault(sku.strip(), set()).add(str(m.get(MF.TYPE)))
 
     out: dict[str, dict] = {}
     for name, s in strategies.items():
@@ -59,8 +65,8 @@ def plan(only: str | None = None, brand: str = "观云") -> dict:
                          "说明": f"{s.get('notes','')}(声明为 {cadence.get('pattern','manual')},引擎不自动排)"}
             continue
         need_types = _all_needed_types(s)
-        used = {_txt(n.get("关联衣服")) for n in notes
-                if _txt(n.get("账号(自动)")) == name and n.get("状态") in USED_STATES}
+        used = {_txt(n.get(NF.LINKED_CLOTHES)) for n in notes
+                if _txt(n.get(NF.ACCOUNT)) == name and n.get(NF.STATUS) in USED_STATES}
         # 三档(呼应用户素材洞察:原始素材池→剪辑skill剪出每号成片):
         #   ready=有该号所需成片类型,直接发 / editable=有原始素材,AI按该号风格剪出所需(不催拍) / shoot=无任何素材,催拍
         ready, editable, shoot = [], [], []

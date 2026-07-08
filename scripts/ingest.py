@@ -23,6 +23,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from orchestrator import feishu_io  # noqa: E402
+from orchestrator.bitable import ClothesFields as CF  # noqa: E402
+from orchestrator.bitable import MaterialFields as MF  # noqa: E402
+from orchestrator.bitable import MaterialSource as MSrc  # noqa: E402
+from orchestrator.bitable import MaterialStatus as MS  # noqa: E402
 
 ASSET_ROOT = Path(os.environ.get("GY_ASSET_ROOT", str(Path.home() / "素材库")))
 
@@ -64,30 +68,30 @@ def _clothes_map() -> dict:
     from orchestrator import bitable
     m = {}
     for c in feishu_io.list_records("衣服总表"):
-        code = bitable.text(c["fields"].get("衣服编号"))
+        code = bitable.text(c["fields"].get(CF.CODE))
         if code:
             m[code] = c["record_id"]
     return m
 
 
 def register(sku: str, code: str, mtype: str, link_path: str, note: str = "",
-             source: str = "实拍", link_sku: str | None = None, accounts: list | None = None) -> str:
+             source: str = MSrc.REAL, link_sku: str | None = None, accounts: list | None = None) -> str:
     """登记素材进测试库素材表 + **挂 SKU**(解决'素材没跟SKU挂钩乱')。
     link_sku=衣服编号(如 GY-001);挂不上(SKU 不存在)则留孤儿并在返回打标。"""
     fields = {
-        "素材编号": code,
-        "类型": mtype,
-        "链接": {"link": f"file://{link_path}", "text": Path(link_path).name},
-        "拍摄状态": "已拍",
-        "来源": source,
-        "备注": note,
+        MF.CODE: code,
+        MF.TYPE: mtype,
+        MF.LINK: {"link": f"file://{link_path}", "text": Path(link_path).name},
+        MF.SHOT_STATUS: MS.SHOT,
+        MF.SOURCE: source,
+        MF.NOTE: note,
     }
     target = link_sku or sku
     cmap = _clothes_map()
     if target in cmap:
-        fields["关联衣服"] = [cmap[target]]  # 摄入即挂 SKU,不再是孤儿
+        fields[MF.LINKED_CLOTHES] = [cmap[target]]  # 摄入即挂 SKU,不再是孤儿
     if accounts:
-        fields["适用账号"] = accounts
+        fields[MF.ACCOUNTS] = accounts
     return feishu_io.create_record("素材表", fields)
 
 
@@ -98,9 +102,9 @@ def orphans() -> list[dict]:
     out = []
     for m in feishu_io.list_records("素材表"):
         f = m["fields"]
-        if not _t(f.get("关联衣服")).strip() and not _t(f.get("关联面料·工艺")).strip():
-            out.append({"record_id": m["record_id"], "素材编号": _t(f.get("素材编号")),
-                        "类型": f.get("类型"), "备注": _t(f.get("备注"))})
+        if not _t(f.get(MF.LINKED_CLOTHES)).strip() and not _t(f.get(MF.LINKED_CRAFT)).strip():
+            out.append({"record_id": m["record_id"], "素材编号": _t(f.get(MF.CODE)),
+                        "类型": f.get(MF.TYPE), "备注": _t(f.get(MF.NOTE))})
     return out
 
 
