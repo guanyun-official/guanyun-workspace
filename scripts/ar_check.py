@@ -24,8 +24,8 @@ ck("技能动起来", f"技能装好({skills_n})+可执行调用路径(ingest/�
 ck("loop承载","orchestrator引擎存在(cron+heartbeat)", (ROOT/"orchestrator/engine.py").exists() and (ROOT/"orchestrator/run.py").exists(), "engine.py+run.py")
 
 # P3 每天发什么
-from orchestrator import config, feishu_io
-from orchestrator.runbook import route, Action
+from orchestrator import feishu_io, accounts
+from orchestrator.runbook import route
 try:
     notes = feishu_io.list_records("笔记表")
     now=datetime.now()
@@ -34,7 +34,8 @@ try:
         a=route(r["fields"],now)
         acts[a.value]=acts.get(a.value,0)+1
     has_planner=(ROOT/"scripts/planner.py").exists()
-    n_strat=len(list((ROOT/"brands/观云/accounts").glob("*.strategy.json")))
+    # 与 planner 同源:数引擎实际解析出的 strategy 声明(候选C 后声明在 {号}.md frontmatter,不再是 *.strategy.json 文件)
+    n_strat=sum(1 for a in accounts.load_all("观云").values() if a.strategy)
     ck("每天发什么","planner读账号strategy缓发排产(每号声明模式)", len(acts)>0 and has_planner and n_strat>=3, f"动作{acts}+planner+{n_strat}个strategy声明")
     ck("模式泛化","加模式=写strategy声明零代码(引擎通用解释)", has_planner and n_strat>=3, f"{n_strat}个账号模式=data,planner通用解释")
 except Exception as e:

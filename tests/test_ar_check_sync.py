@@ -1,0 +1,49 @@
+"""回归锁:ar_check 的「strategy 声明」计数必须与引擎(accounts.load_all)同源。
+
+历史 bug:候选C 重构把 {号}.strategy.json 塌成 {号}.md 的 JSON frontmatter,
+planner 随之迁到 accounts.load_all;但 ar_check.py 仍按 *.strategy.json 文件后缀数,
+命中 0 个 → P3「每天发什么」+「模式泛化」失败 → SCORE 从 100 掉到 80。
+本测试锁住:验收脚本不得再按已废弃的文件后缀数声明,必须复用引擎加载器。
+零网络(只读源码 + 读 md frontmatter)。
+"""
+import re
+import sys
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from orchestrator import accounts  # noqa: E402
+
+# 匹配对已废弃后缀的实际 glob 调用(任意引号);注释里提及历史 bug 不算(允许文档化)。
+_DEAD_GLOB = re.compile(r"""glob\(\s*['"]\*\.strategy\.json""")
+
+
+class TestArCheckSync(unittest.TestCase):
+    def test_no_dead_strategy_json_glob(self):
+        """ar_check 不得再 glob *.strategy.json 数声明(候选C 后该后缀已不存在)。"""
+        src = (ROOT / "scripts" / "ar_check.py").read_text(encoding="utf-8")
+        self.assertIsNone(
+            _DEAD_GLOB.search(src),
+            "ar_check 仍在 glob 已废弃的 *.strategy.json 后缀数声明——应复用 accounts.load_all 同源计数",
+        )
+
+    def test_ar_check_reuses_engine_loader(self):
+        """强制 ar_check 与 planner 同源:引用 accounts 加载器,而非另写一套文件约定。"""
+        src = (ROOT / "scripts" / "ar_check.py").read_text(encoding="utf-8")
+        self.assertIn(
+            "accounts", src,
+            "ar_check 应复用 orchestrator.accounts(与 planner 同源),避免声明格式漂移",
+        )
+
+    def test_engine_sees_declarations(self):
+        """数据前提:引擎从 {号}.md 至少解析出 3 个非空 strategy 声明(ar_check 通过的门槛)。"""
+        declared = {n: a.strategy for n, a in accounts.load_all("观云").items() if a.strategy}
+        self.assertGreaterEqual(
+            len(declared), 3,
+            f"accounts.load_all 只解析出 {len(declared)} 个 strategy 声明,ar_check 需 >=3",
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()
