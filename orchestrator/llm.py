@@ -16,11 +16,12 @@ def _text_of(v) -> str:
 
 
 def _account_profile(account: str, brand: str = "观云") -> str:
-    """加载账号画像(每号一份 data,account-teardown 填充)注入生成。缺则空(降级通用品牌法)。"""
+    """加载账号画像 prose(候选C:统一 Account 定义的正文,不含 frontmatter)注入生成。缺则空(降级通用)。"""
     if not account:
         return ""
-    p = config.WORKSPACE / "brands" / brand / "accounts" / f"{account}.md"
-    return p.read_text(encoding="utf-8")[:1200] if p.exists() else ""
+    from . import accounts
+    acc = accounts.load(account, brand)
+    return acc.profile_text[:1200] if acc else ""
 
 
 def gen_copy(note_fields: dict, mode: str = "stub") -> tuple[str, float]:

@@ -10,12 +10,11 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from orchestrator import bitable, config, feishu_io  # noqa: E402
+from orchestrator import bitable, feishu_io  # noqa: E402
 
 USED_STATES = {"已发", "待发布", "已批准", "草稿待发", "待出文案"}
 
@@ -23,12 +22,9 @@ _txt = bitable.text  # 候选A:统一字段取文本
 
 
 def load_strategies(brand: str = "观云") -> dict:
-    """读所有账号策略声明。加账号/改模式=改这些文件,不动代码。"""
-    d = {}
-    for p in (config.WORKSPACE / "brands" / brand / "accounts").glob("*.strategy.json"):
-        s = json.loads(p.read_text(encoding="utf-8"))
-        d[s["account"]] = s
-    return d
+    """读所有账号策略(候选C:统一 Account 定义的 frontmatter)。加账号/改模式=改 {号}.md,不动代码。"""
+    from orchestrator import accounts
+    return {name: acc.strategy for name, acc in accounts.load_all(brand).items()}
 
 
 def _all_needed_types(strategy: dict) -> set:
