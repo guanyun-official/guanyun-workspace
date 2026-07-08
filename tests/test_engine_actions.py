@@ -97,6 +97,27 @@ class TestActionHandlers(unittest.TestCase):
         self.assertEqual(updates, [], "催审只提醒不写回")
 
 
+class TestUnknownStatusDrift(unittest.TestCase):
+    """状态漂移告警:笔记出现引擎不认识的状态(疑似有人在飞书 UI 加了新 select 选项)→
+    显性告警,绝不静默 NOOP。
+
+    why:route 对未知状态返回 NOOP,引擎原样跳过。若运营在飞书加了个「待复审」状态并把笔记
+    拖过去,这些笔记会静默卡死——日报里查无此人、无人知道推进器不认识这个状态。这里把
+    「未识别状态」钉成一条告警,让状态机 UI 漂移当场显形(呼应本仓库反漂移主线)。"""
+
+    def test_unknown_status_surfaces_and_alerts(self):
+        summary, updates, sent = run_one({NF.STATUS: "待复审", NF.CODE: "PQ-UNK"})
+        self.assertTrue(any("PQ-UNK" in u for u in summary.get("unknown_status", [])),
+                        "未识别状态应进 unknown_status 清单")
+        self.assertEqual(updates, [], "未识别状态不应触发任何写回(不猜、不推进)")
+        self.assertTrue(any("漂移" in t for t, _txt in sent), "未识别状态应触发状态漂移告警")
+
+    def test_known_status_no_drift_alert(self):
+        summary, _, sent = run_one({NF.STATUS: NS.IDEA, NF.CODE: "PQ-OK"})
+        self.assertEqual(summary.get("unknown_status", []), [], "已知状态不应误报状态漂移")
+        self.assertFalse(any("漂移" in t for t, _txt in sent), "已知状态不应触发漂移告警")
+
+
 class TestCostAccounting(unittest.TestCase):
     """成本核算契约(M3):_cost_of_log 优先结构化数值字段,回退解析 详情 里的 cost_cny=。
 

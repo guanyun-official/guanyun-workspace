@@ -17,6 +17,10 @@ from .runbook import Action, route
 
 LOCK_FILE = config.WORKSPACE / "locks" / "orchestrator.lock"
 
+# 引擎认识的状态全集(=状态机 NoteStatus 的 9 个取值)。笔记状态落在此集之外 = UI 加了
+# 推进器不认识的状态,应显性告警而非静默 NOOP(反漂移主线;runbook 注释承诺的"记告警"在此兑现)。
+_KNOWN_STATUSES = frozenset(bitable.declared_field_names(bitable.NoteStatus))
+
 
 def _account_of(fields: dict) -> str:
     return bitable.text(fields.get(NF.ACCOUNT)) or "未知账号"  # 委托 adapter(候选A:去重)
@@ -171,7 +175,7 @@ def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dic
 
     now = datetime.now()
     summary: dict = {"mode": mode, "env": config.ENV_NAME, "actions": [], "ideas": [], "shoot": [],
-                     "review": [], "packages": [], "errors": [], "copy_cost_cny": 0.0}
+                     "review": [], "packages": [], "errors": [], "unknown_status": [], "copy_cost_cny": 0.0}
     try:
         notes = feishu_io.list_records("笔记表")
         # 月度成本熔断(审查 M1):real 模式先核算,超限本轮拒绝生成
@@ -187,6 +191,9 @@ def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dic
             if counts_toward_publish_quota(f, now):
                 acc = _account_of(f)
                 pending_pub_by_account[acc] = pending_pub_by_account.get(acc, 0) + 1
+            st = bitable.text(f.get(NF.STATUS)).strip()
+            if st and st not in _KNOWN_STATUSES:  # UI 加了引擎不认识的状态:显性记录不静默
+                summary["unknown_status"].append(f"{_title_of(f)}: 未识别状态「{st}」")
 
         ctx = _Ctx(now=now, fmt_map=fmt_map, budget_blown=budget_blown, llm_mode=llm_mode,
                    summary=summary, pending_pub_by_account=pending_pub_by_account)
@@ -210,6 +217,11 @@ def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dic
                                   detail=f"{type(e).__name__}: {e}"[:600])
         generated = ctx.generated
 
+        if summary["unknown_status"]:  # 状态漂移:UI 出现引擎不认识的状态,显性告警不静默卡死
+            alerts.send(
+                f"⚠️ {len(summary['unknown_status'])} 条笔记状态推进器不认识(疑似飞书 UI 加了新状态,"
+                f"这些笔记会静默卡死):\n" + "\n".join(f"· {x}" for x in summary["unknown_status"][:8]),
+                title="状态漂移告警")
         if mode == "daily":
             mc = _monthly_cost_cny()
             summary["monthly_cost_cny"] = mc
@@ -320,6 +332,8 @@ def _digest(s: dict, now: datetime) -> str:
     if s.get("next_产物"):  # 格式感知:图文需配图/视频走视频链
         lines.append(f"待产物 {len(s['next_产物'])}:")
         lines += [f"· {x}" for x in s["next_产物"][:5]]
+    if s.get("unknown_status"):  # 状态漂移显形
+        lines.append(f"⚠️ 未识别状态 {len(s['unknown_status'])}:{'、'.join(s['unknown_status'][:5])}")
     if s["errors"]:
         lines.append(f"⚠️ 错误 {len(s['errors'])}:{s['errors'][:2]}")
     if s["copy_cost_cny"]:
