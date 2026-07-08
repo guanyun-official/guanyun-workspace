@@ -1,0 +1,38 @@
+{
+  "table_id": "tblabbr3dK41LjzH",
+  "table_name": "素人推广案例",
+  "fields": [
+    {
+      "field_name": "笔记链接",
+      "type": "text"
+    },
+    {
+      "field_name": "小红书号",
+      "type": "text"
+    },
+    {
+      "field_name": "内容类型",
+      "type": "text"
+    },
+    {
+      "field_name": "补充说明",
+      "type": "text"
+    },
+    {
+      "field_name": "博主主页",
+      "type": "text"
+    },
+    {
+      "field_name": "博主名字",
+      "type": "text"
+    },
+    {
+      "field_name": "添加时间",
+      "type": "datetime"
+    },
+    {
+      "field_name": "推广方式",
+      "type": "text"
+    }
+  ]
+}

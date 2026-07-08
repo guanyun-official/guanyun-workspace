@@ -1,0 +1,101 @@
+{
+  "table_id": "tblzR7xcNNhCsMGs",
+  "table_name": "素材表",
+  "fields": [
+    {
+      "field_name": "拍摄状态",
+      "type": "select",
+      "options": [
+        "待拍",
+        "已拍"
+      ]
+    },
+    {
+      "field_name": "适用账号",
+      "type": "link",
+      "link_table": "tblBAkf3a9OBlOwP"
+    },
+    {
+      "field_name": "类型",
+      "type": "select",
+      "options": [
+        "商品图",
+        "形象图",
+        "细节图",
+        "上身视频",
+        "上身图",
+        "搭配图",
+        "空镜·场景",
+        "工艺特写",
+        "制作过程视频",
+        "面料·纹理特写",
+        "文物原图",
+        "文物对照图"
+      ]
+    },
+    {
+      "field_name": "备注",
+      "type": "text"
+    },
+    {
+      "field_name": "拍摄人",
+      "type": "text"
+    },
+    {
+      "field_name": "关联衣服",
+      "type": "link",
+      "link_table": "tblfxRrrHpzDGZvN"
+    },
+    {
+      "field_name": "文件",
+      "type": "attachment"
+    },
+    {
+      "field_name": "素材编号",
+      "type": "text"
+    },
+    {
+      "field_name": "来源",
+      "type": "select",
+      "options": [
+        "实拍",
+        "AI生成"
+      ]
+    },
+    {
+      "field_name": "被引用次数",
+      "type": "formula"
+    },
+    {
+      "field_name": "关联面料·工艺",
+      "type": "link",
+      "link_table": "tblNNNpKKHldnrK5"
+    },
+    {
+      "field_name": "生成参数",
+      "type": "text"
+    },
+    {
+      "field_name": "拍摄要求",
+      "type": "text"
+    },
+    {
+      "field_name": "链接",
+      "type": "text"
+    },
+    {
+      "field_name": "笔记表-关联素材",
+      "type": "link",
+      "link_table": "tblsiceNwWpidwAG"
+    },
+    {
+      "field_name": "颜色",
+      "type": "select",
+      "options": [
+        "月影蓝",
+        "藕荷色",
+        "茶色"
+      ]
+    }
+  ]
+}
