@@ -71,9 +71,9 @@ def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dic
                 if act is Action.LIST_IDEA:
                     summary["ideas"].append(name)
                 elif act is Action.REMIND_SHOOT:
-                    summary["shoot"].append(name)
+                    summary["shoot"].append(f"{name} {config.record_url('笔记表', rid)}")
                 elif act is Action.REMIND_REVIEW:
-                    summary["review"].append(name)
+                    summary["review"].append(f"{name} {config.record_url('笔记表', rid)}")
                 elif act is Action.GEN_COPY:
                     if not guard.copy_quota_left(generated):
                         continue
@@ -95,7 +95,7 @@ def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dic
                     guard.assert_publish_quota(pending_pub_by_account.get(acc, 0))
                     feishu_io.update_record("笔记表", rid, {"状态": "待发布"})
                     pending_pub_by_account[acc] = pending_pub_by_account.get(acc, 0) + 1
-                    pkg = _package_text(f, name)
+                    pkg = _package_text(f, name, config.record_url("笔记表", rid))
                     summary["packages"].append(pkg)
                     feishu_io.log_run(f"发布包就绪:{name}", "组装发布包", result="待人审",
                                       note_ref=name, detail=pkg[:300])
@@ -182,9 +182,9 @@ def _is_today(ms, now: datetime) -> bool:
         return False
 
 
-def _package_text(f: dict, name: str) -> str:
+def _package_text(f: dict, name: str, url: str = "") -> str:
     draft = str(f.get("文案草稿") or "")[:120]
-    return (f"发布包|{name}|{_account_of(f)}\n文案:{draft}…\n"
+    return (f"发布包|{name}|{_account_of(f)}\n文案:{draft}…\n记录:{url}\n"
             f"⚠️ 发布时必须在小红书 App 勾选「AI 生成」声明;发完把链接回填「发布链接」。")
 
 

@@ -40,6 +40,14 @@ BUDGET_MONTHLY_CNY = float(os.environ.get("GY_BUDGET_MONTHLY_CNY", "300"))  # �
 PER_RUN_BUDGET_USD = float(os.environ.get("GY_PER_RUN_BUDGET_USD", "0.5"))  # 单次 claude -p 预算帽
 
 
+TENANT_HOST = os.environ.get("GY_TENANT_HOST", "ccn925h7lg9d.feishu.cn")
+
+
+def record_url(table_name: str, record_id: str) -> str:
+    """记录深链:飞书卡片/消息里一点直达该行(P5)。"""
+    return f"https://{TENANT_HOST}/base/{BASE_TOKEN}?table={tables()[table_name]}&record={record_id}"
+
+
 def tables(env: str | None = None) -> dict[str, str]:
     """表名→table_id(按名注入,唯一取表入口)。"""
     e = env or ENV_NAME
