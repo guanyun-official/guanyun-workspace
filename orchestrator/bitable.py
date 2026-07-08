@@ -14,6 +14,7 @@ from datetime import datetime
 
 class NoteFields:
     """笔记表字段词汇(取代散落 90+ 裸字符串;飞书改名只改这里)。"""
+    TABLE = "笔记表"
     CODE = "排期编号"
     TITLE = "标题"
     STATUS = "状态"
@@ -30,6 +31,7 @@ class NoteFields:
 
 
 class MaterialFields:
+    TABLE = "素材表"
     CODE = "素材编号"
     TYPE = "类型"
     LINK = "链接"
@@ -39,6 +41,13 @@ class MaterialFields:
     LINKED_CLOTHES = "关联衣服"
     LINKED_CRAFT = "关联面料·工艺"
     ACCOUNTS = "适用账号"
+
+
+def declared_field_names(fieldset: type) -> list[str]:
+    """字段词汇类里声明的字段名(UPPERCASE 常量,排除 TABLE 元属性)——供 schema 契约校验:
+    代码消费 ⊆ 声明。飞书 UI 改字段名而代码没跟上 → 契约测试红,不静默漂移。"""
+    return [v for k, v in vars(fieldset).items()
+            if k.isupper() and k != "TABLE" and isinstance(v, str)]
 
 
 def text(v) -> str:
