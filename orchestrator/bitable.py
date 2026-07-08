@@ -43,11 +43,31 @@ class MaterialFields:
     ACCOUNTS = "适用账号"
 
 
+class NoteStatus:
+    """笔记状态机取值(状态列 select 枚举;写回只能用声明过的值,否则飞书拒写/静默落空)。
+    状态机: 想法储备→待拍素材→待出文案→草稿待发(=待审)→已批准→待发布→已发→已回流;暂缓归档旁路。"""
+    TABLE = "笔记表"
+    FIELD = "状态"
+    IDEA = "想法储备"
+    NEED_SHOOT = "待拍素材"
+    NEED_COPY = "待出文案"
+    DRAFT_PENDING = "草稿待发"  # =待审:人审卡点
+    APPROVED = "已批准"
+    TO_PUBLISH = "待发布"
+    PUBLISHED = "已发"
+    LOOPED_BACK = "已回流"
+    ON_HOLD = "暂缓归档"
+
+
+# 元属性(定位 schema 用,非字段/取值本身),契约收集时排除
+_META_ATTRS = frozenset({"TABLE", "FIELD"})
+
+
 def declared_field_names(fieldset: type) -> list[str]:
-    """字段词汇类里声明的字段名(UPPERCASE 常量,排除 TABLE 元属性)——供 schema 契约校验:
-    代码消费 ⊆ 声明。飞书 UI 改字段名而代码没跟上 → 契约测试红,不静默漂移。"""
+    """字段词汇/取值类里声明的常量值(UPPERCASE,排除 TABLE/FIELD 元属性)——供 schema 契约校验:
+    代码消费 ⊆ 声明。飞书 UI 改字段名/删 select 选项而代码没跟上 → 契约测试红,不静默漂移。"""
     return [v for k, v in vars(fieldset).items()
-            if k.isupper() and k != "TABLE" and isinstance(v, str)]
+            if k.isupper() and k not in _META_ATTRS and isinstance(v, str)]
 
 
 def text(v) -> str:

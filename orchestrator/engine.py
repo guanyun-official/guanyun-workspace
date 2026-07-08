@@ -10,6 +10,7 @@ from pathlib import Path
 
 from . import alerts, bitable, config, feishu_io, guard, llm, reminders
 from .bitable import NoteFields as NF
+from .bitable import NoteStatus as NS
 from .bitable import parse_ts as _rb_ts
 from .runbook import Action, route
 
@@ -118,7 +119,7 @@ def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dic
                         continue
                     text, cost = llm.gen_copy(f, llm_mode)
                     feishu_io.update_record("笔记表", rid, {
-                        "文案草稿": text, "状态": "草稿待发", "AI声明": True,
+                        NF.DRAFT: text, NF.STATUS: NS.DRAFT_PENDING, NF.AI_DECLARED: True,
                     })
                     generated += 1
                     summary["copy_cost_cny"] += cost
@@ -131,7 +132,7 @@ def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dic
                     guard.assert_ai_declared(f)
                     acc = _account_of(f)
                     guard.assert_publish_quota(pending_pub_by_account.get(acc, 0))
-                    feishu_io.update_record("笔记表", rid, {"状态": "待发布"})
+                    feishu_io.update_record("笔记表", rid, {NF.STATUS: NS.TO_PUBLISH})
                     pending_pub_by_account[acc] = pending_pub_by_account.get(acc, 0) + 1
                     pkg = _package_text(f, name, config.record_url("笔记表", rid))
                     summary["packages"].append(pkg)
@@ -139,14 +140,14 @@ def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dic
                                       note_ref=name, detail=pkg[:300])
                 elif act is Action.MARK_PUBLISHED:
                     feishu_io.update_record("笔记表", rid, {
-                        "实际发布日": int(now.timestamp() * 1000), "状态": "已发",
+                        NF.PUBLISHED_AT: int(now.timestamp() * 1000), NF.STATUS: NS.PUBLISHED,
                     })
                     feishu_io.log_run(f"检测到发布回填:{name}", "置已发", note_ref=name)
                 elif act is Action.COLLECT_METRICS:
                     # 效果取数走零封号链(P6 接线 xhs_fetch);当前记待办不阻塞
                     summary.setdefault("metrics_todo", []).append(name)
                 elif act is Action.CLOSE_LOOP:
-                    feishu_io.update_record("笔记表", rid, {"状态": "已回流"})
+                    feishu_io.update_record("笔记表", rid, {NF.STATUS: NS.LOOPED_BACK})
                     feishu_io.log_run(f"回流收口:{name}", "置已回流", note_ref=name)
             except guard.GuardError as ge:
                 summary["errors"].append(f"{name}: {ge}")
@@ -188,10 +189,10 @@ def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dic
 
 def counts_toward_publish_quota(fields: dict, now: datetime) -> bool:
     """控量口径(审查 H1):待发布=已排队占额(无论有没有实际发布日);已发只算今天的。纯函数可测。"""
-    st = fields.get("状态")
-    if st == "待发布":
+    st = fields.get(NF.STATUS)
+    if st == NS.TO_PUBLISH:
         return True
-    return st == "已发" and _is_today(fields.get("实际发布日"), now)
+    return st == NS.PUBLISHED and _is_today(fields.get(NF.PUBLISHED_AT), now)
 
 
 def _monthly_cost_cny() -> float:

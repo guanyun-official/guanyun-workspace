@@ -24,6 +24,14 @@ def _schema_field_names(table_name: str) -> set[str]:
     return {f["field_name"] for f in d["fields"]}
 
 
+def _schema_select_options(table_name: str, field_name: str) -> set[str]:
+    d = json.loads((ROOT / "schema" / "test" / f"{table_name}.json").read_text(encoding="utf-8"))
+    for f in d["fields"]:
+        if f["field_name"] == field_name:
+            return set(f.get("options") or [])
+    return set()
+
+
 class TestFieldConstantContract(unittest.TestCase):
     # 每个字段词汇类都声明自己 TABLE,测试自动遍历——将来新增词汇类零改测试
     FIELDSETS = [bitable.NoteFields, bitable.MaterialFields]
@@ -43,6 +51,22 @@ class TestFieldConstantContract(unittest.TestCase):
         for fs in self.FIELDSETS:
             p = ROOT / "schema" / "test" / f"{fs.TABLE}.json"
             self.assertTrue(p.exists(), f"{fs.__name__}.TABLE={fs.TABLE} 无对应 schema/test/{fs.TABLE}.json")
+
+
+class TestStatusValueContract(unittest.TestCase):
+    """状态取值契约:引擎写回/路由用的 NoteStatus 取值 ⊆ 状态列 select 枚举。
+
+    why:写回一个 select 没声明的值(如 UI 把「待发布」改成「排队中」),飞书会拒写或静默,
+    引擎自以为推进了状态、笔记却卡死在原地,而单测全绿。锁死枚举 → 改选项即红灯。"""
+
+    def test_note_status_values_subset_of_select_options(self):
+        opts = _schema_select_options(bitable.NoteStatus.TABLE, bitable.NoteStatus.FIELD)
+        self.assertTrue(opts, f"{bitable.NoteStatus.FIELD} 字段在 schema 里没有 select options?")
+        values = bitable.declared_field_names(bitable.NoteStatus)
+        illegal = sorted(v for v in values if v not in opts)
+        self.assertEqual(
+            illegal, [],
+            f"NoteStatus 这些取值不在「{bitable.NoteStatus.FIELD}」select 枚举(UI 改/删选项?):{illegal}")
 
 
 if __name__ == "__main__":

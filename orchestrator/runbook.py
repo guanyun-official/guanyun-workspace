@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 
 from .bitable import NoteFields as NF
+from .bitable import NoteStatus as NS
 from .bitable import Record
 from .bitable import parse_ts  # 单一 ts 解析源(re-export,原 runbook._ts→bitable.parse_ts)
 
@@ -27,27 +28,27 @@ def route(fields: dict, now: datetime, review_overdue_hours: int = 24, metrics_c
     """按笔记记录字段决定下一动作。只读字段,不产生副作用。字段访问经 bitable.Record(候选A)。"""
     r = Record(fields)
     state = r.text(NF.STATUS) or None
-    if state in (None, "", "暂缓归档", "已回流"):
+    if state in (None, "", NS.ON_HOLD, NS.LOOPED_BACK):
         return Action.NOOP
-    if state == "想法储备":
+    if state == NS.IDEA:
         return Action.LIST_IDEA
-    if state == "待拍素材":
+    if state == NS.NEED_SHOOT:
         return Action.REMIND_SHOOT
-    if state == "待出文案":
+    if state == NS.NEED_COPY:
         return Action.GEN_COPY
-    if state == "草稿待发":  # =待审:人审卡点,推进器只催不推
+    if state == NS.DRAFT_PENDING:  # =待审:人审卡点,推进器只催不推
         entered = parse_ts(fields.get("_state_changed_at")) or r.ts(NF.PLANNED_AT)
         if entered and now - entered > timedelta(hours=review_overdue_hours):
             return Action.REMIND_REVIEW
         return Action.NOOP
-    if state == "已批准":
+    if state == NS.APPROVED:
         return Action.ASSEMBLE_PACKAGE
-    if state == "待发布":
+    if state == NS.TO_PUBLISH:
         # 人发布后回填「发布链接」;推进器检测到即置已发
         if r.raw(NF.PUBLISH_LINK):
             return Action.MARK_PUBLISHED
         return Action.NOOP
-    if state == "已发":
+    if state == NS.PUBLISHED:
         pub = r.ts(NF.PUBLISHED_AT)
         if pub and now - pub >= timedelta(days=metrics_close_days):
             return Action.CLOSE_LOOP
