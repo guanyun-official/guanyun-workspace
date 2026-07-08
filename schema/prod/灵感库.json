@@ -1,0 +1,54 @@
+{
+  "table_id": "tblP4jlRNZGCiIU2",
+  "table_name": "灵感库",
+  "fields": [
+    {
+      "field_name": "镜头",
+      "type": "text"
+    },
+    {
+      "field_name": "关联关键词",
+      "type": "link",
+      "link_table": "tblaiG8bQumH5CQW"
+    },
+    {
+      "field_name": "优点",
+      "type": "text"
+    },
+    {
+      "field_name": "文案",
+      "type": "text"
+    },
+    {
+      "field_name": "链接",
+      "type": "text"
+    },
+    {
+      "field_name": "状态",
+      "type": "select",
+      "options": [
+        "未处理",
+        "已转选题",
+        "放弃"
+      ]
+    },
+    {
+      "field_name": "关联衣服",
+      "type": "link",
+      "link_table": "tbl2ZnYoLX3d0QtE"
+    },
+    {
+      "field_name": "标题",
+      "type": "text"
+    },
+    {
+      "field_name": "转化为笔记",
+      "type": "link",
+      "link_table": "tblHi1Htg5wntydY"
+    },
+    {
+      "field_name": "缺点",
+      "type": "text"
+    }
+  ]
+}

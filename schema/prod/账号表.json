@@ -1,0 +1,39 @@
+{
+  "table_id": "tblveO3Wzm3Foo6v",
+  "table_name": "账号表",
+  "fields": [
+    {
+      "field_name": "受众",
+      "type": "text"
+    },
+    {
+      "field_name": "投手",
+      "type": "text"
+    },
+    {
+      "field_name": "上线状态",
+      "type": "select",
+      "options": [
+        "launch先上",
+        "远期"
+      ]
+    },
+    {
+      "field_name": "内容类型表-所属账号",
+      "type": "link",
+      "link_table": "tblWZgMpWNqfHabt"
+    },
+    {
+      "field_name": "账号名",
+      "type": "text"
+    },
+    {
+      "field_name": "小红书号",
+      "type": "text"
+    },
+    {
+      "field_name": "主页链接",
+      "type": "text"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "base_token": "N9IVbi6pTatJG5sqyTTcc0vSn4g",
+  "base": "prod",
+  "dumped_at": "2026-07-08T18:15:17+08:00",
+  "tables": {
+    "衣服总表": "tbl2ZnYoLX3d0QtE",
+    "账号表": "tblveO3Wzm3Foo6v",
+    "内容类型表": "tblWZgMpWNqfHabt",
+    "面料·工艺库": "tbljjcr9gLk7cPbn",
+    "素材表": "tbles5eiDykCBxD1",
+    "笔记表": "tblHi1Htg5wntydY",
+    "关键词库": "tblaiG8bQumH5CQW",
+    "目标客户": "tblM6EDqDdcPYIxO",
+    "灵感库": "tblP4jlRNZGCiIU2",
+    "技能表": "tblSidOqOT1B4dj9",
+    "Issue 表": "tblcvycKVdY3IF7A",
+    "修订日志": "tbleWyxtJD57a59X",
+    "素人推广案例": "tblj8q46icA5YZoM",
+    "运行日志表": "tblgZRFvZiZtfxNN"
+  }
+}
