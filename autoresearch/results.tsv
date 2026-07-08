@@ -1,0 +1,3 @@
+iter	change	metric	decision
+0	基线(8痛点映射)	88.9	baseline
+1	素材摄入ingest+去技能硬编码输出	100.0	keep
