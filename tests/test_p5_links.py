@@ -23,6 +23,22 @@ class TestP5(unittest.TestCase):
         self.assertIn("https://x/rec", t)
         self.assertIn("发布链接", t)  # 回填指引
 
+    def test_package_text_lists_linked_materials(self):
+        """发布包须列出笔记关联的配套素材——人拿到即知配哪些图/视频,不必回表翻查。"""
+        from orchestrator.bitable import NoteFields as NF
+        f = {NF.DRAFT: "草稿", NF.CODE: "PQ-9",
+             NF.LINKED_MATERIALS: [{"text": "孔府商品图,孔府上身视频",
+                                    "text_arr": ["孔府商品图", "孔府上身视频"]}]}
+        t = _package_text(f, "PQ-9", "https://x/rec")
+        self.assertIn("孔府商品图", t)
+        self.assertIn("孔府上身视频", t)
+        self.assertIn("配套素材", t)
+
+    def test_package_text_warns_when_no_materials(self):
+        """无配套素材须显性警示(防发无图笔记:小红书没图发不出)。"""
+        t = _package_text({"文案草稿": "稿", "排期编号": "PQ-0"}, "PQ-0", "https://x/rec")
+        self.assertIn("未挂配套素材", t)
+
 
 class TestHeartbeatDigestDeeplink(unittest.TestCase):
     """巡检提醒消息须带可点击记录深链(确定性,不依赖真实库态/reminders 节流)。

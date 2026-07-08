@@ -225,8 +225,11 @@ def _is_today(ms, now: datetime) -> bool:
 
 
 def _package_text(f: dict, name: str, url: str = "") -> str:
-    draft = str(f.get("文案草稿") or "")[:120]
-    return (f"发布包|{name}|{_account_of(f)}\n文案:{draft}…\n记录:{url}\n"
+    draft = str(f.get(NF.DRAFT) or "")[:120]
+    mats = [m for m in bitable.text(f.get(NF.LINKED_MATERIALS)).split(",") if m.strip()]
+    mat_line = (f"配套素材({len(mats)}):{'、'.join(mats)}" if mats
+                else "⚠️ 未挂配套素材——发布前请在「关联素材」挂图/视频(小红书没图发不出)")
+    return (f"发布包|{name}|{_account_of(f)}\n文案:{draft}…\n{mat_line}\n记录:{url}\n"
             f"⚠️ 发布时必须在小红书 App 勾选「AI 生成」声明;发完把链接回填「发布链接」。")
 
 
