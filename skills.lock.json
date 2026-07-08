@@ -6,7 +6,7 @@
       "repo": "https://github.com/guanyun-official/qiaohe-skill.git",
       "local": "~/Githubs/qiaohe-skill",
       "ref": "main",
-      "sha": "43358990994a913d110ae214a138399f3f21630a",
+      "sha": "f5cb575102c1d9f9ad213a454bc7335fbad12334",
       "skills": [
         "content-writing",
         "feishu-requirement-manager",
@@ -21,7 +21,11 @@
         "xiaohongshu",
         "xiaohongshu-cover-generator",
         "xiaohongshu-images",
-        "xiaohongshu-note-analyzer"
+        "xiaohongshu-note-analyzer",
+        "explosive-teardown",
+        "account-teardown",
+        "topic-deepening",
+        "xhs-collector"
       ],
       "install": "symlink"
     },
