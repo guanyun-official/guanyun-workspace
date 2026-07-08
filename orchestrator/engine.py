@@ -8,19 +8,16 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 
-from . import alerts, config, feishu_io, guard, llm, reminders
+from . import alerts, bitable, config, feishu_io, guard, llm, reminders
+from .bitable import NoteFields as NF
+from .bitable import parse_ts as _rb_ts
 from .runbook import Action, route
-from .runbook import parse_ts as _rb_ts
 
 LOCK_FILE = config.WORKSPACE / "locks" / "orchestrator.lock"
 
 
 def _account_of(fields: dict) -> str:
-    v = fields.get("账号(自动)")
-    if isinstance(v, list) and v:
-        v0 = v[0]
-        return v0.get("text", "") if isinstance(v0, dict) else str(v0)
-    return str(v or "未知账号")
+    return bitable.text(fields.get(NF.ACCOUNT)) or "未知账号"  # 委托 adapter(候选A:去重)
 
 
 def _ctype_format_map() -> dict:
@@ -69,10 +66,7 @@ def _shoot_hint(fields: dict) -> str:
 
 
 def _title_of(fields: dict) -> str:
-    t = fields.get("排期编号")
-    if isinstance(t, list):
-        t = "".join(x.get("text", "") for x in t if isinstance(x, dict))
-    return str(t or "?")
+    return bitable.text(fields.get(NF.CODE)) or "?"  # 委托 adapter
 
 
 def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dict:

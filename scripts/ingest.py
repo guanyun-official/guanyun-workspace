@@ -94,8 +94,8 @@ def register(sku: str, code: str, mtype: str, link_path: str, note: str = "",
 
 def orphans() -> list[dict]:
     """列出未挂钩素材(无关联衣服也无关联面料工艺),供 agent 补挂 SKU(存量清理)。"""
-    def _t(v):
-        return ",".join(x.get("text", "") for x in v if isinstance(x, dict)) if isinstance(v, list) else str(v or "")
+    from orchestrator import bitable
+    _t = bitable.text  # 候选A:统一字段取文本
     out = []
     for m in feishu_io.list_records("素材表"):
         f = m["fields"]

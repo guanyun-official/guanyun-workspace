@@ -6,18 +6,13 @@ from __future__ import annotations
 import json
 import subprocess
 
-from . import config
+from . import bitable, config  # 候选A:字段取文本走统一 adapter
 
 USD_CNY = 7.2
 
 
 def _text_of(v) -> str:
-    """bitable 字段通用取文本:link/lookup=list[dict(text)],富文本=list[dict],标量原样。"""
-    if isinstance(v, list):
-        return ",".join(x.get("text", "") if isinstance(x, dict) else str(x) for x in v)
-    if isinstance(v, dict):
-        return str(v.get("text") or v.get("link") or "")
-    return str(v or "")
+    return bitable.text(v)
 
 
 def _account_profile(account: str, brand: str = "观云") -> str:

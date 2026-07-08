@@ -15,15 +15,11 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from orchestrator import config, feishu_io  # noqa: E402
+from orchestrator import bitable, config, feishu_io  # noqa: E402
 
 USED_STATES = {"已发", "待发布", "已批准", "草稿待发", "待出文案"}
 
-
-def _txt(v) -> str:
-    if isinstance(v, list):
-        return ",".join(x.get("text", "") for x in v if isinstance(x, dict))
-    return str(v or "")
+_txt = bitable.text  # 候选A:统一字段取文本
 
 
 def load_strategies(brand: str = "观云") -> dict:

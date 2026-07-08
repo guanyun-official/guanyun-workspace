@@ -6,6 +6,10 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from enum import Enum
 
+from .bitable import NoteFields as NF
+from .bitable import Record
+from .bitable import parse_ts  # 单一 ts 解析源(re-export,原 runbook._ts→bitable.parse_ts)
+
 
 class Action(Enum):
     NOOP = "无动作"
@@ -20,8 +24,9 @@ class Action(Enum):
 
 
 def route(fields: dict, now: datetime, review_overdue_hours: int = 24, metrics_close_days: int = 7) -> Action:
-    """按笔记记录字段决定下一动作。只读字段,不产生副作用。"""
-    state = fields.get("状态")
+    """按笔记记录字段决定下一动作。只读字段,不产生副作用。字段访问经 bitable.Record(候选A)。"""
+    r = Record(fields)
+    state = r.text(NF.STATUS) or None
     if state in (None, "", "暂缓归档", "已回流"):
         return Action.NOOP
     if state == "想法储备":
@@ -31,7 +36,7 @@ def route(fields: dict, now: datetime, review_overdue_hours: int = 24, metrics_c
     if state == "待出文案":
         return Action.GEN_COPY
     if state == "草稿待发":  # =待审:人审卡点,推进器只催不推
-        entered = parse_ts(fields.get("_state_changed_at")) or parse_ts(fields.get("计划发布日"))
+        entered = parse_ts(fields.get("_state_changed_at")) or r.ts(NF.PLANNED_AT)
         if entered and now - entered > timedelta(hours=review_overdue_hours):
             return Action.REMIND_REVIEW
         return Action.NOOP
@@ -39,30 +44,12 @@ def route(fields: dict, now: datetime, review_overdue_hours: int = 24, metrics_c
         return Action.ASSEMBLE_PACKAGE
     if state == "待发布":
         # 人发布后回填「发布链接」;推进器检测到即置已发
-        if fields.get("发布链接"):
+        if r.raw(NF.PUBLISH_LINK):
             return Action.MARK_PUBLISHED
         return Action.NOOP
     if state == "已发":
-        pub = parse_ts(fields.get("实际发布日"))
+        pub = r.ts(NF.PUBLISHED_AT)
         if pub and now - pub >= timedelta(days=metrics_close_days):
             return Action.CLOSE_LOOP
         return Action.COLLECT_METRICS
     return Action.NOOP  # 未知状态:不动 + 由 engine 记告警
-
-
-def parse_ts(v) -> datetime | None:
-    """bitable 日期字段=毫秒时间戳(int)或空;容错 list[dict]/dict(lookup/公式形态)与字符串(审查 M2)。
-    公开 API(引擎等跨模块共用),取代原私有 _ts(架构审查:勿跨模块引用私有实现)。"""
-    if isinstance(v, list):
-        v = v[0] if v else None
-    if isinstance(v, dict):
-        v = v.get("value") or v.get("text")
-        if isinstance(v, list):
-            v = v[0] if v else None
-    if not v:
-        return None
-    if isinstance(v, (int, float)):
-        return datetime.fromtimestamp(v / 1000)
-    if isinstance(v, str) and v.isdigit():
-        return datetime.fromtimestamp(int(v) / 1000)
-    return None
