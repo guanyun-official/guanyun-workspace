@@ -91,7 +91,7 @@ class TestReviewRegressions(unittest.TestCase):
         self.assertFalse(counts_toward_publish_quota({"状态": "草稿待发"}, NOW))
 
     def test_m2_ts_tolerates_list_and_dict(self):
-        from orchestrator.runbook import _ts
+        from orchestrator.runbook import parse_ts as _ts
         ms = MS(datetime(2026, 7, 6))
         self.assertIsNotNone(_ts(ms))
         self.assertIsNotNone(_ts([{"value": ms}]))

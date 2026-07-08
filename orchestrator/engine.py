@@ -10,7 +10,7 @@ from pathlib import Path
 
 from . import alerts, config, feishu_io, guard, llm, reminders
 from .runbook import Action, route
-from .runbook import _ts as _rb_ts
+from .runbook import parse_ts as _rb_ts
 
 LOCK_FILE = config.WORKSPACE / "locks" / "orchestrator.lock"
 

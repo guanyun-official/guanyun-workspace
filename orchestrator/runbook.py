@@ -31,7 +31,7 @@ def route(fields: dict, now: datetime, review_overdue_hours: int = 24, metrics_c
     if state == "待出文案":
         return Action.GEN_COPY
     if state == "草稿待发":  # =待审:人审卡点,推进器只催不推
-        entered = _ts(fields.get("_state_changed_at")) or _ts(fields.get("计划发布日"))
+        entered = parse_ts(fields.get("_state_changed_at")) or parse_ts(fields.get("计划发布日"))
         if entered and now - entered > timedelta(hours=review_overdue_hours):
             return Action.REMIND_REVIEW
         return Action.NOOP
@@ -43,15 +43,16 @@ def route(fields: dict, now: datetime, review_overdue_hours: int = 24, metrics_c
             return Action.MARK_PUBLISHED
         return Action.NOOP
     if state == "已发":
-        pub = _ts(fields.get("实际发布日"))
+        pub = parse_ts(fields.get("实际发布日"))
         if pub and now - pub >= timedelta(days=metrics_close_days):
             return Action.CLOSE_LOOP
         return Action.COLLECT_METRICS
     return Action.NOOP  # 未知状态:不动 + 由 engine 记告警
 
 
-def _ts(v) -> datetime | None:
-    """bitable 日期字段=毫秒时间戳(int)或空;容错 list[dict]/dict(lookup/公式形态)与字符串(审查 M2)。"""
+def parse_ts(v) -> datetime | None:
+    """bitable 日期字段=毫秒时间戳(int)或空;容错 list[dict]/dict(lookup/公式形态)与字符串(审查 M2)。
+    公开 API(引擎等跨模块共用),取代原私有 _ts(架构审查:勿跨模块引用私有实现)。"""
     if isinstance(v, list):
         v = v[0] if v else None
     if isinstance(v, dict):
