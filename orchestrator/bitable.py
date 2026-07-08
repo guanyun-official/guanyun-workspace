@@ -43,6 +43,27 @@ class MaterialFields:
     ACCOUNTS = "适用账号"
 
 
+class RunLogFields:
+    """运行日志表字段词汇(9 字段契约;log_run 写、_monthly_cost_cny 读)。"""
+    TABLE = "运行日志表"
+    SUMMARY = "摘要"
+    TIME = "时间"
+    EXECUTOR = "执行体"
+    SKILL = "技能"
+    ACTION = "动作"
+    TABLE_REF = "涉及表"
+    RECORD_REF = "涉及记录"
+    RESULT = "结果"
+    DETAIL = "详情"
+
+
+class ContentTypeFields:
+    """内容类型表字段词汇(引擎格式感知:内容类型名→格式 查表)。"""
+    TABLE = "内容类型表"
+    NAME = "内容类型名"
+    FORMAT = "格式"
+
+
 class NoteStatus:
     """笔记状态机取值(状态列 select 枚举;写回只能用声明过的值,否则飞书拒写/静默落空)。
     状态机: 想法储备→待拍素材→待出文案→草稿待发(=待审)→已批准→待发布→已发→已回流;暂缓归档旁路。"""

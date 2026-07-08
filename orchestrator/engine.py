@@ -8,8 +8,10 @@ import traceback
 from datetime import datetime
 
 from . import alerts, bitable, config, feishu_io, guard, llm, reminders
+from .bitable import ContentTypeFields as CTF
 from .bitable import NoteFields as NF
 from .bitable import NoteStatus as NS
+from .bitable import RunLogFields as RLF
 from .bitable import parse_ts as _rb_ts
 from .runbook import Action, route
 
@@ -25,8 +27,8 @@ def _ctype_format_map() -> dict:
     m = {}
     try:
         for r in feishu_io.list_records("内容类型表"):
-            name = bitable.text(r["fields"].get("内容类型名"))
-            fmt = r["fields"].get("格式")
+            name = bitable.text(r["fields"].get(CTF.NAME))
+            fmt = r["fields"].get(CTF.FORMAT)
             if name and fmt:
                 m[name] = fmt
     except Exception:  # noqa: BLE001
@@ -252,10 +254,10 @@ def _monthly_cost_cny() -> float:
     try:
         for r in feishu_io.list_records("运行日志表"):
             f = r["fields"]
-            t = _rb_ts(f.get("时间"))
+            t = _rb_ts(f.get(RLF.TIME))
             if not t or t.strftime("%Y-%m") != month:
                 continue
-            detail = str(f.get("详情") or "")
+            detail = str(f.get(RLF.DETAIL) or "")
             if "cost_cny=" in detail:
                 try:
                     total += float(detail.split("cost_cny=")[1].split()[0])

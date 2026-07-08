@@ -7,6 +7,7 @@ import json
 import subprocess
 
 from . import bitable, config  # 候选A:字段取文本走统一 adapter
+from .bitable import NoteFields as NF
 
 USD_CNY = 7.2
 
@@ -26,15 +27,15 @@ def _account_profile(account: str, brand: str = "观云") -> str:
 
 def gen_copy(note_fields: dict, mode: str = "stub") -> tuple[str, float]:
     """返回 (文案草稿, 成本_元)。mode: stub|real。"""
-    title = _text_of(note_fields.get("标题")) or _text_of(note_fields.get("排期编号"))
-    ctype = _text_of(note_fields.get("内容类型"))
-    account = _text_of(note_fields.get("账号(自动)"))
+    title = _text_of(note_fields.get(NF.TITLE)) or _text_of(note_fields.get(NF.CODE))
+    ctype = _text_of(note_fields.get(NF.CONTENT_TYPE))
+    account = _text_of(note_fields.get(NF.ACCOUNT))
     profile = _account_profile(account)  # 每号风格注入(缺则降级)
     if mode != "real":
         tag = f"|画像✓" if profile else ""
         return (f"[stub 占位文案|{ctype}|{account}{tag}] {title}——由 --llm real 生成正式稿。", 0.0)
 
-    hint = _text_of(note_fields.get("脚本·分镜"))[:300]
+    hint = _text_of(note_fields.get(NF.STORYBOARD))[:300]
     # 提示词自带品牌要点(P6演练教训:让 headless 去翻仓库会烧穿预算帽),零工具直出
     prompt = (
         f"为观云(传统文化服装品牌,非遗面料复原/改良传统服饰)写一篇小红书笔记文案。\n"

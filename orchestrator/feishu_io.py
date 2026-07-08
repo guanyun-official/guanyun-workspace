@@ -10,6 +10,7 @@ import time
 from datetime import datetime
 
 from . import config, guard
+from .bitable import RunLogFields as RLF
 
 
 class FeishuIOError(RuntimeError):
@@ -90,15 +91,15 @@ def log_run(summary: str, action: str, result: str = "成功", *, skill: str = "
     """写运行日志表(9 字段契约)。日志失败只打印不阻断主流程。"""
     try:
         create_record("运行日志表", {
-            "摘要": summary,
-            "时间": int(datetime.now().timestamp() * 1000),
-            "执行体": "orchestrator",
-            "技能": skill,
-            "动作": action,
-            "涉及表": table,
-            "涉及记录": note_ref,
-            "结果": result,
-            "详情": detail[:800],
+            RLF.SUMMARY: summary,
+            RLF.TIME: int(datetime.now().timestamp() * 1000),
+            RLF.EXECUTOR: "orchestrator",
+            RLF.SKILL: skill,
+            RLF.ACTION: action,
+            RLF.TABLE_REF: table,
+            RLF.RECORD_REF: note_ref,
+            RLF.RESULT: result,
+            RLF.DETAIL: detail[:800],
         })
     except Exception as e:  # noqa: BLE001
         print(f"[log_run 降级] {e}")
