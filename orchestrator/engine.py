@@ -25,20 +25,17 @@ def _ctype_format_map() -> dict:
     m = {}
     try:
         for r in feishu_io.list_records("内容类型表"):
-            f = r["fields"]
-            name = f.get("内容类型名")
-            if isinstance(name, list):
-                name = "".join(x.get("text", "") for x in name if isinstance(x, dict))
-            if name and f.get("格式"):
-                m[str(name)] = f.get("格式")
+            name = bitable.text(r["fields"].get("内容类型名"))
+            fmt = r["fields"].get("格式")
+            if name and fmt:
+                m[name] = fmt
     except Exception:  # noqa: BLE001
         pass
     return m
 
 
 def _format_of(fields: dict, fmt_map: dict) -> str:
-    ct = fields.get("内容类型")
-    ctn = ",".join(x.get("text", "") for x in ct if isinstance(x, dict)) if isinstance(ct, list) else str(ct or "")
+    ctn = bitable.text(fields.get(NF.CONTENT_TYPE))
     return fmt_map.get(ctn.split(",")[0], "")
 
 
@@ -52,16 +49,11 @@ def _next_step(fmt: str) -> str:
 
 
 def _shoot_hint(fields: dict) -> str:
-    """F2:催拍带上要拍什么。优先 脚本·分镜,退回 关联衣服/内容类型。"""
-    for key in ("脚本·分镜", "内容类型", "关联衣服"):
-        v = fields.get(key)
-        txt = ""
-        if isinstance(v, list):
-            txt = ",".join(x.get("text", "") for x in v if isinstance(x, dict))
-        elif v:
-            txt = str(v)
-        if txt.strip():
-            return f"拍:{txt.strip()[:40]}"
+    """F2:催拍带上要拍什么。优先 脚本·分镜,退回 内容类型/关联衣服。"""
+    for key in (NF.STORYBOARD, NF.CONTENT_TYPE, NF.LINKED_CLOTHES):
+        txt = bitable.text(fields.get(key)).strip()
+        if txt:
+            return f"拍:{txt[:40]}"
     return "拍:见记录"
 
 

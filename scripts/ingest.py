@@ -61,13 +61,12 @@ def link(src: str, sku: str, category: str, name: str | None = None) -> str:
 
 def _clothes_map() -> dict:
     """衣服编号→record_id(挂 SKU 用)。"""
+    from orchestrator import bitable
     m = {}
     for c in feishu_io.list_records("衣服总表"):
-        code = c["fields"].get("衣服编号")
-        if isinstance(code, list):
-            code = "".join(x.get("text", "") for x in code if isinstance(x, dict))
+        code = bitable.text(c["fields"].get("衣服编号"))
         if code:
-            m[str(code)] = c["record_id"]
+            m[code] = c["record_id"]
     return m
 
 
