@@ -6,7 +6,6 @@ from __future__ import annotations
 import fcntl
 import traceback
 from datetime import datetime
-from pathlib import Path
 
 from . import alerts, bitable, config, feishu_io, guard, llm, reminders
 from .bitable import NoteFields as NF
@@ -62,6 +61,101 @@ def _title_of(fields: dict) -> str:
     return bitable.text(fields.get(NF.CODE)) or "?"  # 委托 adapter
 
 
+class _Ctx:
+    """一轮推进的可变上下文:run 级共享(计数器/汇总/配置)+ 每条笔记切换的 f/rid/name。
+    handler 只碰 ctx——把'选哪个动作'(runbook.route)和'动作干什么'(下面的 _h_*)解耦。"""
+
+    def __init__(self, *, now: datetime, fmt_map: dict, budget_blown: bool, llm_mode: str,
+                 summary: dict, pending_pub_by_account: dict):
+        self.now = now
+        self.fmt_map = fmt_map
+        self.budget_blown = budget_blown
+        self.llm_mode = llm_mode
+        self.summary = summary
+        self.pending_pub_by_account = pending_pub_by_account
+        self.generated = 0            # run 级:本轮已生成文案数(成本闸计数)
+        self.f: dict = {}             # 以下每条笔记切换
+        self.rid = ""
+        self.name = ""
+
+
+def _h_list_idea(ctx: _Ctx) -> None:
+    ctx.summary["ideas"].append(ctx.name)
+
+
+def _h_remind_shoot(ctx: _Ctx) -> None:
+    if reminders.should_remind(ctx.rid, "shoot", ctx.now):  # F1 节流:每日最多一次
+        ctx.summary["shoot"].append(f"{ctx.name}({_shoot_hint(ctx.f)}) {config.record_url('笔记表', ctx.rid)}")
+        reminders.mark(ctx.rid, "shoot", ctx.now)
+
+
+def _h_remind_review(ctx: _Ctx) -> None:
+    if reminders.should_remind(ctx.rid, "review", ctx.now):
+        ctx.summary["review"].append(f"{ctx.name} {config.record_url('笔记表', ctx.rid)}")
+        reminders.mark(ctx.rid, "review", ctx.now)
+
+
+def _h_gen_copy(ctx: _Ctx) -> None:
+    if not guard.copy_quota_left(ctx.generated):
+        return
+    if ctx.budget_blown:
+        ctx.summary["errors"].append(f"{ctx.name}: 月度预算熔断,跳过生成")
+        return
+    text, cost = llm.gen_copy(ctx.f, ctx.llm_mode)
+    feishu_io.update_record("笔记表", ctx.rid, {
+        NF.DRAFT: text, NF.STATUS: NS.DRAFT_PENDING, NF.AI_DECLARED: True,
+    })
+    ctx.generated += 1
+    ctx.summary["copy_cost_cny"] += cost
+    fmt = _format_of(ctx.f, ctx.fmt_map)
+    ctx.summary.setdefault("next_产物", []).append(f"{ctx.name}[{fmt or '?'}]:{_next_step(fmt)}")
+    feishu_io.log_run(f"文案草稿生成:{ctx.name}({fmt})", "生成文案", skill="write-xiaohongshu",
+                      note_ref=ctx.name, detail=f"cost_cny={cost} llm={ctx.llm_mode} 格式={fmt} 下一步={_next_step(fmt)}")
+
+
+def _h_assemble_package(ctx: _Ctx) -> None:
+    # AI声明门动真格(审查 H2):不代填。GEN_COPY 会置位;人工路径必须人在表里勾。
+    guard.assert_ai_declared(ctx.f)
+    acc = _account_of(ctx.f)
+    guard.assert_publish_quota(ctx.pending_pub_by_account.get(acc, 0))
+    feishu_io.update_record("笔记表", ctx.rid, {NF.STATUS: NS.TO_PUBLISH})
+    ctx.pending_pub_by_account[acc] = ctx.pending_pub_by_account.get(acc, 0) + 1
+    pkg = _package_text(ctx.f, ctx.name, config.record_url("笔记表", ctx.rid))
+    ctx.summary["packages"].append(pkg)
+    feishu_io.log_run(f"发布包就绪:{ctx.name}", "组装发布包", result="待人审",
+                      note_ref=ctx.name, detail=pkg[:300])
+
+
+def _h_mark_published(ctx: _Ctx) -> None:
+    feishu_io.update_record("笔记表", ctx.rid, {
+        NF.PUBLISHED_AT: int(ctx.now.timestamp() * 1000), NF.STATUS: NS.PUBLISHED,
+    })
+    feishu_io.log_run(f"检测到发布回填:{ctx.name}", "置已发", note_ref=ctx.name)
+
+
+def _h_collect_metrics(ctx: _Ctx) -> None:
+    # 效果取数走零封号链(P6 接线 xhs_fetch);当前记待办不阻塞
+    ctx.summary.setdefault("metrics_todo", []).append(ctx.name)
+
+
+def _h_close_loop(ctx: _Ctx) -> None:
+    feishu_io.update_record("笔记表", ctx.rid, {NF.STATUS: NS.LOOPED_BACK})
+    feishu_io.log_run(f"回流收口:{ctx.name}", "置已回流", note_ref=ctx.name)
+
+
+# 动作分发表:新增动作 = 加一个 _h_*(ctx) + 在此登记一行(不再动 run() 的循环体)
+DISPATCH = {
+    Action.LIST_IDEA: _h_list_idea,
+    Action.REMIND_SHOOT: _h_remind_shoot,
+    Action.REMIND_REVIEW: _h_remind_review,
+    Action.GEN_COPY: _h_gen_copy,
+    Action.ASSEMBLE_PACKAGE: _h_assemble_package,
+    Action.MARK_PUBLISHED: _h_mark_published,
+    Action.COLLECT_METRICS: _h_collect_metrics,
+    Action.CLOSE_LOOP: _h_close_loop,
+}
+
+
 def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dict:
     """一轮推进。返回 summary dict(供日报/测试断言)。"""
     guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)
@@ -78,7 +172,6 @@ def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dic
                      "review": [], "packages": [], "errors": [], "copy_cost_cny": 0.0}
     try:
         notes = feishu_io.list_records("笔记表")
-        generated = 0
         # 月度成本熔断(审查 M1):real 模式先核算,超限本轮拒绝生成
         monthly_cost = _monthly_cost_cny() if llm_mode == "real" else 0.0
         budget_blown = monthly_cost > config.BUDGET_MONTHLY_CNY
@@ -93,70 +186,27 @@ def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dic
                 acc = _account_of(f)
                 pending_pub_by_account[acc] = pending_pub_by_account.get(acc, 0) + 1
 
+        ctx = _Ctx(now=now, fmt_map=fmt_map, budget_blown=budget_blown, llm_mode=llm_mode,
+                   summary=summary, pending_pub_by_account=pending_pub_by_account)
         for r in notes[: max(limit, 0) or len(notes)]:
-            f, rid = r["fields"], r["record_id"]
-            name = _title_of(f)
-            act = route(f, now, config.REVIEW_OVERDUE_HOURS, config.METRICS_CLOSE_DAYS)
-            if act is Action.NOOP:
+            ctx.f, ctx.rid = r["fields"], r["record_id"]
+            ctx.name = _title_of(ctx.f)
+            act = route(ctx.f, now, config.REVIEW_OVERDUE_HOURS, config.METRICS_CLOSE_DAYS)
+            handler = DISPATCH.get(act)
+            if handler is None:  # NOOP 或未登记动作:不动
                 continue
-            summary["actions"].append((name, act.value))
+            summary["actions"].append((ctx.name, act.value))
             try:
-                if act is Action.LIST_IDEA:
-                    summary["ideas"].append(name)
-                elif act is Action.REMIND_SHOOT:
-                    if reminders.should_remind(rid, "shoot", now):  # F1 节流:每日最多一次
-                        summary["shoot"].append(f"{name}({_shoot_hint(f)}) {config.record_url('笔记表', rid)}")
-                        reminders.mark(rid, "shoot", now)
-                elif act is Action.REMIND_REVIEW:
-                    if reminders.should_remind(rid, "review", now):
-                        summary["review"].append(f"{name} {config.record_url('笔记表', rid)}")
-                        reminders.mark(rid, "review", now)
-                elif act is Action.GEN_COPY:
-                    if not guard.copy_quota_left(generated):
-                        continue
-                    if budget_blown:
-                        summary["errors"].append(f"{name}: 月度预算熔断,跳过生成")
-                        continue
-                    text, cost = llm.gen_copy(f, llm_mode)
-                    feishu_io.update_record("笔记表", rid, {
-                        NF.DRAFT: text, NF.STATUS: NS.DRAFT_PENDING, NF.AI_DECLARED: True,
-                    })
-                    generated += 1
-                    summary["copy_cost_cny"] += cost
-                    fmt = _format_of(f, fmt_map)
-                    summary.setdefault("next_产物", []).append(f"{name}[{fmt or '?'}]:{_next_step(fmt)}")
-                    feishu_io.log_run(f"文案草稿生成:{name}({fmt})", "生成文案", skill="write-xiaohongshu",
-                                      note_ref=name, detail=f"cost_cny={cost} llm={llm_mode} 格式={fmt} 下一步={_next_step(fmt)}")
-                elif act is Action.ASSEMBLE_PACKAGE:
-                    # AI声明门动真格(审查 H2):不代填。GEN_COPY 会置位;人工路径必须人在表里勾。
-                    guard.assert_ai_declared(f)
-                    acc = _account_of(f)
-                    guard.assert_publish_quota(pending_pub_by_account.get(acc, 0))
-                    feishu_io.update_record("笔记表", rid, {NF.STATUS: NS.TO_PUBLISH})
-                    pending_pub_by_account[acc] = pending_pub_by_account.get(acc, 0) + 1
-                    pkg = _package_text(f, name, config.record_url("笔记表", rid))
-                    summary["packages"].append(pkg)
-                    feishu_io.log_run(f"发布包就绪:{name}", "组装发布包", result="待人审",
-                                      note_ref=name, detail=pkg[:300])
-                elif act is Action.MARK_PUBLISHED:
-                    feishu_io.update_record("笔记表", rid, {
-                        NF.PUBLISHED_AT: int(now.timestamp() * 1000), NF.STATUS: NS.PUBLISHED,
-                    })
-                    feishu_io.log_run(f"检测到发布回填:{name}", "置已发", note_ref=name)
-                elif act is Action.COLLECT_METRICS:
-                    # 效果取数走零封号链(P6 接线 xhs_fetch);当前记待办不阻塞
-                    summary.setdefault("metrics_todo", []).append(name)
-                elif act is Action.CLOSE_LOOP:
-                    feishu_io.update_record("笔记表", rid, {NF.STATUS: NS.LOOPED_BACK})
-                    feishu_io.log_run(f"回流收口:{name}", "置已回流", note_ref=name)
+                handler(ctx)
             except guard.GuardError as ge:
-                summary["errors"].append(f"{name}: {ge}")
-                feishu_io.log_run(f"硬闸拒绝:{name}", act.value, result="失败", note_ref=name, detail=str(ge))
-                alerts.send(f"硬闸拒绝 {name}: {ge}")
+                summary["errors"].append(f"{ctx.name}: {ge}")
+                feishu_io.log_run(f"硬闸拒绝:{ctx.name}", act.value, result="失败", note_ref=ctx.name, detail=str(ge))
+                alerts.send(f"硬闸拒绝 {ctx.name}: {ge}")
             except Exception as e:  # noqa: BLE001  单条失败不炸整轮(P6演练发现):记错继续,下轮自然重试
-                summary["errors"].append(f"{name}: {type(e).__name__}: {e}")
-                feishu_io.log_run(f"动作失败:{name}", act.value, result="失败", note_ref=name,
+                summary["errors"].append(f"{ctx.name}: {type(e).__name__}: {e}")
+                feishu_io.log_run(f"动作失败:{ctx.name}", act.value, result="失败", note_ref=ctx.name,
                                   detail=f"{type(e).__name__}: {e}"[:600])
+        generated = ctx.generated
 
         if mode == "daily":
             mc = _monthly_cost_cny()
