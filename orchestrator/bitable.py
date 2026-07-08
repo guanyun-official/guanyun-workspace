@@ -43,6 +43,29 @@ class MaterialFields:
     ACCOUNTS = "适用账号"
 
 
+class ClothesFields:
+    """衣服总表字段词汇(planner 排产、ingest 挂 SKU 用)。"""
+    TABLE = "衣服总表"
+    CODE = "衣服编号"
+    NAME = "款式名称"
+
+
+class MaterialStatus:
+    """素材拍摄状态取值(素材表 拍摄状态 select 枚举)。planner 靠「已拍」判可用素材。"""
+    TABLE = "素材表"
+    FIELD = "拍摄状态"
+    NEED_SHOOT = "待拍"
+    SHOT = "已拍"
+
+
+class MaterialSource:
+    """素材来源取值(素材表 来源 select 枚举)。生成媒体标 AI生成、拍摄标 实拍。"""
+    TABLE = "素材表"
+    FIELD = "来源"
+    REAL = "实拍"
+    AI = "AI生成"
+
+
 class RunLogFields:
     """运行日志表字段词汇(9 字段契约;log_run 写、_monthly_cost_cny 读)。"""
     TABLE = "运行日志表"
