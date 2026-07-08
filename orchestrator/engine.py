@@ -23,6 +23,37 @@ def _account_of(fields: dict) -> str:
     return str(v or "未知账号")
 
 
+def _ctype_format_map() -> dict:
+    """内容类型名 → 格式(图文/视频)。引擎格式感知的查表(呼应'有些是图文')。"""
+    m = {}
+    try:
+        for r in feishu_io.list_records("内容类型表"):
+            f = r["fields"]
+            name = f.get("内容类型名")
+            if isinstance(name, list):
+                name = "".join(x.get("text", "") for x in name if isinstance(x, dict))
+            if name and f.get("格式"):
+                m[str(name)] = f.get("格式")
+    except Exception:  # noqa: BLE001
+        pass
+    return m
+
+
+def _format_of(fields: dict, fmt_map: dict) -> str:
+    ct = fields.get("内容类型")
+    ctn = ",".join(x.get("text", "") for x in ct if isinstance(x, dict)) if isinstance(ct, list) else str(ct or "")
+    return fmt_map.get(ctn.split(",")[0], "")
+
+
+def _next_step(fmt: str) -> str:
+    """按格式提示下一步产物。"""
+    if fmt == "视频":
+        return "需走视频链(storyboard→previz→editing)"
+    if fmt == "图文":
+        return "需配图(cover/images)"
+    return "格式未定"
+
+
 def _shoot_hint(fields: dict) -> str:
     """F2:催拍带上要拍什么。优先 脚本·分镜,退回 关联衣服/内容类型。"""
     for key in ("脚本·分镜", "内容类型", "关联衣服"):
@@ -67,6 +98,7 @@ def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dic
         if budget_blown:
             alerts.send(f"⚠️ 月成本 ¥{monthly_cost:.1f} 超阈 ¥{config.BUDGET_MONTHLY_CNY:.0f},本轮停止文案生成",
                         title="成本熔断")
+        fmt_map = _ctype_format_map()  # 格式感知(图文/视频)
         pending_pub_by_account: dict[str, int] = {}
         for r in notes:
             f = r["fields"]
@@ -104,8 +136,10 @@ def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dic
                     })
                     generated += 1
                     summary["copy_cost_cny"] += cost
-                    feishu_io.log_run(f"文案草稿生成:{name}", "生成文案", skill="write-xiaohongshu",
-                                      note_ref=name, detail=f"cost_cny={cost} llm={llm_mode}")
+                    fmt = _format_of(f, fmt_map)
+                    summary.setdefault("next_产物", []).append(f"{name}[{fmt or '?'}]:{_next_step(fmt)}")
+                    feishu_io.log_run(f"文案草稿生成:{name}({fmt})", "生成文案", skill="write-xiaohongshu",
+                                      note_ref=name, detail=f"cost_cny={cost} llm={llm_mode} 格式={fmt} 下一步={_next_step(fmt)}")
                 elif act is Action.ASSEMBLE_PACKAGE:
                     # AI声明门动真格(审查 H2):不代填。GEN_COPY 会置位;人工路径必须人在表里勾。
                     guard.assert_ai_declared(f)
@@ -224,6 +258,9 @@ def _digest(s: dict, now: datetime) -> str:
         lines.append(f"发布包 {len(s['packages'])} 个已推送")
     if s.get("metrics_todo"):  # F3:幽灵动作显形
         lines.append(f"待回流采集 {len(s['metrics_todo'])}:{'、'.join(s['metrics_todo'][:5])}")
+    if s.get("next_产物"):  # 格式感知:图文需配图/视频走视频链
+        lines.append(f"待产物 {len(s['next_产物'])}:")
+        lines += [f"· {x}" for x in s["next_产物"][:5]]
     if s["errors"]:
         lines.append(f"⚠️ 错误 {len(s['errors'])}:{s['errors'][:2]}")
     if s["copy_cost_cny"]:
