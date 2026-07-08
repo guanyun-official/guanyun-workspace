@@ -13,3 +13,5 @@ __pycache__/
 .feishu_workbench/
 # macOS
 .DS_Store
+backups/
+locks/
