@@ -14,10 +14,15 @@ from orchestrator import alerts
 raise SystemExit(0 if alerts.send('check_p5 通路自检') else 1)"; then pass "hermes→飞书 实发成功"
 else fail "hermes 实发失败"; fi
 
-echo "③ 巡检/日报消息含记录深链(引擎 dry 轮实测)"
-OUT=$(ALERT_DRY_RUN=1 python3 -m orchestrator.run --mode heartbeat 2>&1)
-if echo "$OUT" | grep -q "record=rec"; then pass "摘要含记录深链"
-else fail "摘要无深链(若当前无催办项则人工复核)"; fi
+echo "③ 引擎 dry 轮跑通(端到端连通;深链正确性见 ① 确定性单测)"
+# 原判定 grep record=rec 受 reminders 每日节流+库态双重摆布(当天二次跑即误红),
+# 已把「巡检消息含深链」固化为 ① 的确定性单测;此处只验引擎真跑一轮产出结构化摘要。
+if ALERT_DRY_RUN=1 python3 -m orchestrator.run --mode heartbeat 2>/dev/null \
+   | python3 -c 'import json,sys; o=sys.stdin.read(); s=json.loads(o[o.find("{"):o.rfind("}")+1]); assert s.get("mode")=="heartbeat" and "actions" in s' 2>/dev/null; then
+  pass "heartbeat dry 跑通(mode+actions 结构完整)"
+else
+  fail "heartbeat dry 轮异常(引擎未产出结构化摘要)"
+fi
 
 echo "④ 手动配置清单覆盖 自动化+表单 两项"
 grep -q "待审推卡片" docs/P2_手动配置清单.md && grep -q "表单" docs/P2_手动配置清单.md \

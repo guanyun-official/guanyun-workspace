@@ -38,6 +38,8 @@ try:
     n_strat=sum(1 for a in accounts.load_all("观云").values() if a.strategy)
     ck("每天发什么","planner读账号strategy缓发排产(每号声明模式)", len(acts)>0 and has_planner and n_strat>=3, f"动作{acts}+planner+{n_strat}个strategy声明")
     ck("模式泛化","加模式=写strategy声明零代码(引擎通用解释)", has_planner and n_strat>=3, f"{n_strat}个账号模式=data,planner通用解释")
+    probs = accounts.problems("观云")
+    ck("声明健壮","账号 frontmatter 全部可解析(坏声明不静默漏号)", not probs, f"解析失败={probs or '无'}")
 except Exception as e:
     ck("每天发什么","route", False, str(e)[:80])
 

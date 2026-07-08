@@ -36,6 +36,14 @@ class TestArCheckSync(unittest.TestCase):
             "ar_check 应复用 orchestrator.accounts(与 planner 同源),避免声明格式漂移",
         )
 
+    def test_ar_check_guards_declaration_health(self):
+        """ar_check 须接入 accounts.problems,坏 frontmatter 才会验收报红(否则健壮性形同虚设)。"""
+        src = (ROOT / "scripts" / "ar_check.py").read_text(encoding="utf-8")
+        self.assertIn(
+            "problems", src,
+            "ar_check 未接入 accounts.problems——坏 {号}.md 声明不会被验收发现",
+        )
+
     def test_engine_sees_declarations(self):
         """数据前提:引擎从 {号}.md 至少解析出 3 个非空 strategy 声明(ar_check 通过的门槛)。"""
         declared = {n: a.strategy for n, a in accounts.load_all("观云").items() if a.strategy}

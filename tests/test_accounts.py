@@ -25,4 +25,23 @@ class TestAccounts(unittest.TestCase):
     def test_load_all(self):
         self.assertIn("甲号", accounts.load_all("B"))
 
+    def test_bad_frontmatter_is_visible_not_silent(self):
+        """坏 JSON frontmatter 不许被静默当成'无声明':须带 error 且能被 problems() 发现。
+
+        防的正是「一个号 {号}.md 写坏→引擎静默少排一个号,半夜无人知」这个接缝健壮性洞。
+        """
+        (self.d / "brands" / "B" / "accounts" / "坏号.md").write_text(
+            '---\n{ 这不是合法JSON,, }\n---\n\n# 坏号画像\n随便', encoding="utf-8")
+        all_ = accounts.load_all("B")
+        self.assertIn("坏号", all_, "坏号被静默丢弃了(应保留并标错)")
+        self.assertEqual(all_["坏号"].strategy, {}, "坏 JSON 的 strategy 应为空")
+        self.assertTrue(all_["坏号"].error, "坏 frontmatter 必须带 error 标记(不许静默)")
+        probs = accounts.problems("B")
+        self.assertIn("坏号", probs, "problems() 应能发现解析失败的账号")
+        self.assertNotIn("甲号", probs, "好账号不应出现在 problems()")
+
+    def test_good_account_has_no_error(self):
+        self.assertIsNone(accounts.load("甲号", "B").error)
+        self.assertEqual(accounts.problems("B"), {})
+
 if __name__=="__main__": unittest.main()

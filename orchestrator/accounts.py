@@ -20,10 +20,11 @@ from . import config
 
 
 class Account:
-    def __init__(self, name: str, strategy: dict, profile_text: str):
+    def __init__(self, name: str, strategy: dict, profile_text: str, error: str | None = None):
         self.name = name
         self.strategy = strategy
         self.profile_text = profile_text
+        self.error = error  # 非 None=frontmatter 解析失败;problems() 暴露、验收报红,不静默
 
 
 def _accounts_dir(brand: str) -> Path:
@@ -51,8 +52,16 @@ def load_all(brand: str = "观云") -> dict[str, Account]:
     return out
 
 
+def problems(brand: str = "观云") -> dict[str, str]:
+    """{账号名: 错误} for 所有 frontmatter 解析失败的账号(空=全部健康)。
+
+    供验收/监控消费:坏声明必须'有声'——ar_check 断言此为空,防坏 {号}.md 静默少排号。
+    """
+    return {a.name: a.error for a in load_all(brand).values() if a.error}
+
+
 def _parse(stem: str, raw: str) -> Account | None:
-    strategy, body = {}, raw
+    strategy, body, error = {}, raw, None
     if raw.lstrip().startswith("---"):
         s = raw.lstrip()
         end = s.find("---", 3)
@@ -61,7 +70,7 @@ def _parse(stem: str, raw: str) -> Account | None:
             body = s[end + 3:].lstrip("\n")
             try:
                 strategy = json.loads(front)
-            except json.JSONDecodeError:
-                strategy = {}
+            except json.JSONDecodeError as e:
+                error = f"frontmatter JSON 解析失败: {e}"
     name = strategy.get("account", stem)
-    return Account(name, strategy, body)
+    return Account(name, strategy, body, error)
