@@ -187,7 +187,7 @@ def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dic
         fmt_map = _ctype_format_map()  # 格式感知(图文/视频)
         pending_pub_by_account: dict[str, int] = {}
         for r in notes:
-            f = r["fields"]
+            f = r.get("fields") or {}  # 畸形记录(缺 fields/None)不炸预扫描
             if counts_toward_publish_quota(f, now):
                 acc = _account_of(f)
                 pending_pub_by_account[acc] = pending_pub_by_account.get(acc, 0) + 1
@@ -198,23 +198,27 @@ def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dic
         ctx = _Ctx(now=now, fmt_map=fmt_map, budget_blown=budget_blown, llm_mode=llm_mode,
                    summary=summary, pending_pub_by_account=pending_pub_by_account)
         for r in notes[: max(limit, 0) or len(notes)]:
-            ctx.f, ctx.rid = r["fields"], r["record_id"]
+            act = None
+            ctx.f = r.get("fields") or {}   # 畸形记录不炸整轮:降级为空 fields → route 判 NOOP 跳过
+            ctx.rid = r.get("record_id", "")
             ctx.name = _title_of(ctx.f)
-            act = route(ctx.f, now, config.REVIEW_OVERDUE_HOURS, config.METRICS_CLOSE_DAYS)
-            handler = DISPATCH.get(act)
-            if handler is None:  # NOOP 或未登记动作:不动
-                continue
-            summary["actions"].append((ctx.name, act.value))
             try:
+                # route/解析也纳入 per-note 兜底:某条状态形态诡异不该掀翻整轮(单条失败不炸整轮)
+                act = route(ctx.f, now, config.REVIEW_OVERDUE_HOURS, config.METRICS_CLOSE_DAYS)
+                handler = DISPATCH.get(act)
+                if handler is None:  # NOOP 或未登记动作:不动
+                    continue
+                summary["actions"].append((ctx.name, act.value))
                 handler(ctx)
             except guard.GuardError as ge:
                 summary["errors"].append(f"{ctx.name}: {ge}")
-                feishu_io.log_run(f"硬闸拒绝:{ctx.name}", act.value, result="失败", note_ref=ctx.name, detail=str(ge))
+                feishu_io.log_run(f"硬闸拒绝:{ctx.name}", act.value if act else "路由", result="失败",
+                                  note_ref=ctx.name, detail=str(ge))
                 alerts.send(f"硬闸拒绝 {ctx.name}: {ge}")
             except Exception as e:  # noqa: BLE001  单条失败不炸整轮(P6演练发现):记错继续,下轮自然重试
                 summary["errors"].append(f"{ctx.name}: {type(e).__name__}: {e}")
-                feishu_io.log_run(f"动作失败:{ctx.name}", act.value, result="失败", note_ref=ctx.name,
-                                  detail=f"{type(e).__name__}: {e}"[:600])
+                feishu_io.log_run(f"动作失败:{ctx.name}", act.value if act else "路由/解析", result="失败",
+                                  note_ref=ctx.name, detail=f"{type(e).__name__}: {e}"[:600])
         generated = ctx.generated
 
         if summary["unknown_status"]:  # 状态漂移:UI 出现引擎不认识的状态,显性告警不静默卡死

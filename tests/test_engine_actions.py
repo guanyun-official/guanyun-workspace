@@ -40,6 +40,22 @@ def run_one(note_fields: dict, llm_mode: str = "stub", mode: str = "heartbeat"):
     return summary, updates, sent
 
 
+def run_records(records: list, llm_mode: str = "stub", mode: str = "heartbeat"):
+    """跑一轮,喂多条原始记录(feishu 形态:{record_id, fields});返回 (summary, updates, sent)。"""
+    updates, sent = [], []
+    box = Path(tempfile.mkdtemp())
+    with mock.patch.object(feishu_io, "list_records", lambda t: records if t == "笔记表" else []), \
+            mock.patch.object(feishu_io, "update_record",
+                              lambda t, rid, patch: updates.append((t, rid, patch))), \
+            mock.patch.object(feishu_io, "log_run", lambda *_a, **_k: None), \
+            mock.patch.object(engine, "LOCK_FILE", box / "t.lock"), \
+            mock.patch.object(reminders, "STATE_FILE", box / "reminder_state.json"), \
+            mock.patch.object(alerts, "send",
+                              lambda text, *, title="观云推进器": sent.append((title, text)) or True):
+        summary = engine.run(mode=mode, llm_mode=llm_mode)
+    return summary, updates, sent
+
+
 def only_patch(updates: list) -> dict:
     """断言恰好一次写回,返回其 fields patch。"""
     assert len(updates) == 1, f"期望恰好一次写回,实际 {len(updates)}: {updates}"
@@ -116,6 +132,28 @@ class TestUnknownStatusDrift(unittest.TestCase):
         summary, _, sent = run_one({NF.STATUS: NS.IDEA, NF.CODE: "PQ-OK"})
         self.assertEqual(summary.get("unknown_status", []), [], "已知状态不应误报状态漂移")
         self.assertFalse(any("漂移" in t for t, _txt in sent), "已知状态不应触发漂移告警")
+
+
+class TestPerNoteResilience(unittest.TestCase):
+    """单条坏记录不炸整轮(P6 演练确立的原则)。
+
+    why:heartbeat 挂 cron 无人值守。一条畸形记录(飞书偶发返回缺 fields、或某字段形态诡异
+    让 route 抛错)若能掀翻整轮,当天所有笔记都停摆、还刷异常告警。此前 f=r['fields'] 与
+    route() 在 per-note try 之外——坏记录直接 KeyError 掉整轮。本测试锁死:坏记录被跳过,
+    同轮的好记录照常处理,run 正常返回不抛。"""
+
+    def test_malformed_record_does_not_abort_run(self):
+        bad = {"record_id": "recBad"}  # 缺 fields 键(畸形)
+        good = {"record_id": "recGood", "fields": {NF.STATUS: NS.IDEA, NF.CODE: "PQ-GOOD"}}
+        summary, updates, _ = run_records([bad, good])  # 坏的在前
+        self.assertIn("PQ-GOOD", summary["ideas"], "坏记录不应阻断同轮好记录的处理")
+        self.assertEqual(updates, [], "本例无写回动作")
+
+    def test_none_fields_record_tolerated(self):
+        weird = {"record_id": "recNone", "fields": None}  # fields 为 None
+        good = {"record_id": "recG2", "fields": {NF.STATUS: NS.IDEA, NF.CODE: "PQ-G2"}}
+        summary, _, _ = run_records([weird, good])
+        self.assertIn("PQ-G2", summary["ideas"], "fields=None 不应炸整轮")
 
 
 class TestCostAccounting(unittest.TestCase):
