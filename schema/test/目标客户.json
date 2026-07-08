@@ -3,14 +3,6 @@
   "table_name": "目标客户",
   "fields": [
     {
-      "field_name": "账号名",
-      "type": "text"
-    },
-    {
-      "field_name": "小红书号",
-      "type": "text"
-    },
-    {
       "field_name": "主页链接",
       "type": "text"
     },
@@ -50,6 +42,14 @@
         "连衣裙",
         "直接购买"
       ]
+    },
+    {
+      "field_name": "账号名",
+      "type": "text"
+    },
+    {
+      "field_name": "小红书号",
+      "type": "text"
     }
   ]
 }

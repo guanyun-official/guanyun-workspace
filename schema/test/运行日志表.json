@@ -3,28 +3,11 @@
   "table_name": "运行日志表",
   "fields": [
     {
-      "field_name": "结果",
-      "type": "select",
-      "options": [
-        "成功",
-        "失败",
-        "待人审"
-      ]
-    },
-    {
-      "field_name": "执行体",
-      "type": "text"
-    },
-    {
       "field_name": "时间",
       "type": "datetime"
     },
     {
       "field_name": "涉及表",
-      "type": "text"
-    },
-    {
-      "field_name": "动作",
       "type": "text"
     },
     {
@@ -36,8 +19,25 @@
       "type": "text"
     },
     {
+      "field_name": "执行体",
+      "type": "text"
+    },
+    {
+      "field_name": "动作",
+      "type": "text"
+    },
+    {
       "field_name": "技能",
       "type": "text"
+    },
+    {
+      "field_name": "结果",
+      "type": "select",
+      "options": [
+        "成功",
+        "失败",
+        "待人审"
+      ]
     },
     {
       "field_name": "详情",

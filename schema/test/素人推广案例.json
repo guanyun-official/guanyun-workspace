@@ -11,10 +11,6 @@
       "type": "text"
     },
     {
-      "field_name": "内容类型",
-      "type": "text"
-    },
-    {
       "field_name": "补充说明",
       "type": "text"
     },
@@ -24,6 +20,10 @@
     },
     {
       "field_name": "博主名字",
+      "type": "text"
+    },
+    {
+      "field_name": "内容类型",
       "type": "text"
     },
     {

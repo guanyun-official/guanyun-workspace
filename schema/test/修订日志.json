@@ -3,6 +3,10 @@
   "table_name": "修订日志",
   "fields": [
     {
+      "field_name": "修改意见",
+      "type": "text"
+    },
+    {
       "field_name": "最终版本",
       "type": "text"
     },
@@ -24,10 +28,6 @@
     },
     {
       "field_name": "原始产出",
-      "type": "text"
-    },
-    {
-      "field_name": "修改意见",
       "type": "text"
     }
   ]
