@@ -4,3 +4,4 @@ iter	change	metric	decision
 2	排产提议plan_day(每号每天发什么主动提议)	100.0	keep
 3	引擎格式感知(图文需配图/视频走视频链)	100.0	keep
 4	账号画像注入(每号风格data注入,account-teardown填充)	100.0	keep
+5	摄入即挂SKU+孤儿清单(解决素材没挂钩乱)	100.0	keep

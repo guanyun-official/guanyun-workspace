@@ -59,9 +59,22 @@ def link(src: str, sku: str, category: str, name: str | None = None) -> str:
     return str(dst)
 
 
+def _clothes_map() -> dict:
+    """衣服编号→record_id(挂 SKU 用)。"""
+    m = {}
+    for c in feishu_io.list_records("衣服总表"):
+        code = c["fields"].get("衣服编号")
+        if isinstance(code, list):
+            code = "".join(x.get("text", "") for x in code if isinstance(x, dict))
+        if code:
+            m[str(code)] = c["record_id"]
+    return m
+
+
 def register(sku: str, code: str, mtype: str, link_path: str, note: str = "",
-             source: str = "实拍") -> str:
-    """登记一条素材进测试库素材表(链接=软链路径;智能体理解入 备注/类型)。"""
+             source: str = "实拍", link_sku: str | None = None, accounts: list | None = None) -> str:
+    """登记素材进测试库素材表 + **挂 SKU**(解决'素材没跟SKU挂钩乱')。
+    link_sku=衣服编号(如 GY-001);挂不上(SKU 不存在)则留孤儿并在返回打标。"""
     fields = {
         "素材编号": code,
         "类型": mtype,
@@ -70,7 +83,26 @@ def register(sku: str, code: str, mtype: str, link_path: str, note: str = "",
         "来源": source,
         "备注": note,
     }
+    target = link_sku or sku
+    cmap = _clothes_map()
+    if target in cmap:
+        fields["关联衣服"] = [cmap[target]]  # 摄入即挂 SKU,不再是孤儿
+    if accounts:
+        fields["适用账号"] = accounts
     return feishu_io.create_record("素材表", fields)
+
+
+def orphans() -> list[dict]:
+    """列出未挂钩素材(无关联衣服也无关联面料工艺),供 agent 补挂 SKU(存量清理)。"""
+    def _t(v):
+        return ",".join(x.get("text", "") for x in v if isinstance(x, dict)) if isinstance(v, list) else str(v or "")
+    out = []
+    for m in feishu_io.list_records("素材表"):
+        f = m["fields"]
+        if not _t(f.get("关联衣服")).strip() and not _t(f.get("关联面料·工艺")).strip():
+            out.append({"record_id": m["record_id"], "素材编号": _t(f.get("素材编号")),
+                        "类型": f.get("类型"), "备注": _t(f.get("备注"))})
+    return out
 
 
 def main() -> int:
@@ -79,9 +111,11 @@ def main() -> int:
     s = sub.add_parser("scan"); s.add_argument("src_dir")
     l = sub.add_parser("link"); l.add_argument("src"); l.add_argument("sku")
     l.add_argument("category"); l.add_argument("name", nargs="?")
+    sub.add_parser("orphans")
     r = sub.add_parser("register"); r.add_argument("sku"); r.add_argument("code")
     r.add_argument("--type", required=True); r.add_argument("--link", required=True)
     r.add_argument("--note", default=""); r.add_argument("--source", default="实拍")
+    r.add_argument("--sku-link", dest="sku_link", default=None)
     a = ap.parse_args()
     if a.cmd == "scan":
         files = scan(a.src_dir)
@@ -90,7 +124,9 @@ def main() -> int:
     elif a.cmd == "link":
         print(link(a.src, a.sku, a.category, a.name))
     elif a.cmd == "register":
-        print(register(a.sku, a.code, a.__dict__["type"], a.link, a.note, a.source))
+        print(register(a.sku, a.code, a.__dict__["type"], a.link, a.note, a.source, a.sku_link))
+    elif a.cmd == "orphans":
+        import json as _j; print(_j.dumps(orphans(), ensure_ascii=False, indent=1))
     return 0
 
 
