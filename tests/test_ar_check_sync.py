@@ -52,6 +52,15 @@ class TestArCheckSync(unittest.TestCase):
             f"accounts.load_all 只解析出 {len(declared)} 个 strategy 声明,ar_check 需 >=3",
         )
 
+    def test_ar_check_requires_daily_plan_materialization(self):
+        """“每天发什么”不能只会算报告；成熟度门必须锁住 Planner→Note 接线。"""
+        src = (ROOT / "scripts" / "ar_check.py").read_text(encoding="utf-8")
+        self.assertIn(
+            "materialize_day",
+            src,
+            "ar_check 未验证 Planner→Note 物化能力，排产与状态推进断线也会误报 SCORE=100",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

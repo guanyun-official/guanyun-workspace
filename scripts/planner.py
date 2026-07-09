@@ -10,7 +10,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import sys
+from datetime import date, datetime, time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -48,7 +50,7 @@ def _pb_views(account: str, pbs: list, used_clips: set) -> list[dict]:
     可发 = 视图里选入、且尚未被本号笔记用掉的子素材(SKU 无关:挂不挂 SKU 都算)。"""
     out = []
     for pb in pbs:
-        selects = mv.view_selects(account, pb.get("id"), root=mv.ASSET_ROOT)
+        selects = mv.view_selects(account, pb.get("view") or pb.get("id"), root=mv.ASSET_ROOT)
         out.append({"pb": pb, "selects": selects,
                     "avail": [s for s in selects if s.get("clip_id") not in used_clips]})
     return out
@@ -63,9 +65,17 @@ def _pick_today(pb_views: list, ready: list, editable: list) -> dict | None:
             return {"来源": "视图", "方法论": v["pb"].get("id"),
                     "clip": {k: c.get(k) for k in ("clip_id", "material", "span")}}
     if ready:
-        return {"来源": "现成成片", **ready[0]}
+        candidate = ready[0]
+        have = set(candidate.get("有素材") or [])
+        matching = [
+            v["pb"] for v in pb_views
+            if have & set(v["pb"].get("material_needs") or [])
+        ]
+        fallback_pb = max(matching, key=lambda pb: pb.get("weight") or 0, default={})
+        return {"来源": "现成成片", "方法论": fallback_pb.get("id"), **candidate}
     if editable:
-        return {"来源": "AI剪", **editable[0]}
+        fallback_pb = max((v["pb"] for v in pb_views), key=lambda pb: pb.get("weight") or 0, default={})
+        return {"来源": "AI剪", "方法论": fallback_pb.get("id"), **editable[0]}
     return None
 
 
@@ -119,7 +129,8 @@ def plan(only: str | None = None, brand: str = "观云") -> dict:
         pbv = _pb_views(name, pbs, used_clips)  # 每套方法论视图选入/可发(算一次)
         out[name] = {
             "模式": s.get("mode"), "自动": True, "自主": s.get("autonomy"),
-            "方法论": [{"id": pb.get("id"), "权重": pb.get("weight"), "需素材": pb.get("material_needs", [])}
+            "方法论": [{"id": pb.get("id"), "内容类型": pb.get("content_type") or pb.get("id"),
+                       "权重": pb.get("weight"), "需素材": pb.get("material_needs", [])}
                        for pb in pbs],
             "视图余量": [{"id": v["pb"].get("id"), "已选": len(v["selects"]), "可发": len(v["avail"]),
                          "见底": len(v["avail"]) < alert} for v in pbv],  # G6
@@ -130,6 +141,97 @@ def plan(only: str | None = None, brand: str = "观云") -> dict:
             "就绪队列": ready, "待剪队列": editable, "拍摄需求": shoot,  # SKU 轴=补料/拍摄指导
         }
     return out
+
+
+def _plan_code(day: date, account: str, playbook: str, today: dict) -> str:
+    """排产 Note 的稳定业务键。同日同账号同方法论同候选重跑得到同一键。"""
+    entity = today.get("sku") or (today.get("clip") or {}).get("clip_id") or today.get("来源", "")
+    digest = hashlib.sha1(f"{account}\x1f{playbook}\x1f{entity}".encode("utf-8")).hexdigest()[:10]
+    return f"PLAN-{day:%Y%m%d}-{digest}"
+
+
+def materialize_day(only: str | None = None, brand: str = "观云", day: date | None = None) -> dict:
+    """把 planner 的「今日发」幂等物化为笔记表 Note。
+
+    只物化已有可发布资产的「视图 / 现成成片」候选；「AI剪」仍缺媒体加工状态与动作，
+    显式跳过而不是把原料伪装成成片推进发布链。
+    """
+    target_day = day or date.today()
+    planned = plan(only=only, brand=brand)
+    notes = feishu_io.list_records("笔记表")
+    existing_codes = {_txt(r["fields"].get(NF.CODE)) for r in notes}
+    content_types = {
+        _txt(r["fields"].get("内容类型名")): r["record_id"]
+        for r in feishu_io.list_records("内容类型表")
+        if _txt(r["fields"].get("内容类型名"))
+    }
+    clothes = {
+        _txt(r["fields"].get(CF.CODE)): r["record_id"]
+        for r in feishu_io.list_records("衣服总表")
+        if _txt(r["fields"].get(CF.CODE))
+    }
+    materials = feishu_io.list_records("素材表")
+    material_by_code = {
+        _txt(r["fields"].get(MF.CODE)): r["record_id"]
+        for r in materials if _txt(r["fields"].get(MF.CODE))
+    }
+
+    summary = {"created": 0, "existing": 0, "skipped": [], "errors": [], "record_ids": []}
+    for account, account_plan in planned.items():
+        today = account_plan.get("今日发")
+        if not account_plan.get("自动") or not today:
+            summary["skipped"].append({"account": account, "reason": "inactive_or_no_candidate"})
+            continue
+        if today.get("来源") == "AI剪":
+            summary["skipped"].append({"account": account, "reason": "media_processing_not_wired"})
+            continue
+
+        playbook = today.get("方法论") or ""
+        pb = next((x for x in account_plan.get("方法论", []) if x.get("id") == playbook), {})
+        content_type = pb.get("内容类型") or playbook
+        content_type_id = content_types.get(content_type)
+        if not content_type_id:
+            summary["errors"].append(f"{account}: 内容类型「{content_type}」未在内容类型表登记")
+            continue
+
+        code = _plan_code(target_day, account, playbook, today)
+        if code in existing_codes:
+            summary["existing"] += 1
+            continue
+
+        fields = {
+            NF.CODE: code,
+            NF.TITLE: f"{account}·{content_type}·{target_day:%m-%d}",
+            NF.STATUS: NS.NEED_COPY,
+            NF.PLANNED_AT: int(datetime.combine(target_day, time(9)).timestamp() * 1000),
+            NF.CONTENT_TYPE: [content_type_id],
+            NF.PLAYBOOK: playbook,
+        }
+        if today.get("来源") == "视图":
+            clip = today.get("clip") or {}
+            if clip.get("clip_id"):
+                fields[NF.CLIPS] = clip["clip_id"]
+            material_id = material_by_code.get(clip.get("material"))
+            if material_id:
+                fields[NF.LINKED_MATERIALS] = [material_id]
+        else:
+            sku = today.get("sku")
+            if sku in clothes:
+                fields[NF.LINKED_CLOTHES] = [clothes[sku]]
+            wanted_types = set(today.get("有素材") or [])
+            material_ids = [
+                r["record_id"] for r in materials
+                if sku in {x.strip() for x in _txt(r["fields"].get(MF.LINKED_CLOTHES)).split(",")}
+                and (not wanted_types or _txt(r["fields"].get(MF.TYPE)) in wanted_types)
+            ]
+            if material_ids:
+                fields[NF.LINKED_MATERIALS] = material_ids
+
+        rid = feishu_io.create_record("笔记表", fields)
+        existing_codes.add(code)
+        summary["created"] += 1
+        summary["record_ids"].append(rid)
+    return summary
 
 
 def main() -> int:

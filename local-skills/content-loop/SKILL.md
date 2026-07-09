@@ -12,9 +12,10 @@ license: MIT
 ## 接口（窄，稳定）
 
 ```bash
-# 推进一轮(读表→route→执行→写回+运行日志)。单实例(flock),自身零 LLM。
-python3 -m orchestrator.run --mode daily      --llm stub   # 每日排产轮+日报;--llm real 才真花钱生成
+# 推进一轮。daily 先把 planner「今日发」幂等物化为 Note，再 route→执行→写回+日志。
+python3 -m orchestrator.run --mode daily      --llm stub   # 真写运营库；--llm real 才真花钱生成
 python3 -m orchestrator.run --mode heartbeat  --llm stub   # 巡检轮(催拍/催审/发布检测/回流)
+python3 -m orchestrator.run --mode daily --skip-plan       # 仅验收/诊断：不物化排产
 
 # 每号今天发什么(缓发排产+素材余量+催拍);读账号 strategy,只读不写
 python3 scripts/planner.py [--account 科普号]
@@ -32,6 +33,7 @@ python3 scripts/ingest.py orphans                          # 列未挂SKU素材�
 - **月成本熔断**:LLM 月成本超阈本轮停止生成。
 - **Base 守卫**:TEST_MODE=1 只许写测试 Base,生产 Base 物理够不着。
 - **绝不自动发布**:引擎只做到"待发布包",人手机发布并勾 AI 声明。
+- **不伪装成片**:只有原料、仍需 AI 剪辑的候选不会物化 Note，直到媒体加工动作接通。
 
 ## 何时触发
 - cron 每日 09:00 `--mode daily`;工作时段每30分 `--mode heartbeat`(见 scripts/install_cron.sh)。

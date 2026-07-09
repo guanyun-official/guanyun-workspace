@@ -38,7 +38,8 @@ else
 fi
 
 echo "④ daily 轮 + 月度成本核算"
-OUT=$(python3 -m orchestrator.run --mode daily 2>&1)
+# 验收只测日报/成本，不应把真实 planner 结果物化进运营 Base。
+OUT=$(python3 -m orchestrator.run --mode daily --skip-plan 2>&1)
 if echo "$OUT" | grep -q "monthly_cost_cny" && echo "$OUT" | grep -q "本月累计 LLM 成本"; then
   pass "daily 日报含月成本($(echo "$OUT" | grep -o '本月累计 LLM 成本 ¥[0-9.]*' | head -1))"
 else

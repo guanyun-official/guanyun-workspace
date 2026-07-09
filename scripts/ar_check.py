@@ -26,6 +26,7 @@ ck("loop承载","orchestrator引擎存在(cron+heartbeat)", (ROOT/"orchestrator/
 # P3 每天发什么
 from orchestrator import feishu_io, accounts
 from orchestrator.runbook import route
+from scripts import planner as planner_module
 try:
     notes = feishu_io.list_records("笔记表")
     now=datetime.now()
@@ -37,6 +38,11 @@ try:
     # 与 planner 同源:数引擎实际解析出的 strategy 声明(候选C 后声明在 {号}.md frontmatter,不再是 *.strategy.json 文件)
     n_strat=sum(1 for a in accounts.load_all("观云").values() if a.strategy)
     ck("每天发什么","planner读账号strategy缓发排产(每号声明模式)", len(acts)>0 and has_planner and n_strat>=3, f"动作{acts}+planner+{n_strat}个strategy声明")
+    run_src = (ROOT/"orchestrator/run.py").read_text()
+    materialize_day = getattr(planner_module, "materialize_day", None)
+    has_materializer = callable(materialize_day) and "materialize_day()" in run_src
+    ck("排产接线","daily 把「今日发」幂等物化为 Note 后再推进",
+       has_materializer, "planner.materialize_day + orchestrator.run daily 接线")
     ck("模式泛化","加模式=写strategy声明零代码(引擎通用解释)", has_planner and n_strat>=3, f"{n_strat}个账号模式=data,planner通用解释")
     probs = accounts.problems("观云")
     ck("声明健壮","账号 frontmatter 全部可解析(坏声明不静默漏号)", not probs, f"解析失败={probs or '无'}")

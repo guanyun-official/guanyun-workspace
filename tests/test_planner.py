@@ -1,5 +1,6 @@
 """通用策略解释器:mode来自strategy声明(改data变行为),引擎零账号特定逻辑。"""
 import sys, tempfile, unittest
+from datetime import date
 from pathlib import Path
 from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -87,6 +88,32 @@ class TestPlanner(unittest.TestCase):
         finally:
             pl.mv.ASSET_ROOT = orig
 
+    def test_view_lookup_uses_declared_view_key_not_playbook_id(self):
+        """Playbook id 是方法论身份，view 才是盘侧 bin 键；两者允许不同。"""
+        import scripts.planner as pl
+        root = Path(tempfile.mkdtemp())
+        original_root = pl.mv.ASSET_ROOT
+        pl.mv.ASSET_ROOT = root
+        try:
+            pl.mv.add_select("V号", "archive-bin", "GY-1", "/raw/a.mp4", "video:0-6", root=root)
+            strategies = {
+                "V号": {
+                    "account": "V号",
+                    "cadence": {"posts_per_day": 1},
+                    "autonomy": "approve",
+                    "playbooks": [{
+                        "id": "考据", "content_type": "文物对照", "weight": 1.0,
+                        "material_needs": ["文物对照图"], "view": "archive-bin",
+                    }],
+                }
+            }
+            result = self._run(strategies, {"衣服总表": [], "素材表": [], "笔记表": []})
+        finally:
+            pl.mv.ASSET_ROOT = original_root
+
+        self.assertEqual(result["V号"]["今日发"]["来源"], "视图")
+        self.assertEqual(result["V号"]["今日发"]["方法论"], "考据")
+
     def test_playbook_performance_feedback_surfaced(self):
         # G7 反馈:已发笔记按方法论聚合均赞 → planner 输出「方法论表现」(闭环学习信号可见)
         s = {"F号": {"account": "F号", "cadence": {"posts_per_day": 1}, "autonomy": "approve"}}
@@ -97,3 +124,151 @@ class TestPlanner(unittest.TestCase):
         perf = self._run(s, tables)["F号"]["方法论表现"]
         self.assertEqual(perf["考据"]["均赞"], 200.0, "考据两条均赞 (300+100)/2=200")
         self.assertEqual(perf["ootd"]["条数"], 1)
+
+    def test_materialize_day_creates_one_idempotent_note(self):
+        """daily 排产把现成成片物化为 Note；同一天重跑不得重复创建。"""
+        import scripts.planner as pl
+        strategies = {
+            "A号": {
+                "account": "A号",
+                "cadence": {"posts_per_day": 1},
+                "autonomy": "approve",
+                "material_needs": {"唯美ootd": ["上身视频"]},
+            }
+        }
+        tables = {
+            "衣服总表": [_rec({"衣服编号": "S1", "款式名称": "甲"})],
+            "笔记表": [],
+            "素材表": [_rec({
+                "素材编号": "M1", "拍摄状态": "已拍", "关联衣服": "S1", "类型": "上身视频",
+            })],
+            "内容类型表": [{"record_id": "ct-1", "fields": {"内容类型名": "唯美ootd"}}],
+        }
+        created = []
+
+        def list_records(table):
+            return tables[table]
+
+        def create_record(table, fields):
+            self.assertEqual(table, "笔记表")
+            created.append(fields)
+            tables["笔记表"].append({"record_id": "note-1", "fields": fields})
+            return "note-1"
+
+        with mock.patch.object(pl, "load_strategies", return_value=strategies), \
+             mock.patch.object(pl.feishu_io, "list_records", side_effect=list_records), \
+             mock.patch.object(pl.feishu_io, "create_record", side_effect=create_record):
+            first = pl.materialize_day(day=date(2026, 7, 9))
+            second = pl.materialize_day(day=date(2026, 7, 9))
+
+        self.assertEqual(first["created"], 1)
+        self.assertEqual(second["created"], 0)
+        self.assertEqual(second["existing"], 1)
+        self.assertEqual(len(created), 1)
+        self.assertEqual(created[0]["状态"], "待出文案")
+        self.assertEqual(created[0]["内容类型"], ["ct-1"])
+        self.assertEqual(created[0]["方法论"], "唯美ootd")
+        self.assertEqual(created[0]["关联衣服"], ["r"])
+        self.assertEqual(created[0]["关联素材"], ["r"])
+
+    def test_sku_fallback_uses_playbook_matching_the_ready_material(self):
+        """SKU 成片只能归到素材需求匹配的方法论，不能被更高权重的不相关方法论抢走。"""
+        strategies = {
+            "A号": {
+                "account": "A号",
+                "cadence": {"posts_per_day": 1},
+                "autonomy": "approve",
+                "playbooks": [
+                    {
+                        "id": "考据", "content_type": "文物对照", "weight": 0.8,
+                        "material_needs": ["文物对照图"], "view": "考据",
+                    },
+                    {
+                        "id": "穿搭", "content_type": "唯美ootd", "weight": 0.2,
+                        "material_needs": ["上身视频"], "view": "穿搭",
+                    },
+                ],
+            }
+        }
+        tables = {
+            "衣服总表": [_rec({"衣服编号": "S1", "款式名称": "甲"})],
+            "笔记表": [],
+            "素材表": [_rec({
+                "素材编号": "M1", "拍摄状态": "已拍", "关联衣服": "S1", "类型": "上身视频",
+            })],
+        }
+
+        today = self._run(strategies, tables)["A号"]["今日发"]
+
+        self.assertEqual(today["来源"], "现成成片")
+        self.assertEqual(today["方法论"], "穿搭")
+
+    def test_materialize_day_does_not_publish_raw_material_as_finished_media(self):
+        """只有原料、仍需 AI 剪辑时不创建 Note，避免原料沿发布状态机被当成成片。"""
+        import scripts.planner as pl
+        strategies = {
+            "A号": {
+                "account": "A号",
+                "cadence": {"posts_per_day": 1},
+                "autonomy": "approve",
+                "material_needs": {"唯美ootd": ["上身视频"]},
+            }
+        }
+        tables = {
+            "衣服总表": [_rec({"衣服编号": "S1", "款式名称": "甲"})],
+            "笔记表": [],
+            "素材表": [_rec({
+                "素材编号": "M1", "拍摄状态": "已拍", "关联衣服": "S1", "类型": "商品图",
+            })],
+            "内容类型表": [{"record_id": "ct-1", "fields": {"内容类型名": "唯美ootd"}}],
+        }
+        with mock.patch.object(pl, "load_strategies", return_value=strategies), \
+             mock.patch.object(pl.feishu_io, "list_records", side_effect=lambda table: tables[table]), \
+             mock.patch.object(pl.feishu_io, "create_record") as create:
+            result = pl.materialize_day(day=date(2026, 7, 9))
+
+        create.assert_not_called()
+        self.assertEqual(result["created"], 0)
+        self.assertEqual(result["skipped"], [{"account": "A号", "reason": "media_processing_not_wired"}])
+
+    def test_materialize_day_projects_view_clip_into_note(self):
+        """View 候选创建 Note 时投影 playbook、clip_id 与原始 Material 关联。"""
+        import scripts.planner as pl
+        root = Path(tempfile.mkdtemp())
+        original_root = pl.mv.ASSET_ROOT
+        pl.mv.ASSET_ROOT = root
+        try:
+            clip = pl.mv.add_select("A号", "考据", "M1", "/raw/a.mp4", "video:0-6", root=root)
+            strategies = {
+                "A号": {
+                    "account": "A号",
+                    "cadence": {"posts_per_day": 1},
+                    "autonomy": "approve",
+                    "playbooks": [{
+                        "id": "考据", "content_type": "文物对照", "weight": 1.0,
+                        "material_needs": ["文物对照图"], "view": "考据",
+                    }],
+                }
+            }
+            tables = {
+                "衣服总表": [],
+                "笔记表": [],
+                "素材表": [{"record_id": "mat-1", "fields": {
+                    "素材编号": "M1", "拍摄状态": "已拍", "类型": "商品图",
+                }}],
+                "内容类型表": [{"record_id": "ct-1", "fields": {"内容类型名": "文物对照"}}],
+            }
+            created = []
+            with mock.patch.object(pl, "load_strategies", return_value=strategies), \
+                 mock.patch.object(pl.feishu_io, "list_records", side_effect=lambda table: tables[table]), \
+                 mock.patch.object(pl.feishu_io, "create_record",
+                                   side_effect=lambda _table, fields: created.append(fields) or "note-1"):
+                result = pl.materialize_day(day=date(2026, 7, 9))
+        finally:
+            pl.mv.ASSET_ROOT = original_root
+
+        self.assertEqual(result["created"], 1)
+        self.assertEqual(created[0]["方法论"], "考据")
+        self.assertEqual(created[0]["内容类型"], ["ct-1"])
+        self.assertEqual(created[0]["关联子素材"], clip)
+        self.assertEqual(created[0]["关联素材"], ["mat-1"])
