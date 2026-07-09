@@ -96,5 +96,33 @@ class TestUsageLedger(unittest.TestCase):
         self.assertEqual(mv.pct(1, 0), 0.0, "总量 0 不炸")
 
 
+class TestTraceAndSummary(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+
+    def test_trace_note_joins_ledger_and_views(self):
+        # G5 回溯:笔记→clip→原始素材/切片/来源视图
+        cid = mv.add_select("科普号", "考据", "GY-7", "/raw/g7.mp4", "video:0-6",
+                            dims={"主体": "缠枝纹"}, root=self.root)
+        mv.record_usage(cid, "PQ-9", "考据", used=5.0, ts=1, root=self.root)
+        tr = mv.trace_note("PQ-9", root=self.root)
+        self.assertEqual(len(tr), 1)
+        row = tr[0]
+        self.assertEqual(row["material"], "GY-7")
+        self.assertEqual(row["span"], "video:0-6")
+        self.assertEqual(row["account"], "科普号")
+        self.assertEqual(row["playbook"], "考据")
+        self.assertEqual(row["used"], 5.0)
+
+    def test_write_summary_human_readable(self):
+        mv.add_select("A", "p", "GY-1", "/raw/a.mp4", "video:0-6", dims={"主体": "马面裙"}, root=self.root)
+        p = mv.write_summary("A", "p", root=self.root)
+        self.assertTrue(p.exists())
+        text = p.read_text(encoding="utf-8")
+        self.assertIn("GY-1", text)
+        self.assertIn("video:0-6", text)
+        self.assertIn("主体=马面裙", text, "语义维度应进人读镜像")
+
+
 if __name__ == "__main__":
     unittest.main()

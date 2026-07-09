@@ -114,3 +114,42 @@ def usage_of(clip: str, root: Path = ASSET_ROOT) -> list[dict]:
 def note_clips(note: str, root: Path = ASSET_ROOT) -> list[str]:
     """某笔记用了哪些子素材(回溯反向:笔记→clip,支撑 G5)。"""
     return [r["clip_id"] for r in _read_jsonl(_usage_path(root)) if r.get("note") == note]
+
+
+def trace_note(note: str, root: Path = ASSET_ROOT) -> list[dict]:
+    """回溯一条笔记(G5):笔记 → 用了哪些 clip → 各 clip 的原始素材/切片/来源视图。
+    在盘上把 usage 账本与所有视图 manifest 连起来,给人/agent 一个完整溯源。"""
+    view_index: dict[str, dict] = {}
+    views_dir = root / "_views"
+    if views_dir.exists():
+        for p in views_dir.rglob("*.jsonl"):
+            # 路径形如 _views/{账号}/{playbook}.jsonl
+            account, playbook = p.parent.name, p.stem
+            for s in _read_jsonl(p):
+                s = {**s, "account": account, "playbook": playbook}
+                view_index.setdefault(s["clip_id"], s)  # 首见即锚(clip_id 稳定,不同视图同 clip 等价)
+    out = []
+    for u in _read_jsonl(_usage_path(root)):
+        if u.get("note") != note:
+            continue
+        v = view_index.get(u["clip_id"], {})
+        out.append({"clip_id": u["clip_id"], "used": u.get("used"),
+                    "material": v.get("material"), "span": v.get("span"), "src": v.get("src"),
+                    "account": v.get("account"), "playbook": v.get("playbook")})
+    return out
+
+
+def write_summary(account: str, playbook: str, root: Path = ASSET_ROOT) -> Path:
+    """从视图 manifest 生成人可读 `.summary.md`(评审 finding#5 逃生口):每个子素材一行
+    '为什么选它'(素材+切片+语义维度)。仅调试用、**非真相源**——发错料时人能回溯。返回路径。"""
+    selects = view_selects(account, playbook, root)
+    lines = [f"# 视图 · {account} / {playbook}", "",
+             f"> 机器 manifest 的人读镜像({len(selects)} 个子素材)。非真相源,调试用。", ""]
+    for s in selects:
+        dims = "、".join(f"{k}={v}" for k, v in (s.get("dims") or {}).items())
+        lines.append(f"- `{s['clip_id']}` ← {s.get('material')} [{s.get('span')}]"
+                     + (f" · {dims}" if dims else ""))
+    p = root / "_views" / account / f"{playbook}.summary.md"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return p
