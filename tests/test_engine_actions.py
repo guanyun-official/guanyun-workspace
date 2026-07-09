@@ -157,6 +157,25 @@ class TestPerNoteResilience(unittest.TestCase):
         self.assertIn("PQ-G2", summary["ideas"], "fields=None 不应炸整轮")
 
 
+class TestMetricsCollection(unittest.TestCase):
+    """G7:已发到窗口→COLLECT_METRICS。取到数据写回笔记表;取不到(stub)记待办、不写回。"""
+
+    def test_writes_back_when_collected(self):
+        note = {NF.STATUS: NS.PUBLISHED, NF.CODE: "PQ-M", NF.PUBLISHED_AT: MS(NOW - timedelta(days=1)),
+                NF.PUBLISH_LINK: {"link": "https://xiaohongshu.com/note/x"}}
+        with mock.patch.object(engine.metrics, "collect", return_value={NF.LIKED: 120, NF.COLLECTED: 30}):
+            summary, updates, _ = run_one(note)
+        self.assertTrue(any(p.get(NF.LIKED) == 120 for _, _, p in updates), "应写回点赞")
+        self.assertIn("PQ-M", summary.get("metrics_collected", []))
+
+    def test_todo_when_stub_no_writeback(self):
+        note = {NF.STATUS: NS.PUBLISHED, NF.CODE: "PQ-M2", NF.PUBLISHED_AT: MS(NOW - timedelta(days=1)),
+                NF.PUBLISH_LINK: {"link": "https://x"}}
+        summary, updates, _ = run_one(note)  # 默认 metrics_mode=stub → collect 返 {}
+        self.assertIn("PQ-M2", summary.get("metrics_todo", []))
+        self.assertEqual(updates, [], "stub 不写回")
+
+
 class TestUsageBackfillOnPublish(unittest.TestCase):
     """闭环:检测到发布回填→置已发 时,把笔记「关联子素材」的 clip_ids 记进 usage 账本。
     这一步让 G5 回溯 / G6 视图余量 / G3 使用率 从**真实已发笔记**灌数,而非只有测试数据。"""

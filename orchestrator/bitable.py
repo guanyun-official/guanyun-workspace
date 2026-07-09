@@ -30,6 +30,10 @@ class NoteFields:
     LINKED_MATERIALS = "关联素材"
     PLAYBOOK = "方法论"        # 显式所属方法论 id(G11;为空则回退 content_type 解析)
     CLIPS = "关联子素材"       # 用了哪些子素材 clip_id(逗号分隔;发布回填 usage 的锚点)
+    LIKED = "点赞"            # 效果采集写回(G7);热度分是 formula 由 Bitable 自算,不写
+    COLLECTED = "收藏"
+    COMMENTS = "评论"
+    SHARED = "转发"
 
 
 class MaterialFields:

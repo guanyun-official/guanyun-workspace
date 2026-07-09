@@ -7,7 +7,7 @@ import fcntl
 import traceback
 from datetime import datetime
 
-from . import alerts, bitable, config, feishu_io, guard, llm, reminders
+from . import alerts, bitable, config, feishu_io, guard, llm, metrics, reminders
 from .bitable import ContentTypeFields as CTF
 from .bitable import NoteFields as NF
 from .bitable import NoteStatus as NS
@@ -73,11 +73,12 @@ class _Ctx:
     handler 只碰 ctx——把'选哪个动作'(runbook.route)和'动作干什么'(下面的 _h_*)解耦。"""
 
     def __init__(self, *, now: datetime, fmt_map: dict, budget_blown: bool, llm_mode: str,
-                 summary: dict, pending_pub_by_account: dict):
+                 summary: dict, pending_pub_by_account: dict, metrics_mode: str = "stub"):
         self.now = now
         self.fmt_map = fmt_map
         self.budget_blown = budget_blown
         self.llm_mode = llm_mode
+        self.metrics_mode = metrics_mode
         self.summary = summary
         self.pending_pub_by_account = pending_pub_by_account
         self.generated = 0            # run 级:本轮已生成文案数(成本闸计数)
@@ -160,8 +161,14 @@ def _h_mark_published(ctx: _Ctx) -> None:
 
 
 def _h_collect_metrics(ctx: _Ctx) -> None:
-    # 效果取数走零封号链(P6 接线 xhs_fetch);当前记待办不阻塞
-    ctx.summary.setdefault("metrics_todo", []).append(ctx.name)
+    # 效果取数走零封号非登录链(G7:metrics.collect→xhs_fetch)。默认 stub 零成本;real 才真取。
+    url = bitable.text(ctx.f.get(NF.PUBLISH_LINK))
+    got = metrics.collect(url, ctx.metrics_mode)
+    if got:
+        feishu_io.update_record("笔记表", ctx.rid, got)   # 写回点赞/收藏/评论/转发(热度分 Bitable 自算)
+        ctx.summary.setdefault("metrics_collected", []).append(ctx.name)
+    else:
+        ctx.summary.setdefault("metrics_todo", []).append(ctx.name)  # 未取到:记待办,下轮重试
 
 
 def _h_close_loop(ctx: _Ctx) -> None:
@@ -216,7 +223,8 @@ def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dic
                 summary["unknown_status"].append(f"{_title_of(f)}: 未识别状态「{st}」")
 
         ctx = _Ctx(now=now, fmt_map=fmt_map, budget_blown=budget_blown, llm_mode=llm_mode,
-                   summary=summary, pending_pub_by_account=pending_pub_by_account)
+                   summary=summary, pending_pub_by_account=pending_pub_by_account,
+                   metrics_mode=config.METRICS_MODE)
         for r in notes[: max(limit, 0) or len(notes)]:
             act = None
             ctx.f = r.get("fields") or {}   # 畸形记录不炸整轮:降级为空 fields → route 判 NOOP 跳过

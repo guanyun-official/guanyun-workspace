@@ -38,6 +38,7 @@ REVIEW_OVERDUE_HOURS = int(os.environ.get("GY_REVIEW_OVERDUE_H", "24"))     # �
 METRICS_CLOSE_DAYS = int(os.environ.get("GY_METRICS_CLOSE_DAYS", "7"))      # 已发 N 天后回流收口
 BUDGET_MONTHLY_CNY = float(os.environ.get("GY_BUDGET_MONTHLY_CNY", "300"))  # 月度 LLM 成本告警阈值
 PER_RUN_BUDGET_USD = float(os.environ.get("GY_PER_RUN_BUDGET_USD", "1.2"))  # 单次 claude -p 预算帽(P6实测:长文0.5不够)
+METRICS_MODE = os.environ.get("GY_METRICS_MODE", "stub")  # 效果采集:stub 零成本 / real 走 xhs_fetch 非登录取数(G7)
 
 
 TENANT_HOST = os.environ.get("GY_TENANT_HOST", "ccn925h7lg9d.feishu.cn")
