@@ -26,7 +26,8 @@ class TestPlanner(unittest.TestCase):
         }
         p = self._run(s, tables)
         self.assertTrue(p["A号"]["自动"])
-        self.assertEqual(p["A号"]["今日缓发"]["sku"], "S1")   # 有目标成片→可发
+        self.assertEqual(p["A号"]["今日发"]["来源"], "现成成片")  # 无视图→回退SKU现成成片
+        self.assertEqual(p["A号"]["今日发"]["sku"], "S1")
         self.assertTrue(any(x["sku"]=="S2" for x in p["A号"]["拍摄需求"]))  # S2无任何素材→催拍
 
     def test_raw_material_is_editable_not_shoot(self):
@@ -39,7 +40,8 @@ class TestPlanner(unittest.TestCase):
             "素材表":[_rec({"拍摄状态":"已拍","关联衣服":"S3","类型":"商品图"})],  # 有原料但非上身视频
         }
         p = self._run(s, tables)
-        self.assertEqual(p["A号"]["今日可剪"]["sku"], "S3")     # 有原料→可剪
+        self.assertEqual(p["A号"]["今日发"]["来源"], "AI剪")    # 无视图+无现成成片→回退AI剪
+        self.assertEqual(p["A号"]["今日发"]["sku"], "S3")
         self.assertFalse(any(x["sku"]=="S3" for x in p["A号"]["拍摄需求"]))  # 不催拍
         self.assertEqual(p["A号"]["余量天数"], 1)              # 可剪算进余量
     def test_unlaunched_skipped(self):
@@ -61,7 +63,7 @@ class TestPlanner(unittest.TestCase):
         p = self._run(s, tables)
         ids = [pb["id"] for pb in p["多号"]["方法论"]]
         self.assertEqual(ids, ["上身流","细节流"], "两套方法论都应 surface")
-        self.assertEqual(p["多号"]["今日缓发"]["sku"], "S1")  # 有"上身视频"命中某 playbook→可发
+        self.assertEqual(p["多号"]["今日发"]["sku"], "S1")  # 无视图→SKU回退,S1有上身视频命中需求
 
     def test_view_readiness_is_sku_optional(self):
         # G6:视图可发余量这条轴 SKU 无关——视图里选入的子素材不挂 SKU 也算可发,used 会被扣掉
@@ -79,5 +81,8 @@ class TestPlanner(unittest.TestCase):
             vr = {v["id"]: v for v in p["V号"]["视图余量"]}
             self.assertEqual(vr["考据"]["已选"], 2)
             self.assertEqual(vr["考据"]["可发"], 1, "2 选入 − 1 已用 = 1 可发,全程不挂 SKU")
+            # G9:视图有可发→今日发走视图主轴(而非 SKU)
+            self.assertEqual(p["V号"]["今日发"]["来源"], "视图")
+            self.assertEqual(p["V号"]["今日发"]["方法论"], "考据")
         finally:
             pl.mv.ASSET_ROOT = orig

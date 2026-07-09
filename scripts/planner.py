@@ -43,16 +43,30 @@ def _all_needed_types(strategy: dict) -> set:
     return out
 
 
-def _view_readiness(account: str, pbs: list, used_clips: set, alert: int) -> list[dict]:
-    """G6:每套方法论的视图(bin)可发余量——SKU 无关(视图里的子素材挂不挂 SKU 都算)。
-    可发 = 视图里选入、且尚未被本号笔记用掉的子素材数。这条轴让不挂 SKU 的素材也进得了排产。"""
+def _pb_views(account: str, pbs: list, used_clips: set) -> list[dict]:
+    """每套方法论视图的 选入/可发 子素材(算一次,供余量展示 + 今日发挑选)。
+    可发 = 视图里选入、且尚未被本号笔记用掉的子素材(SKU 无关:挂不挂 SKU 都算)。"""
     out = []
     for pb in pbs:
         selects = mv.view_selects(account, pb.get("id"), root=mv.ASSET_ROOT)
-        avail = [s for s in selects if s.get("clip_id") not in used_clips]
-        out.append({"id": pb.get("id"), "已选": len(selects), "可发": len(avail),
-                    "见底": len(avail) < alert})
+        out.append({"pb": pb, "selects": selects,
+                    "avail": [s for s in selects if s.get("clip_id") not in used_clips]})
     return out
+
+
+def _pick_today(pb_views: list, ready: list, editable: list) -> dict | None:
+    """统一「今日发」(G9):**视图为发布主轴**——最高权重、且视图有可发子素材的 playbook 先出片;
+    视图皆空则回退 SKU 轴(现成成片→AI剪)。SKU 轴自此退为补料/拍摄指导,不再是并行的第二个"今日发"。"""
+    for v in sorted(pb_views, key=lambda x: -(x["pb"].get("weight") or 0)):
+        if v["avail"]:
+            c = v["avail"][0]
+            return {"来源": "视图", "方法论": v["pb"].get("id"),
+                    "clip": {k: c.get(k) for k in ("clip_id", "material", "span")}}
+    if ready:
+        return {"来源": "现成成片", **ready[0]}
+    if editable:
+        return {"来源": "AI剪", **editable[0]}
+    return None
 
 
 def plan(only: str | None = None, brand: str = "观云") -> dict:
@@ -101,16 +115,17 @@ def plan(only: str | None = None, brand: str = "观云") -> dict:
         pbs = accounts.playbooks_of(s)  # G4:该号的多套发布方法论(声明式,零代码扩展)
         note_codes = {_txt(n.get(NF.CODE)) for n in notes if _txt(n.get(NF.ACCOUNT)) == name}
         used_clips = {u.get("clip_id") for u in ledger if u.get("note") in note_codes}  # 本号已用掉的 clip
+        pbv = _pb_views(name, pbs, used_clips)  # 每套方法论视图选入/可发(算一次)
         out[name] = {
             "模式": s.get("mode"), "自动": True, "自主": s.get("autonomy"),
             "方法论": [{"id": pb.get("id"), "权重": pb.get("weight"), "需素材": pb.get("material_needs", [])}
                        for pb in pbs],
-            "视图余量": _view_readiness(name, pbs, used_clips, alert),  # G6:每套方法论视图可发余量(SKU 无关)
+            "视图余量": [{"id": v["pb"].get("id"), "已选": len(v["selects"]), "可发": len(v["avail"]),
+                         "见底": len(v["avail"]) < alert} for v in pbv],  # G6
             "节奏": f"{cadence.get('posts_per_day') or s.get('posts_per_week')}/{'天' if cadence.get('posts_per_day') else '周'}",
             "余量天数": runway, "素材见底": runway < alert,
-            "今日缓发": ready[0] if ready else None,
-            "今日可剪": editable[0] if not ready and editable else None,  # 无现成成片但有原料→AI剪
-            "就绪队列": ready, "待剪队列": editable, "拍摄需求": shoot,
+            "今日发": _pick_today(pbv, ready, editable),   # G9:统一发布主轴(视图优先→SKU 回退)
+            "就绪队列": ready, "待剪队列": editable, "拍摄需求": shoot,  # SKU 轴=补料/拍摄指导
         }
     return out
 
@@ -132,18 +147,19 @@ def main() -> int:
         if d.get("视图余量"):
             print("  🎞️ 视图可发:" + " / ".join(
                 f"{v['id']}={v['可发']}条" + ("⚠️见底" if v["见底"] else "") for v in d["视图余量"]))
-        if d["今日缓发"]:
-            t = d["今日缓发"]
-            print(f"  📮 今日发:{t['款式']}({t['sku']}) 用现成成片{t['有素材']}")
-        elif d["今日可剪"]:
-            t = d["今日可剪"]
-            print(f"  ✂️ 今日剪:{t['款式']}({t['sku']}) 原料{t['原料']}→AI按本号风格剪成{t['剪成']}")
-        else:
-            print("  📮 队列空,今日无可发")
+        t = d["今日发"]
+        if not t:
+            print("  📮 今日无可发(视图空 + SKU 无成片/原料)")
+        elif t["来源"] == "视图":
+            print(f"  📮 今日发[视图·{t['方法论']}]:子素材 {t['clip']['material']} [{t['clip']['span']}]")
+        elif t["来源"] == "现成成片":
+            print(f"  📮 今日发[现成成片]:{t['款式']}({t['sku']}) 用 {t['有素材']}")
+        else:  # AI剪
+            print(f"  ✂️ 今日发[AI剪]:{t['款式']}({t['sku']}) 原料{t['原料']}→剪成{t['剪成']}")
         if d["待剪队列"]:
-            print(f"  ✂️ 可剪队列({len(d['待剪队列'])}):{'、'.join(x['sku'] for x in d['待剪队列'][:5])}(有原料,交剪辑skill)")
+            print(f"  ✂️ 补料·可剪({len(d['待剪队列'])}):{'、'.join(x['sku'] for x in d['待剪队列'][:5])}(有原料,交剪辑skill)")
         if d["拍摄需求"]:
-            print(f"  📸 拍摄需求({len(d['拍摄需求'])},无任何素材才催拍):")
+            print(f"  📸 补料·拍摄需求({len(d['拍摄需求'])},无任何素材才催拍):")
             for x in d["拍摄需求"][:4]:
                 print(f"     {x['款式']}({x['sku']}) 要拍:{'/'.join(x['要拍'])}")
     return 0
