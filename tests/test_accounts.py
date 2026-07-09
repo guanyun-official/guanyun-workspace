@@ -74,4 +74,30 @@ class TestPlaybooks(unittest.TestCase):
         self.assertEqual(accounts.playbooks_of({}), [])
 
 
+class TestPlaybookValidation(unittest.TestCase):
+    """评审 finding#4:显式 playbook 声明坏了不许静默(权重不归一/view 冲突/缺 id)。"""
+
+    def test_valid_explicit_ok(self):
+        s = {"playbooks": [{"id": "a", "weight": 0.5, "view": "va"},
+                           {"id": "b", "weight": 0.5, "view": "vb"}]}
+        self.assertEqual(accounts.validate_playbooks(s), [])
+
+    def test_weights_not_normalized_flagged(self):
+        s = {"playbooks": [{"id": "a", "weight": 0.6, "view": "va"},
+                           {"id": "b", "weight": 0.6, "view": "vb"}]}
+        self.assertTrue(any("权重未归一" in e for e in accounts.validate_playbooks(s)))
+
+    def test_view_collision_flagged(self):
+        s = {"playbooks": [{"id": "a", "weight": 0.5, "view": "同"},
+                           {"id": "b", "weight": 0.5, "view": "同"}]}
+        self.assertTrue(any("view 键冲突" in e for e in accounts.validate_playbooks(s)))
+
+    def test_missing_id_flagged(self):
+        s = {"playbooks": [{"weight": 1.0, "view": "va"}]}
+        self.assertTrue(any("缺 id" in e for e in accounts.validate_playbooks(s)))
+
+    def test_synthesized_always_valid(self):
+        self.assertEqual(accounts.validate_playbooks({"content_mix": {"x": 0.6, "y": 0.4}}), [])
+
+
 if __name__=="__main__": unittest.main()

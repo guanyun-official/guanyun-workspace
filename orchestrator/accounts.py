@@ -45,6 +45,28 @@ def playbooks_of(strategy: dict) -> list[dict]:
     } for t in types]
 
 
+def validate_playbooks(strategy: dict) -> list[str]:
+    """校验显式 playbooks 声明的健壮性(坏声明不静默,呼应 problems())。评审 finding#4:
+    - 每个 playbook 须有 id;
+    - view 键须唯一(两套方法论共用一套软链视图会串味/回溯歧义);
+    - 权重须归一(∑≈1,epsilon 0.01)——否则争用/配比失真。
+    合成的 playbooks(无显式声明)天然合法,返回空。"""
+    explicit = strategy.get("playbooks")
+    if not explicit:
+        return []
+    out = []
+    if any(not pb.get("id") for pb in explicit):
+        out.append("有 playbook 缺 id")
+    views = [pb.get("view") for pb in explicit]
+    dup = sorted({v for v in views if v and views.count(v) > 1})
+    if dup:
+        out.append(f"view 键冲突(多套方法论共用视图会串味): {dup}")
+    total = sum(float(pb.get("weight") or 0) for pb in explicit)
+    if abs(total - 1.0) > 0.01:
+        out.append(f"权重未归一: ∑={round(total, 3)}≠1")
+    return out
+
+
 class Account:
     def __init__(self, name: str, strategy: dict, profile_text: str, error: str | None = None):
         self.name = name
