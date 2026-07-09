@@ -13,6 +13,7 @@ class TestOperationalModeDocs(unittest.TestCase):
         self.assertIn("ZhzJbfkOsafwevsWkW8cfoILnfb", text)
         self.assertIn("TEST_MODE=1", text)
         self.assertIn("preflight_operational.py --llm stub", text)
+        self.assertIn("cron_status.py --require-installed", text)
         self.assertIn("--llm stub --install", text)
         self.assertIn("--llm real --install", text)
         self.assertNotIn("生产token", text)
