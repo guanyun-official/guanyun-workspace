@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""P7:把 MIGRATION_P2 变更应用到生产 Base(只加不删)。三重硬门:
+"""历史工具:把 MIGRATION_P2 变更应用到生产 Base(只加不删)。
+
+当前上线流程已改为在运营库 ZhzJbf(TEST_MODE=1) 挂 cron；不切 N9IVbi,不改 TEST_MODE=0。
+本脚本不属于当前 P7 上线路径,仅作为历史迁移/审计工具保留。若未来明确恢复生产迁移,
+仍需下面三重硬门:
   1) 默认 dry-run 只打印计划;真应用须 --apply
   2) --apply 必须 TEST_MODE=0 且 env PROD_CONFIRM=OK(人工显式两把钥匙)
   3) 应用前强制拍生产 schema 快照(回滚依据)

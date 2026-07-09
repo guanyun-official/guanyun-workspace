@@ -7,14 +7,14 @@
 
 | 角色 | 承担者 | 铁律 |
 |---|---|---|
-| 账本（唯一真相源） | 飞书 Bitable 生产 Base `N9IVbi6pTatJG5sqyTTcc0vSn4g` | 一条内容一行，状态列是唯一真值；不当队列、不当媒体库 |
+| 账本（唯一真相源） | 飞书 Bitable 运营库 `ZhzJbfkOsafwevsWkW8cfoILnfb`（历史名“测试 Base”） | 一条内容一行，状态列是唯一真值；不当队列、不当媒体库 |
 | 大脑（能力） | git 技能仓库（qiaohe-skill、video-engine） | 只装"怎么做"；实例配置一律外置注入 |
 | 手（执行壳） | Claude Code 主力，Codex 备用 | 易耗品，双入口，换壳成本趋近零 |
 | 推进器（loop） | 本仓库 `orchestrator/`：cron + webhook + heartbeat | **自身零 LLM**（纯确定性路由，LLM 只在被拉起的步骤内）；单实例串行 |
 | 脸（员工界面） | 飞书原生：表单/看板/仪表盘/审批卡片 | 员工永不直接碰 agent |
 | 人 | 拍素材、审内容、点发布（勾 AI 声明） | 两个人审硬门不可自动化 |
 
-**Base 澄清（审查 M1）**：`N9IVbi…`（巧荷 Qiaohe-official-beta）= 唯一现行生产 Base（14 表，2026-07-04 起）；`ITz4bs…`（观云 Guanyun-official-beta）= 2026-06 旧版，已废弃，不纳入 schema 管理。测试 Base `ZhzJbfkOsafwevsWkW8cfoILnfb` 复制自 N9IV。
+**Base 澄清（2026-07-09 用户重定义）**：`ZhzJbfkOsafwevsWkW8cfoILnfb` 虽历史名为“测试 Base”，但当前承担运营库；`.env` + `TEST_MODE=1` 即上线态。`N9IVbi…`（巧荷 Qiaohe-official-beta）保留为生产参考库，只读、焊死不碰；旧“切生产/TEST_MODE=0”路径不再作为上线方案。`ITz4bs…`（观云 Guanyun-official-beta）= 2026-06 旧版，已废弃，不纳入 schema 管理。
 
 **本仓库（guanyun-workspace）= Workspace（空间）**；harness 不单独立项目，是本仓库的 `orchestrator/` 目录。
 
@@ -85,18 +85,18 @@ guanyun-workspace/
 - 文案/配图用 qiaohe-skill 现有技能（write-xiaohongshu / guanyun-OOTD-text / cover-generator）——旧 workspace"文案配图待重做"不阻塞演练（审查怀疑论者项）。
 - **验收：至少 3 条笔记**（不同账号、不同内容类型）全生命周期走完，人只做"审+确认"；控量与差异化逻辑实测；**记录人审打回率**（>50% 则先修技能再上量）。
 
-### P7 切生产（半天 + 0.5 buffer）
-- 迁移清单人工过目后应用生产 Base（应用前再 dump 生产 schema 快照）；cron 指向生产；先 1 号试运行一周再放量 4 号。
+### P7 运营库挂 cron（半天 + 试运行一周）
+- 不切 `N9IVbi`，不改 `TEST_MODE=0`。在运营库 `ZhzJbf` 上显式选择 `--llm stub|real` 安装 cron；先 1 号试运行一周再放量 4 号。
 - OpenClaw 退役三步：停 gateway 进程/禁用其定时任务/移除 alias（保留配置存档一个月）。
 - 周复盘飞轮排程（周日 cron：读运行日志+效果→提 SKILL.md 修改 PR→人审合入）。
-- **验收**：第一周真实排产日历与日报正常；回滚预案在手（cron 指回测试、schema 快照可查）。
+- **验收**：第一周真实排产日历与日报正常；回滚预案在手（`install_cron.sh --remove`、schema 快照/每日备份可查）。
 
 ## 3. 红线与风险
 
 - **绝不自动发布**：AI 只做到"待发布包"，人手机发布并勾 AI 声明（《AI 生成合成内容标识办法》2025-09 生效；小红书 2026-02 强化公告）。
 - 单号 ≤3 篇/天、间隔 ≥2h + 随机延迟；多号内容强差异化（差异化机制：账号表调性字段 + 内容类型元模版注入，runbook 按账号路由）。
 - Bitable：单 writer 串行、429 退避、业务键幂等；自动化只挂关键状态。
-- 生产 Base 一切变更走"迁移清单 + 人工确认"；测试写入由 TEST_MODE 代码级隔离。
+- 生产参考库 `N9IVbi` 只读；运营写入只进 `ZhzJbf` 且由 `TEST_MODE=1` 代码级隔离。
 - 素材大文件走本地素材库 + 表存路径/链接；密钥只存 .env（不入库），泄漏即在飞书后台/各平台轮换。
 - 单人 bus factor：本文档 + AGENTS.md + 运行日志表 = 可交接的全部上下文；每阶段 git 提交即回滚点。
 

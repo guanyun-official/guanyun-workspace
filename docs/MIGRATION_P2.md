@@ -1,6 +1,8 @@
-# MIGRATION_P2 — 测试 Base 变更 → 生产 Base 应用清单
+# MIGRATION_P2 — 历史迁移清单（不属于当前上线流程）
 
-> P7 执行。生产 Base `N9IVbi6pTatJG5sqyTTcc0vSn4g`。**应用前先 `dump_schema.py --base prod` 拍快照存 `schema/snapshots/prod-切换前-<日期>/`。**
+> 历史背景：这份清单原用于“测试 Base 变更 → 生产 Base 应用”。2026-07-09 用户已澄清：
+> **上线 = 在运营库/测试库 `ZhzJbfkOsafwevsWkW8cfoILnfb` 挂 cron，不切 `N9IVbi`，不改 `TEST_MODE=0`。**
+> 因此本清单只保留为审计资料，不作为当前上线步骤。生产 Base `N9IVbi6pTatJG5sqyTTcc0vSn4g` 当前只读、焊死不碰。
 > 原则：只加不删；单选 PATCH 必须回填现有 option 的 `id`（只追加新 name），否则会重建选项、破坏既有记录引用。
 
 ## 变更项（与测试 Base 对齐）

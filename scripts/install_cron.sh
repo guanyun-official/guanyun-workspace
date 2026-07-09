@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 推进器 cron 安装(幂等,标记块管理)。默认只打印;--install 真装;--remove 卸载。
-# ⚠️ 装机时点=P7 切生产/试运行;开发期不要装(避免无人值守跑测试 Base 花钱)。
+# ⚠️ 装机时点=P7 运营库试运行;开发期不要装(避免无人值守跑运营库花钱)。
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PY="$(command -v python3)"
