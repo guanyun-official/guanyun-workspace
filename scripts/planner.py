@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from orchestrator import bitable, feishu_io  # noqa: E402
+from orchestrator import accounts, bitable, feishu_io  # noqa: E402
 from orchestrator.bitable import ClothesFields as CF  # noqa: E402
 from orchestrator.bitable import MaterialFields as MF  # noqa: E402
 from orchestrator.bitable import MaterialStatus as MS  # noqa: E402
@@ -34,9 +34,11 @@ def load_strategies(brand: str = "观云") -> dict:
 
 
 def _all_needed_types(strategy: dict) -> set:
+    """该号所有方法论(playbook)合起来需要的素材切面类型。经 playbooks 收口——
+    加一套方法论=写声明即改排产,零代码(G4)。"""
     out = set()
-    for types in (strategy.get("material_needs") or {}).values():
-        out.update(types)
+    for pb in accounts.playbooks_of(strategy):
+        out.update(pb.get("material_needs") or [])
     return out
 
 
@@ -82,8 +84,11 @@ def plan(only: str | None = None, brand: str = "观云") -> dict:
                 shoot.append({"sku": sku, "款式": style, "要拍": sorted(need_types) or ["(无需求配置)"]})
         alert = s.get("runway_alert_days", 3)
         runway = len(ready) + len(editable)  # 可发+可剪=真实余量(原料能剪出成片)
+        pbs = accounts.playbooks_of(s)  # G4:该号的多套发布方法论(声明式,零代码扩展)
         out[name] = {
             "模式": s.get("mode"), "自动": True, "自主": s.get("autonomy"),
+            "方法论": [{"id": pb.get("id"), "权重": pb.get("weight"), "需素材": pb.get("material_needs", [])}
+                       for pb in pbs],
             "节奏": f"{cadence.get('posts_per_day') or s.get('posts_per_week')}/{'天' if cadence.get('posts_per_day') else '周'}",
             "余量天数": runway, "素材见底": runway < alert,
             "今日缓发": ready[0] if ready else None,
@@ -105,6 +110,8 @@ def main() -> int:
             continue
         print(f"\n━━ {name} ━━  [{d['模式']}] {d['节奏']} 自主={d['自主']}  余量{d['余量天数']}天(可发+可剪)"
               + ("  ⚠️素材见底" if d["素材见底"] else ""))
+        if d.get("方法论"):
+            print("  📚 方法论:" + " / ".join(f"{pb['id']}(权重{pb['权重']})" for pb in d["方法论"]))
         if d["今日缓发"]:
             t = d["今日缓发"]
             print(f"  📮 今日发:{t['款式']}({t['sku']}) 用现成成片{t['有素材']}")

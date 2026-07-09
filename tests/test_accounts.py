@@ -44,4 +44,34 @@ class TestAccounts(unittest.TestCase):
         self.assertIsNone(accounts.load("甲号", "B").error)
         self.assertEqual(accounts.problems("B"), {})
 
+
+class TestPlaybooks(unittest.TestCase):
+    """G4 多方法论:playbooks_of 显式优先、否则从 content_mix/material_needs 向后兼容合成。"""
+
+    def test_explicit_playbooks_win(self):
+        s = {"playbooks": [{"id": "考据", "weight": 0.7, "material_needs": ["文物对照图"], "view": "考据"}]}
+        pbs = accounts.playbooks_of(s)
+        self.assertEqual(len(pbs), 1)
+        self.assertEqual(pbs[0]["id"], "考据")
+        self.assertEqual(pbs[0]["view"], "考据")
+
+    def test_synthesized_from_legacy_content_mix(self):
+        s = {"content_mix": {"文物对照": 0.6, "工艺科普": 0.4},
+             "material_needs": {"文物对照": ["文物对照图"], "工艺科普": ["工艺特写"]}}
+        pbs = {pb["id"]: pb for pb in accounts.playbooks_of(s)}
+        self.assertEqual(set(pbs), {"文物对照", "工艺科普"}, "每个内容类型合成一个 playbook")
+        self.assertEqual(pbs["文物对照"]["weight"], 0.6, "权重取自 content_mix")
+        self.assertEqual(pbs["文物对照"]["material_needs"], ["文物对照图"])
+        self.assertEqual(pbs["文物对照"]["view"], "文物对照", "view 键默认=内容类型 id")
+
+    def test_synthesized_weight_defaults_even(self):
+        s = {"material_needs": {"a": ["x"], "b": ["y"]}}  # 无 content_mix → 均分权重
+        pbs = accounts.playbooks_of(s)
+        self.assertEqual(len(pbs), 2)
+        self.assertAlmostEqual(sum(pb["weight"] for pb in pbs), 1.0, places=1)
+
+    def test_empty_strategy_no_playbooks(self):
+        self.assertEqual(accounts.playbooks_of({}), [])
+
+
 if __name__=="__main__": unittest.main()

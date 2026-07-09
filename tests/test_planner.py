@@ -46,3 +46,19 @@ class TestPlanner(unittest.TestCase):
         s = {"官号": {"account":"官号","mode":"叙事","cadence":{"posts_per_day":0},"posts_per_week":2,"launched":False}}
         p = self._run(s, {"衣服总表":[], "笔记表":[], "素材表":[]})
         self.assertFalse(p["官号"]["自动"])          # launched:false→不自动
+
+    def test_explicit_playbooks_drive_planning(self):
+        # G4:显式声明两套方法论→排产按其 material_needs 取并集,输出 surfaces 方法论(加方法论=写声明零代码)
+        s = {"多号": {"account":"多号","cadence":{"posts_per_day":1},"autonomy":"approve",
+                     "playbooks":[
+                         {"id":"上身流","weight":0.5,"material_needs":["上身视频"],"view":"上身流"},
+                         {"id":"细节流","weight":0.5,"material_needs":["工艺特写"],"view":"细节流"}]}}
+        tables = {
+            "衣服总表":[_rec({"衣服编号":"S1","款式名称":"甲"})],
+            "笔记表":[],
+            "素材表":[_rec({"拍摄状态":"已拍","关联衣服":"S1","类型":"上身视频"})],  # 命中"上身流"需求
+        }
+        p = self._run(s, tables)
+        ids = [pb["id"] for pb in p["多号"]["方法论"]]
+        self.assertEqual(ids, ["上身流","细节流"], "两套方法论都应 surface")
+        self.assertEqual(p["多号"]["今日缓发"]["sku"], "S1")  # 有"上身视频"命中某 playbook→可发
