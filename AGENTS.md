@@ -94,3 +94,12 @@ guanyun-workspace/
 ## 开发 or 运营?（先读 docs/运行模式.md）
 - **运营环境 = 测试库 `ZhzJbf…`**(当前 .env + TEST_MODE=1 即上线态);生产库 `N9IVbi…` 焊死不碰。**"上线"= 在测试库挂 cron,不是切生产库。**
 - 改系统 → 开发 loop(check_p* 全绿 + ar_check 100 + issue 清零);跑内容 → 运营 loop(`install_cron.sh --install`)。
+
+## 架构现状（2026-07-09，内容工厂全链闭合）
+
+领域词汇见 `CONTEXT.md`,素材视图层设计与评审见 `docs/架构演进-素材视图与方法论.md`。要点:
+- **Playbook(方法论)** = 账号 strategy `playbooks[]`,一号可多套;每套 = 配方(切面/权重/material_needs/公式) + `gen_skill`(产这套笔记的技能) + `view`(素材视图键)。`orchestrator/accounts.playbooks_of/resolve_playbook/gen_skill_of`;显式优先,否则从 content_mix 合成。
+- **素材视图层(盘上,非 Bitable)** = `lib/material_view`:每 playbook 一套软链 bin;子素材 **Clip**,`clip_id=哈希(素材编号,span)` 稳定(文件搬家 `relink` 不断链);**usage 账本 `_usage.jsonl` = usage 唯一真值**;linked%/used% 使用率;`trace_note` 回溯。`ingest select/view/summary/trace` 是 agent 编入/查看/回溯的 CLI。
+- **闭环**:planner **view-驱动「今日发」**(SKU 可选,`scripts/planner.py`) → 按 playbook 配方+gen_skill 生成(`orchestrator/llm.gen_copy`) → 发布回填 usage(engine `MARK_PUBLISHED` 读「关联子素材」clip_ids) → `COLLECT_METRICS` 经 **xhs-extract-master 非登录采集**(`orchestrator/metrics`,默认 stub 零成本)写回 点赞/收藏/评论/转发 → `aggregate_by_playbook` 反馈进排产。
+- **测试库已加字段(生产库未动)**:运行日志表 `成本_元`(number)、笔记表 `方法论`+`关联子素材`(text)。**加测试库字段流程**:`lark-cli base +field-create`(读回自证)→ `dump_schema.py --base test` → 登记 `bitable.py` 字段常量 + `scripts/schema_diff.py` 的 `P2_EXPECTED`(反漂移白名单)。
+- **反漂移契约锁三层**(名字/取值/类型,`tests/test_field_contract.py`)+ 状态漂移告警。硬门:6 个 `check_p*.sh` + `ar_check`=100 + 131 单测全绿。加能力必带测试。
