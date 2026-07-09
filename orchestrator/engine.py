@@ -116,7 +116,8 @@ def _h_gen_copy(ctx: _Ctx) -> None:
     fmt = _format_of(ctx.f, ctx.fmt_map)
     ctx.summary.setdefault("next_产物", []).append(f"{ctx.name}[{fmt or '?'}]:{_next_step(fmt)}")
     feishu_io.log_run(f"文案草稿生成:{ctx.name}({fmt})", "生成文案", skill="write-xiaohongshu",
-                      note_ref=ctx.name, detail=f"cost_cny={cost} llm={ctx.llm_mode} 格式={fmt} 下一步={_next_step(fmt)}")
+                      note_ref=ctx.name, cost=cost,
+                      detail=f"cost_cny={cost} llm={ctx.llm_mode} 格式={fmt} 下一步={_next_step(fmt)}")
 
 
 def _h_assemble_package(ctx: _Ctx) -> None:
@@ -263,9 +264,9 @@ def counts_toward_publish_quota(fields: dict, now: datetime) -> bool:
     return st == NS.PUBLISHED and _is_today(fields.get(NF.PUBLISHED_AT), now)
 
 
-# 运行日志表数值成本字段(元)——待人工迁移在测试库添加(issue#10 M3)。
-# 字段一旦建好,_cost_of_log 自动优先读它;此前历史日志继续走 详情 里 cost_cny= 的回退解析。
-COST_FIELD = "成本_元"
+# 运行日志表数值成本字段(元)——已在测试库落字段(issue#10 M3)。
+# _cost_of_log 优先读它;历史日志(无此字段)继续走 详情 里 cost_cny= 的回退解析。
+COST_FIELD = RLF.COST
 
 
 def _cost_of_log(fields: dict) -> float:

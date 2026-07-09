@@ -78,6 +78,7 @@ class RunLogFields:
     RECORD_REF = "涉及记录"
     RESULT = "结果"
     DETAIL = "详情"
+    COST = "成本_元"  # 数值成本(M3 已在测试库落字段);_cost_of_log 优先读它
 
 
 class ContentTypeFields:

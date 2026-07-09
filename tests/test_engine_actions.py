@@ -183,5 +183,24 @@ class TestCostAccounting(unittest.TestCase):
         self.assertEqual(engine._cost_of_log({engine.COST_FIELD: True, RLF.DETAIL: "cost_cny=2.0"}), 2.0)
 
 
+class TestCostLogging(unittest.TestCase):
+    """M3 落库侧:log_run 给了 cost 就写结构化 成本_元 数值字段;没给则不写(向后兼容)。"""
+
+    def _capture_log(self, **kw):
+        captured = {}
+        with mock.patch.object(feishu_io, "create_record",
+                               lambda t, fields: captured.update({"table": t, **fields}) or "rec"):
+            feishu_io.log_run("摘要", "生成文案", **kw)
+        return captured
+
+    def test_writes_structured_cost_when_given(self):
+        cap = self._capture_log(cost=0.35)
+        self.assertEqual(cap.get(RLF.COST), 0.35, "给了 cost 应写 成本_元 数值字段")
+        self.assertEqual(cap.get("table"), "运行日志表")
+
+    def test_omits_cost_when_none(self):
+        self.assertNotIn(RLF.COST, self._capture_log(), "没给 cost 不写该字段(旧日志向后兼容)")
+
+
 if __name__ == "__main__":
     unittest.main()

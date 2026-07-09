@@ -87,10 +87,11 @@ def delete_record(table_name: str, record_id: str) -> None:
 
 
 def log_run(summary: str, action: str, result: str = "成功", *, skill: str = "", note_ref: str = "",
-            table: str = "笔记表", detail: str = "") -> None:
-    """写运行日志表(9 字段契约)。日志失败只打印不阻断主流程。"""
+            table: str = "笔记表", detail: str = "", cost: float | None = None) -> None:
+    """写运行日志表。日志失败只打印不阻断主流程。
+    cost 给定则写结构化 成本_元 数值字段(M3);月成本核算优先读它,弃脆弱的 detail 解析。"""
     try:
-        create_record("运行日志表", {
+        fields = {
             RLF.SUMMARY: summary,
             RLF.TIME: int(datetime.now().timestamp() * 1000),
             RLF.EXECUTOR: "orchestrator",
@@ -100,6 +101,9 @@ def log_run(summary: str, action: str, result: str = "成功", *, skill: str = "
             RLF.RECORD_REF: note_ref,
             RLF.RESULT: result,
             RLF.DETAIL: detail[:800],
-        })
+        }
+        if cost is not None:
+            fields[RLF.COST] = cost
+        create_record("运行日志表", fields)
     except Exception as e:  # noqa: BLE001
         print(f"[log_run 降级] {e}")

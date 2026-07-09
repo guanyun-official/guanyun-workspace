@@ -7,6 +7,10 @@
       "type": "text"
     },
     {
+      "field_name": "成本_元",
+      "type": "number"
+    },
+    {
       "field_name": "执行体",
       "type": "text"
     },

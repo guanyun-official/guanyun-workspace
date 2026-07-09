@@ -18,9 +18,14 @@ import json
 import sys
 from pathlib import Path
 
-# P2 预期变更(与 docs/MIGRATION_P2.md 一一对应)
+# 自「改造前」快照以来所有**有意**的测试库 schema 变更登记表(P2 首批 + 后续架构演进逐条追加)。
+# 这是 schema-diff 硬闸的白名单:登记过的算预期,没登记的新增/删除/改类型/改名一律报红——
+# 加字段时必须来这里登记一行,否则 check_p2 会拦住(反漂移:UI/误操作改 schema 无所遁形)。
 P2_EXPECTED = {
-    "added_fields": {("笔记表", "AI声明", "checkbox")},
+    "added_fields": {
+        ("笔记表", "AI声明", "checkbox"),        # P2
+        ("运行日志表", "成本_元", "number"),       # M3 成本核算结构化(2026-07-09)
+    },
     "added_options": {
         ("笔记表", "状态", "已批准"),
         ("笔记表", "状态", "待发布"),
