@@ -14,7 +14,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from orchestrator import alerts, engine, feishu_io, reminders  # noqa: E402
+from orchestrator import alerts, engine, feishu_io, metrics, reminders  # noqa: E402
 from orchestrator.bitable import NoteFields as NF  # noqa: E402
 from orchestrator.bitable import NoteStatus as NS  # noqa: E402
 from orchestrator.bitable import RunLogFields as RLF  # noqa: E402
@@ -206,6 +206,40 @@ class TestUsageBackfillOnPublish(unittest.TestCase):
             _, updates, _ = run_one(note)
             self.assertTrue(any(p.get(NF.STATUS) == NS.PUBLISHED for _, _, p in updates), "仍应置已发")
             self.assertEqual(mv.note_clips("PQ-NOCLIP", root=root), [], "没挂子素材则不记 usage")
+        finally:
+            engine.mv.ASSET_ROOT = orig
+
+
+class TestE2EChain(unittest.TestCase):
+    """端到端集成 smoke:curate(编入视图)→ engine 发布回填 → trace 回溯 → 使用率 → 反馈,
+    一条链真跑通(连起盘上视图/账本 + 引擎真实 MARK_PUBLISHED handler + 聚合),catch 各件单测漏的接缝。"""
+
+    def test_curate_publish_trace_usage_feedback(self):
+        root = Path(tempfile.mkdtemp())
+        orig = engine.mv.ASSET_ROOT
+        engine.mv.ASSET_ROOT = root
+        try:
+            # 1) curate:把一个子素材编入「科普号/考据」视图(不挂 SKU)
+            cid = mv.add_select("科普号", "考据", "GY-1", "/raw/v.mp4", "video:0-6", linked=6.0, root=root)
+            self.assertEqual(len(mv.view_selects("科普号", "考据", root=root)), 1)
+
+            # 2) publish:一条待发布笔记(关联该 clip)走引擎真实 MARK_PUBLISHED → 回填 usage
+            note = {NF.STATUS: NS.TO_PUBLISH, NF.CODE: "PQ-1", NF.PUBLISH_LINK: {"link": "https://xhs/x"},
+                    NF.CLIPS: cid, NF.PLAYBOOK: "考据"}
+            _, updates, _ = run_one(note)
+            self.assertTrue(any(p.get(NF.STATUS) == NS.PUBLISHED for _, _, p in updates))
+
+            # 3) trace:笔记 → clip → 原始素材(回溯贯通)
+            tr = mv.trace_note("PQ-1", root=root)
+            self.assertEqual(tr[0]["material"], "GY-1")
+            self.assertEqual(tr[0]["playbook"], "考据")
+
+            # 4) 使用率:该素材被用掉(used_clips=1)
+            self.assertEqual(mv.material_usage("GY-1", total=60, root=root)["used_clips"], 1)
+
+            # 5) 反馈:该方法论一条已发笔记(带点赞)→ 均赞进反馈信号
+            agg = metrics.aggregate_by_playbook([{NF.PLAYBOOK: "考据", NF.LIKED: 300}])
+            self.assertEqual(agg["考据"]["均赞"], 300.0)
         finally:
             engine.mv.ASSET_ROOT = orig
 
