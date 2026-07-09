@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+from datetime import datetime, timedelta
 
 from . import bitable, config
 from .bitable import NoteFields as NF
@@ -61,22 +62,59 @@ def collect(url: str, mode: str = "stub") -> dict:
     return out
 
 
-def aggregate_by_playbook(notes: list[dict]) -> dict:
-    """把已发笔记按所属 playbook 聚合互动数据 → {playbook: {条数, 总赞, 均赞, 总藏, 总评}}。
-    这是反馈信号:哪套方法论平均表现好 → 排产可据此调权重(纯函数,喂 planner/复盘)。"""
+def _window() -> dict:
+    return {"条数": 0, "_总赞": 0}
+
+
+def _add_window(d: dict, key: str, liked: int) -> None:
+    d[key]["条数"] += 1
+    d[key]["_总赞"] += liked
+
+
+def _finish_window(w: dict) -> dict:
+    n = w["条数"]
+    return {"条数": n, "均赞": round(w["_总赞"] / n, 1) if n else 0}
+
+
+def aggregate_by_playbook(notes: list[dict], now: datetime | None = None) -> dict:
+    """把已发笔记按所属 playbook 聚合互动数据。
+
+    返回总量字段 + 时间窗反馈:
+    `{playbook: {条数, 总赞, 均赞, 总藏, 总评, 近30天, 本周, 上周, 周环比}}`。
+    这是反馈信号:哪套方法论平均表现好/最近是否变好 → 排产与周复盘可据此调权重。
+    """
+    now = now or datetime.now()
+    recent_cutoff = now - timedelta(days=30)
+    this_week_cutoff = now - timedelta(days=7)
+    prev_week_cutoff = now - timedelta(days=14)
     agg: dict[str, dict] = {}
     for f in notes:
         pb = bitable.text(f.get(NF.PLAYBOOK)).strip()
         if not pb:
             continue
         liked = _num(f.get(NF.LIKED))
-        d = agg.setdefault(pb, {"条数": 0, "总赞": 0, "总藏": 0, "总评": 0})
+        d = agg.setdefault(pb, {"条数": 0, "总赞": 0, "总藏": 0, "总评": 0,
+                                "近30天": _window(), "本周": _window(), "上周": _window()})
         d["条数"] += 1
         d["总赞"] += liked
         d["总藏"] += _num(f.get(NF.COLLECTED))
         d["总评"] += _num(f.get(NF.COMMENTS))
+        published_at = bitable.parse_ts(f.get(NF.PUBLISHED_AT))
+        if not published_at:
+            continue
+        if published_at >= recent_cutoff:
+            _add_window(d, "近30天", liked)
+        if published_at >= this_week_cutoff:
+            _add_window(d, "本周", liked)
+        elif published_at >= prev_week_cutoff:
+            _add_window(d, "上周", liked)
     for d in agg.values():
         d["均赞"] = round(d["总赞"] / d["条数"], 1) if d["条数"] else 0
+        d["近30天"] = _finish_window(d["近30天"])
+        d["本周"] = _finish_window(d["本周"])
+        d["上周"] = _finish_window(d["上周"])
+        prev = d["上周"]["均赞"]
+        d["周环比"] = round((d["本周"]["均赞"] - prev) / prev * 100, 1) if prev else None
     return agg
 
 

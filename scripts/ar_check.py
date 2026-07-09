@@ -69,6 +69,10 @@ ck("素材来去", "usage账本与关联子素材投影漂移会告警",
 
 # P5 效果回流迭代
 ck("效果回流","状态机含已发→已回流+热度分字段", "已回流" in json.dumps(json.load(open(ROOT/"schema/test/笔记表.json")),ensure_ascii=False), "状态机闭环")
+metrics_src = (ROOT/"orchestrator/metrics.py").read_text()
+ck("效果回流","方法论表现含近30天与周环比趋势",
+   "近30天" in metrics_src and "周环比" in metrics_src and "PUBLISHED_AT" in metrics_src,
+   "aggregate_by_playbook 时间窗趋势")
 
 # P6 版本管理/可迁移
 ck("版本管理","skills.lock锁SHA+marketplace版本", (ROOT/"skills.lock.json").exists(), "skills.lock.json")

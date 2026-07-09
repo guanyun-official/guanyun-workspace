@@ -1,6 +1,7 @@
 """效果采集 + 反馈(G7)单测。采集默认 stub 零成本;real 走 xhs_fetch(mock,非登录零封号)。"""
 import sys
 import unittest
+from datetime import datetime, timedelta
 from unittest import mock
 from pathlib import Path
 
@@ -52,6 +53,28 @@ class TestAggregateByPlaybook(unittest.TestCase):
         self.assertEqual(agg["考据"]["均赞"], 150.0, "反馈信号:考据均赞 150")
         self.assertEqual(agg["ootd"]["总藏"], 5)
         self.assertNotIn("", agg, "无 playbook 的笔记不进聚合")
+
+    def test_adds_30_day_and_week_over_week_windows(self):
+        now = datetime(2026, 7, 9, 12, 0, 0)
+
+        def ms(days_ago: int) -> int:
+            return int((now - timedelta(days=days_ago)).timestamp() * 1000)
+
+        notes = [
+            {NF.PLAYBOOK: "考据", NF.LIKED: 300, NF.PUBLISHED_AT: ms(1)},
+            {NF.PLAYBOOK: "考据", NF.LIKED: 100, NF.PUBLISHED_AT: ms(8)},
+            {NF.PLAYBOOK: "考据", NF.LIKED: 50, NF.PUBLISHED_AT: ms(40)},
+            {NF.PLAYBOOK: "ootd", NF.LIKED: 80, NF.PUBLISHED_AT: ms(3)},
+        ]
+
+        agg = metrics.aggregate_by_playbook(notes, now=now)
+
+        self.assertEqual(agg["考据"]["近30天"], {"条数": 2, "均赞": 200.0})
+        self.assertEqual(agg["考据"]["本周"], {"条数": 1, "均赞": 300.0})
+        self.assertEqual(agg["考据"]["上周"], {"条数": 1, "均赞": 100.0})
+        self.assertEqual(agg["考据"]["周环比"], 200.0)
+        self.assertEqual(agg["ootd"]["上周"], {"条数": 0, "均赞": 0})
+        self.assertIsNone(agg["ootd"]["周环比"], "上周均赞为 0 时不伪造环比")
 
 
 if __name__ == "__main__":

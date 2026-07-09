@@ -80,6 +80,13 @@ class TestArCheckSync(unittest.TestCase):
         self.assertIn("usage账本漂移", src)
         self.assertIn("note_clips", src)
 
+    def test_ar_check_requires_playbook_performance_trends(self):
+        """方法论表现不能退回纯静态均值；成熟度门要锁住时间窗趋势。"""
+        src = (ROOT / "scripts" / "ar_check.py").read_text(encoding="utf-8")
+        self.assertIn("近30天", src)
+        self.assertIn("周环比", src)
+        self.assertIn("PUBLISHED_AT", src)
+
 
 if __name__ == "__main__":
     unittest.main()
