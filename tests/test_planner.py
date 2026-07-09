@@ -86,3 +86,14 @@ class TestPlanner(unittest.TestCase):
             self.assertEqual(p["V号"]["今日发"]["方法论"], "考据")
         finally:
             pl.mv.ASSET_ROOT = orig
+
+    def test_playbook_performance_feedback_surfaced(self):
+        # G7 反馈:已发笔记按方法论聚合均赞 → planner 输出「方法论表现」(闭环学习信号可见)
+        s = {"F号": {"account": "F号", "cadence": {"posts_per_day": 1}, "autonomy": "approve"}}
+        tables = {"衣服总表": [], "素材表": [], "笔记表": [
+            _rec({"排期编号": "N1", "账号(自动)": "F号", "状态": "已发", "方法论": "考据", "点赞": 300}),
+            _rec({"排期编号": "N2", "账号(自动)": "F号", "状态": "已发", "方法论": "考据", "点赞": 100}),
+            _rec({"排期编号": "N3", "账号(自动)": "F号", "状态": "已发", "方法论": "ootd", "点赞": 50})]}
+        perf = self._run(s, tables)["F号"]["方法论表现"]
+        self.assertEqual(perf["考据"]["均赞"], 200.0, "考据两条均赞 (300+100)/2=200")
+        self.assertEqual(perf["ootd"]["条数"], 1)

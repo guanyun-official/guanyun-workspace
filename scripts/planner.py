@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from orchestrator import accounts, bitable, feishu_io  # noqa: E402
+from orchestrator import accounts, bitable, feishu_io, metrics  # noqa: E402
 from lib import material_view as mv  # noqa: E402
 from orchestrator.bitable import ClothesFields as CF  # noqa: E402
 from orchestrator.bitable import MaterialFields as MF  # noqa: E402
@@ -113,7 +113,8 @@ def plan(only: str | None = None, brand: str = "观云") -> dict:
         alert = s.get("runway_alert_days", 3)
         runway = len(ready) + len(editable)  # 可发+可剪=真实余量(原料能剪出成片)
         pbs = accounts.playbooks_of(s)  # G4:该号的多套发布方法论(声明式,零代码扩展)
-        note_codes = {_txt(n.get(NF.CODE)) for n in notes if _txt(n.get(NF.ACCOUNT)) == name}
+        acct_notes = [n for n in notes if _txt(n.get(NF.ACCOUNT)) == name]
+        note_codes = {_txt(n.get(NF.CODE)) for n in acct_notes}
         used_clips = {u.get("clip_id") for u in ledger if u.get("note") in note_codes}  # 本号已用掉的 clip
         pbv = _pb_views(name, pbs, used_clips)  # 每套方法论视图选入/可发(算一次)
         out[name] = {
@@ -125,6 +126,7 @@ def plan(only: str | None = None, brand: str = "观云") -> dict:
             "节奏": f"{cadence.get('posts_per_day') or s.get('posts_per_week')}/{'天' if cadence.get('posts_per_day') else '周'}",
             "余量天数": runway, "素材见底": runway < alert,
             "今日发": _pick_today(pbv, ready, editable),   # G9:统一发布主轴(视图优先→SKU 回退)
+            "方法论表现": metrics.aggregate_by_playbook(acct_notes),  # G7 反馈:哪套方法论均赞高(闭环学习信号)
             "就绪队列": ready, "待剪队列": editable, "拍摄需求": shoot,  # SKU 轴=补料/拍摄指导
         }
     return out
@@ -147,6 +149,9 @@ def main() -> int:
         if d.get("视图余量"):
             print("  🎞️ 视图可发:" + " / ".join(
                 f"{v['id']}={v['可发']}条" + ("⚠️见底" if v["见底"] else "") for v in d["视图余量"]))
+        if d.get("方法论表现"):
+            best = sorted(d["方法论表现"].items(), key=lambda kv: -kv[1].get("均赞", 0))
+            print("  📈 方法论表现(均赞):" + " / ".join(f"{pb}={v['均赞']}(n={v['条数']})" for pb, v in best))
         t = d["今日发"]
         if not t:
             print("  📮 今日无可发(视图空 + SKU 无成片/原料)")
