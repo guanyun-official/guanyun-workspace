@@ -227,6 +227,49 @@ class TestUsageBackfillOnPublish(unittest.TestCase):
         finally:
             engine.mv.ASSET_ROOT = orig
 
+    def test_usage_projection_drift_alerts_for_published_note(self):
+        """已发笔记的 Bitable 投影与 usage 账本不一致时应显性告警。"""
+        root = Path(tempfile.mkdtemp())
+        orig = engine.mv.ASSET_ROOT
+        engine.mv.ASSET_ROOT = root
+        try:
+            mv.record_usage("clip_a", "PQ-DRIFT", "考据", ts=1, root=root)
+            mv.record_usage("clip_extra", "PQ-DRIFT", "考据", ts=2, root=root)
+            note = {"record_id": "recDrift", "fields": {
+                NF.STATUS: NS.PUBLISHED,
+                NF.CODE: "PQ-DRIFT",
+                NF.CLIPS: "clip_a, clip_b",
+                NF.PUBLISHED_AT: MS(NOW - timedelta(days=1)),
+            }}
+
+            summary, _, sent = run_records([note])
+        finally:
+            engine.mv.ASSET_ROOT = orig
+
+        self.assertEqual(summary["usage_drift"][0]["note"], "PQ-DRIFT")
+        self.assertEqual(summary["usage_drift"][0]["missing_in_ledger"], ["clip_b"])
+        self.assertEqual(summary["usage_drift"][0]["extra_in_ledger"], ["clip_extra"])
+        self.assertTrue(any("usage账本漂移" in title for title, _ in sent))
+
+    def test_usage_projection_aligned_no_alert(self):
+        root = Path(tempfile.mkdtemp())
+        orig = engine.mv.ASSET_ROOT
+        engine.mv.ASSET_ROOT = root
+        try:
+            mv.record_usage("clip_a", "PQ-OK", "考据", ts=1, root=root)
+            note = {"record_id": "recOk", "fields": {
+                NF.STATUS: NS.PUBLISHED,
+                NF.CODE: "PQ-OK",
+                NF.CLIPS: "clip_a",
+                NF.PUBLISHED_AT: MS(NOW - timedelta(days=1)),
+            }}
+            summary, _, sent = run_records([note])
+        finally:
+            engine.mv.ASSET_ROOT = orig
+
+        self.assertEqual(summary["usage_drift"], [])
+        self.assertFalse(any("usage账本漂移" in title for title, _ in sent))
+
 
 class TestE2EChain(unittest.TestCase):
     """端到端集成 smoke:curate(编入视图)→ engine 发布回填 → trace 回溯 → 使用率 → 反馈,

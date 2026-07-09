@@ -62,6 +62,10 @@ media_src = (ROOT/"orchestrator/media_processing.py").read_text() if (ROOT/"orch
 ck("素材来去", "AI剪候选进入可恢复 MediaTask,验收后才建 Note",
    "media_processing.ensure_task" in planner_src and "READY_NOTE" in media_src and "approved_material_codes" in planner_src,
    "media_processing.ensure_task + READY_NOTE + approved_material_codes")
+engine_src = (ROOT/"orchestrator/engine.py").read_text()
+ck("素材来去", "usage账本与关联子素材投影漂移会告警",
+   "_usage_projection_drift" in engine_src and "usage账本漂移" in engine_src and "note_clips" in engine_src,
+   "_usage_projection_drift + usage账本漂移")
 
 # P5 效果回流迭代
 ck("效果回流","状态机含已发→已回流+热度分字段", "已回流" in json.dumps(json.load(open(ROOT/"schema/test/笔记表.json")),ensure_ascii=False), "状态机闭环")

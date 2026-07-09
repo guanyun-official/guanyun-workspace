@@ -69,6 +69,32 @@ def _title_of(fields: dict) -> str:
     return bitable.text(fields.get(NF.CODE)) or "?"  # 委托 adapter
 
 
+def _usage_projection_drift(notes: list[dict]) -> list[dict]:
+    """对账:已发布笔记的 Bitable「关联子素材」投影 vs 盘上 usage 账本。
+
+    usage 账本是唯一真值；Bitable 字段是只写投影。若发布后有人改了字段，或账本写入失败，
+    这里显性报漂移，避免两套状态长期不一致。
+    """
+    out = []
+    for r in notes:
+        fields = r.get("fields") or {}
+        status = bitable.text(fields.get(NF.STATUS)).strip()
+        if status not in {NS.PUBLISHED, NS.LOOPED_BACK}:
+            continue
+        note = _title_of(fields)
+        if note == "?":
+            continue
+        projected = {c.strip() for c in bitable.text(fields.get(NF.CLIPS)).split(",") if c.strip()}
+        ledger = set(mv.note_clips(note, root=mv.ASSET_ROOT))
+        if projected != ledger:
+            out.append({
+                "note": note,
+                "missing_in_ledger": sorted(projected - ledger),
+                "extra_in_ledger": sorted(ledger - projected),
+            })
+    return out
+
+
 class _Ctx:
     """一轮推进的可变上下文:run 级共享(计数器/汇总/配置)+ 每条笔记切换的 f/rid/name。
     handler 只碰 ctx——把'选哪个动作'(runbook.route)和'动作干什么'(下面的 _h_*)解耦。"""
@@ -204,13 +230,23 @@ def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20,
 
     now = datetime.now()
     summary: dict = {"mode": mode, "env": config.ENV_NAME, "actions": [], "ideas": [], "shoot": [],
-                     "review": [], "packages": [], "errors": [], "unknown_status": [], "copy_cost_cny": 0.0}
+                     "review": [], "packages": [], "errors": [], "unknown_status": [], "usage_drift": [],
+                     "copy_cost_cny": 0.0}
     try:
         if preflight is not None:
             planning = preflight()
             summary["planning"] = planning
             summary["errors"].extend(f"排产:{e}" for e in planning.get("errors", []))
         notes = feishu_io.list_records("笔记表")
+        summary["usage_drift"] = _usage_projection_drift(notes)
+        if summary["usage_drift"]:
+            alerts.send(
+                "\n".join(
+                    f"{d['note']}: ledger缺{d['missing_in_ledger'] or '[]'} / ledger多{d['extra_in_ledger'] or '[]'}"
+                    for d in summary["usage_drift"][:5]
+                ),
+                title="usage账本漂移",
+            )
         # 月度成本熔断(审查 M1):real 模式先核算,超限本轮拒绝生成
         monthly_cost = _monthly_cost_cny() if llm_mode == "real" else 0.0
         budget_blown = monthly_cost > config.BUDGET_MONTHLY_CNY

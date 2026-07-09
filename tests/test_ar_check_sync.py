@@ -73,6 +73,13 @@ class TestArCheckSync(unittest.TestCase):
         self.assertIn("READY_NOTE", src)
         self.assertIn("approved_material_codes", src)
 
+    def test_ar_check_requires_usage_projection_drift_guard(self):
+        """usage ledger 是唯一真值，ar_check 必须锁住 Bitable 投影对账告警。"""
+        src = (ROOT / "scripts" / "ar_check.py").read_text(encoding="utf-8")
+        self.assertIn("_usage_projection_drift", src)
+        self.assertIn("usage账本漂移", src)
+        self.assertIn("note_clips", src)
+
 
 if __name__ == "__main__":
     unittest.main()
