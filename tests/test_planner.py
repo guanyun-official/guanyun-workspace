@@ -1,5 +1,5 @@
 """通用策略解释器:mode来自strategy声明(改data变行为),引擎零账号特定逻辑。"""
-import sys, unittest
+import sys, tempfile, unittest
 from pathlib import Path
 from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -62,3 +62,22 @@ class TestPlanner(unittest.TestCase):
         ids = [pb["id"] for pb in p["多号"]["方法论"]]
         self.assertEqual(ids, ["上身流","细节流"], "两套方法论都应 surface")
         self.assertEqual(p["多号"]["今日缓发"]["sku"], "S1")  # 有"上身视频"命中某 playbook→可发
+
+    def test_view_readiness_is_sku_optional(self):
+        # G6:视图可发余量这条轴 SKU 无关——视图里选入的子素材不挂 SKU 也算可发,used 会被扣掉
+        import scripts.planner as pl
+        root = Path(tempfile.mkdtemp()); orig = pl.mv.ASSET_ROOT; pl.mv.ASSET_ROOT = root
+        try:
+            pl.mv.add_select("V号", "考据", "GY-1", "/raw/a.mp4", "video:0-6", root=root)   # 不挂 SKU
+            cid2 = pl.mv.add_select("V号", "考据", "GY-1", "/raw/a.mp4", "video:20-26", root=root)
+            pl.mv.record_usage(cid2, "PQ-1", "考据", ts=1, root=root)                        # 已被本号笔记用掉
+            s = {"V号": {"account":"V号","cadence":{"posts_per_day":1},"autonomy":"approve","runway_alert_days":3,
+                        "playbooks":[{"id":"考据","weight":1.0,"material_needs":["文物对照图"],"view":"考据"}]}}
+            tables = {"衣服总表":[], "素材表":[],
+                      "笔记表":[_rec({"排期编号":"PQ-1","账号(自动)":"V号","状态":"已发"})]}
+            p = self._run(s, tables)
+            vr = {v["id"]: v for v in p["V号"]["视图余量"]}
+            self.assertEqual(vr["考据"]["已选"], 2)
+            self.assertEqual(vr["考据"]["可发"], 1, "2 选入 − 1 已用 = 1 可发,全程不挂 SKU")
+        finally:
+            pl.mv.ASSET_ROOT = orig

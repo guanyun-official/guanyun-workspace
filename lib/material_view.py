@@ -106,6 +106,11 @@ def record_usage(clip: str, note: str, playbook: str, used: float | None = None,
     _write_jsonl(p, rows)
 
 
+def all_usage(root: Path = ASSET_ROOT) -> list[dict]:
+    """整本使用账本(planner 算某账号已用哪些 clip 用)。"""
+    return _read_jsonl(_usage_path(root))
+
+
 def usage_of(clip: str, root: Path = ASSET_ROOT) -> list[dict]:
     """某子素材被哪些笔记用过(回溯正向:clip→笔记)。"""
     return [r for r in _read_jsonl(_usage_path(root)) if r.get("clip_id") == clip]

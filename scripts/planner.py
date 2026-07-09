@@ -15,6 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from orchestrator import accounts, bitable, feishu_io  # noqa: E402
+from lib import material_view as mv  # noqa: E402
 from orchestrator.bitable import ClothesFields as CF  # noqa: E402
 from orchestrator.bitable import MaterialFields as MF  # noqa: E402
 from orchestrator.bitable import MaterialStatus as MS  # noqa: E402
@@ -42,6 +43,18 @@ def _all_needed_types(strategy: dict) -> set:
     return out
 
 
+def _view_readiness(account: str, pbs: list, used_clips: set, alert: int) -> list[dict]:
+    """G6:每套方法论的视图(bin)可发余量——SKU 无关(视图里的子素材挂不挂 SKU 都算)。
+    可发 = 视图里选入、且尚未被本号笔记用掉的子素材数。这条轴让不挂 SKU 的素材也进得了排产。"""
+    out = []
+    for pb in pbs:
+        selects = mv.view_selects(account, pb.get("id"), root=mv.ASSET_ROOT)
+        avail = [s for s in selects if s.get("clip_id") not in used_clips]
+        out.append({"id": pb.get("id"), "已选": len(selects), "可发": len(avail),
+                    "见底": len(avail) < alert})
+    return out
+
+
 def plan(only: str | None = None, brand: str = "观云") -> dict:
     strategies = load_strategies(brand)
     clothes = {_txt(c["fields"].get(CF.CODE)): _txt(c["fields"].get(CF.NAME))
@@ -56,6 +69,7 @@ def plan(only: str | None = None, brand: str = "观云") -> dict:
                 if sku.strip():
                     sku_types.setdefault(sku.strip(), set()).add(str(m.get(MF.TYPE)))
 
+    ledger = mv.all_usage(root=mv.ASSET_ROOT)  # G6:使用账本(算各号视图已用掉哪些 clip)
     out: dict[str, dict] = {}
     for name, s in strategies.items():
         if only and name != only:
@@ -85,10 +99,13 @@ def plan(only: str | None = None, brand: str = "观云") -> dict:
         alert = s.get("runway_alert_days", 3)
         runway = len(ready) + len(editable)  # 可发+可剪=真实余量(原料能剪出成片)
         pbs = accounts.playbooks_of(s)  # G4:该号的多套发布方法论(声明式,零代码扩展)
+        note_codes = {_txt(n.get(NF.CODE)) for n in notes if _txt(n.get(NF.ACCOUNT)) == name}
+        used_clips = {u.get("clip_id") for u in ledger if u.get("note") in note_codes}  # 本号已用掉的 clip
         out[name] = {
             "模式": s.get("mode"), "自动": True, "自主": s.get("autonomy"),
             "方法论": [{"id": pb.get("id"), "权重": pb.get("weight"), "需素材": pb.get("material_needs", [])}
                        for pb in pbs],
+            "视图余量": _view_readiness(name, pbs, used_clips, alert),  # G6:每套方法论视图可发余量(SKU 无关)
             "节奏": f"{cadence.get('posts_per_day') or s.get('posts_per_week')}/{'天' if cadence.get('posts_per_day') else '周'}",
             "余量天数": runway, "素材见底": runway < alert,
             "今日缓发": ready[0] if ready else None,
@@ -112,6 +129,9 @@ def main() -> int:
               + ("  ⚠️素材见底" if d["素材见底"] else ""))
         if d.get("方法论"):
             print("  📚 方法论:" + " / ".join(f"{pb['id']}(权重{pb['权重']})" for pb in d["方法论"]))
+        if d.get("视图余量"):
+            print("  🎞️ 视图可发:" + " / ".join(
+                f"{v['id']}={v['可发']}条" + ("⚠️见底" if v["见底"] else "") for v in d["视图余量"]))
         if d["今日缓发"]:
             t = d["今日缓发"]
             print(f"  📮 今日发:{t['款式']}({t['sku']}) 用现成成片{t['有素材']}")
