@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import sys
+import traceback
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -34,40 +35,60 @@ EXPECT_STATE = {"_SIM-P4-A": "草稿待发", "_SIM-P4-B": "待发布", "_SIM-P4-
 def main() -> int:
     assert config.ENV_NAME == "test", f"只能在测试 Base 跑,当前 env={config.ENV_NAME}"
     rids: dict[str, str] = {}
-    print("① 播种", len(SEEDS), "条 _SIM 笔记")
-    for name, fields in SEEDS.items():
-        rids[name] = feishu_io.create_record("笔记表", {"排期编号": name, **fields})
-
-    print("② 跑引擎 heartbeat(llm=stub)")
-    s = run(mode="heartbeat", llm_mode="stub", limit=100)
-
-    print("③ 断言流转")
     fails = []
-    for name, rid in rids.items():
-        tid = config.tables()["笔记表"]
-        d = feishu_io._call("GET", f"/open-apis/bitable/v1/apps/{config.BASE_TOKEN}/tables/{tid}/records/{rid}")
-        f = d["record"]["fields"]
-        got = f.get("状态")
-        ok = got == EXPECT_STATE[name]
-        extra = ""
-        if name == "_SIM-P4-A":
-            ok = ok and bool(f.get("文案草稿")) and f.get("AI声明") is True
-            extra = f" 草稿={'有' if f.get('文案草稿') else '无'} AI声明={f.get('AI声明')}"
-        if name == "_SIM-P4-C":
-            ok = ok and bool(f.get("实际发布日"))
-            extra = f" 实际发布日={'已回填' if f.get('实际发布日') else '缺'}"
-        print(f"  {'✓' if ok else '✗'} {name}: {SEEDS[name]['状态']} → {got}{extra}")
-        if not ok:
-            fails.append(name)
-    assert "SIM催拍" in "".join(s.get("shoot", [])) or any("_SIM-P4-E" in x for x in s.get("shoot", [])), "催拍未列入巡检"
-    assert any("_SIM-P4-F" in x for x in s.get("ideas", [])), "储备未列入日报清单"
-    assert any("_SIM-P4-G" in e and "AI声明" in e for e in s.get("errors", [])), "AI声明门未拒绝无声明记录"
-    print("  ✓ 催拍/储备进入摘要;AI声明门拒绝无声明记录")
+    cleanup_fails = []
+    try:
+        print("① 播种", len(SEEDS), "条 _SIM 笔记")
+        for name, fields in SEEDS.items():
+            rids[name] = feishu_io.create_record("笔记表", {"排期编号": name, **fields})
 
-    print("④ 清场(_SIM 全删,只删本脚本建的 record_id)")
-    for rid in rids.values():
-        feishu_io.delete_record("笔记表", rid)
+        print("② 跑引擎 heartbeat(llm=stub)")
+        s = run(mode="heartbeat", llm_mode="stub", limit=100)
+        if s.get("skipped") == "locked":
+            print("  ✗ 引擎锁已被占用,本轮模拟失败;仍会清理已播种记录")
+            fails.append("engine_locked")
+        else:
+            print("③ 断言流转")
+            for name, rid in rids.items():
+                tid = config.tables()["笔记表"]
+                d = feishu_io._call(
+                    "GET", f"/open-apis/bitable/v1/apps/{config.BASE_TOKEN}/tables/{tid}/records/{rid}")
+                f = d["record"]["fields"]
+                got = f.get("状态")
+                ok = got == EXPECT_STATE[name]
+                extra = ""
+                if name == "_SIM-P4-A":
+                    ok = ok and bool(f.get("文案草稿")) and f.get("AI声明") is True
+                    extra = f" 草稿={'有' if f.get('文案草稿') else '无'} AI声明={f.get('AI声明')}"
+                if name == "_SIM-P4-C":
+                    ok = ok and bool(f.get("实际发布日"))
+                    extra = f" 实际发布日={'已回填' if f.get('实际发布日') else '缺'}"
+                print(f"  {'✓' if ok else '✗'} {name}: {SEEDS[name]['状态']} → {got}{extra}")
+                if not ok:
+                    fails.append(name)
+            if not ("SIM催拍" in "".join(s.get("shoot", [])) or any("_SIM-P4-E" in x for x in s.get("shoot", []))):
+                fails.append("催拍未列入巡检")
+            if not any("_SIM-P4-F" in x for x in s.get("ideas", [])):
+                fails.append("储备未列入日报清单")
+            if not any("_SIM-P4-G" in e and "AI声明" in e for e in s.get("errors", [])):
+                fails.append("AI声明门未拒绝无声明记录")
+            if not any(x in fails for x in ("催拍未列入巡检", "储备未列入日报清单", "AI声明门未拒绝无声明记录")):
+                print("  ✓ 催拍/储备进入摘要;AI声明门拒绝无声明记录")
+    except Exception as e:  # noqa: BLE001  真实 Base 压测失败也必须走 finally 清场
+        print(f"❌ 模拟一天异常:{type(e).__name__}: {e}")
+        print(traceback.format_exc(limit=6))
+        fails.append(type(e).__name__)
+    finally:
+        print("④ 清场(_SIM 全删,只删本脚本建的 record_id)")
+        for rid in rids.values():
+            try:
+                feishu_io.delete_record("笔记表", rid)
+            except Exception as e:  # noqa: BLE001
+                cleanup_fails.append(f"{rid}:{type(e).__name__}:{e}")
 
+    if cleanup_fails:
+        print("❌ 清场失败:", cleanup_fails)
+        return 1
     if fails:
         print("❌ 模拟一天失败:", fails)
         return 1

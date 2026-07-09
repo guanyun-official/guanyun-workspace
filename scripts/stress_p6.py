@@ -40,14 +40,14 @@ def s1_quota() -> None:
     print("S1 控量:同账号(测试类型→玉子老师)第 4 篇拒绝")
     ct = ct_rid("测试类型")
     rids = []
-    for i in range(3):
+    # 自造「上限 + 1」条待组包记录,不依赖 _E2E 或当天已有数据。
+    for i in range(config.PER_ACCOUNT_DAILY_PUBLISH + 1):
         rids.append(feishu_io.create_record("笔记表", {
             "排期编号": f"_STRESS-Q{i}", "状态": "已批准", "AI声明": True,
             "内容类型": [ct], "文案草稿": "压测稿"}))
         time.sleep(0.4)
     s = run(mode="heartbeat", llm_mode="stub", limit=100)
     quota_errors = [e for e in s["errors"] if "控量门" in e]
-    # 该账号今天已有 _E2E-03 已发(1),故 3 条已批准里最多放行 2、至少拒 1
     now = datetime.now()
     total_today = sum(1 for r in feishu_io.list_records("笔记表")
                       if counts_toward_publish_quota(r["fields"], now)
