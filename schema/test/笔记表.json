@@ -3,16 +3,100 @@
   "table_name": "笔记表",
   "fields": [
     {
-      "field_name": "计划发布日",
+      "field_name": "AI声明",
+      "type": "checkbox"
+    },
+    {
+      "field_name": "token花费(元)",
+      "type": "number"
+    },
+    {
+      "field_name": "人工时(小时)",
+      "type": "select",
+      "options": [
+        "0.5",
+        "1",
+        "2",
+        "4"
+      ]
+    },
+    {
+      "field_name": "关联素材",
+      "type": "link",
+      "link_table": "tblzR7xcNNhCsMGs"
+    },
+    {
+      "field_name": "关联素材数",
+      "type": "formula"
+    },
+    {
+      "field_name": "关联衣服",
+      "type": "link",
+      "link_table": "tblfxRrrHpzDGZvN"
+    },
+    {
+      "field_name": "关联面料·工艺",
+      "type": "link",
+      "link_table": "tblNNNpKKHldnrK5"
+    },
+    {
+      "field_name": "内容类型",
+      "type": "link",
+      "link_table": "tblJYUzLt2lzZ4Vf"
+    },
+    {
+      "field_name": "发布链接",
+      "type": "text"
+    },
+    {
+      "field_name": "实际发布日",
       "type": "datetime"
+    },
+    {
+      "field_name": "投手",
+      "type": "user"
+    },
+    {
+      "field_name": "排期编号",
+      "type": "text"
+    },
+    {
+      "field_name": "收藏",
+      "type": "number"
+    },
+    {
+      "field_name": "文案草稿",
+      "type": "text"
+    },
+    {
+      "field_name": "新增关注",
+      "type": "number"
     },
     {
       "field_name": "是否爆款",
       "type": "checkbox"
     },
     {
+      "field_name": "标签·关键词",
+      "type": "link",
+      "link_table": "tbluluBPW441t0Hh"
+    },
+    {
+      "field_name": "标题",
+      "type": "text"
+    },
+    {
+      "field_name": "灵感库-转化为笔记",
+      "type": "link",
+      "link_table": "tblvZKln6m8YgsI8"
+    },
+    {
       "field_name": "点赞",
       "type": "number"
+    },
+    {
+      "field_name": "热度分",
+      "type": "formula"
     },
     {
       "field_name": "状态",
@@ -30,17 +114,20 @@
       ]
     },
     {
-      "field_name": "实际发布日",
+      "field_name": "结算日期",
       "type": "datetime"
     },
     {
-      "field_name": "标题",
+      "field_name": "脚本·分镜",
       "type": "text"
     },
     {
-      "field_name": "关联衣服",
-      "type": "link",
-      "link_table": "tblfxRrrHpzDGZvN"
+      "field_name": "计划发布日",
+      "type": "datetime"
+    },
+    {
+      "field_name": "评论",
+      "type": "number"
     },
     {
       "field_name": "账号(自动)",
@@ -51,54 +138,6 @@
       "type": "number"
     },
     {
-      "field_name": "AI声明",
-      "type": "checkbox"
-    },
-    {
-      "field_name": "灵感库-转化为笔记",
-      "type": "link",
-      "link_table": "tblvZKln6m8YgsI8"
-    },
-    {
-      "field_name": "内容类型",
-      "type": "link",
-      "link_table": "tblJYUzLt2lzZ4Vf"
-    },
-    {
-      "field_name": "关联素材",
-      "type": "link",
-      "link_table": "tblzR7xcNNhCsMGs"
-    },
-    {
-      "field_name": "结算日期",
-      "type": "datetime"
-    },
-    {
-      "field_name": "收藏",
-      "type": "number"
-    },
-    {
-      "field_name": "关联面料·工艺",
-      "type": "link",
-      "link_table": "tblNNNpKKHldnrK5"
-    },
-    {
-      "field_name": "新增关注",
-      "type": "number"
-    },
-    {
-      "field_name": "脚本·分镜",
-      "type": "text"
-    },
-    {
-      "field_name": "文案草稿",
-      "type": "text"
-    },
-    {
-      "field_name": "排期编号",
-      "type": "text"
-    },
-    {
       "field_name": "颜色",
       "type": "select",
       "options": [
@@ -106,45 +145,6 @@
         "藕荷色",
         "茶色"
       ]
-    },
-    {
-      "field_name": "投手",
-      "type": "user"
-    },
-    {
-      "field_name": "热度分",
-      "type": "formula"
-    },
-    {
-      "field_name": "标签·关键词",
-      "type": "link",
-      "link_table": "tbluluBPW441t0Hh"
-    },
-    {
-      "field_name": "关联素材数",
-      "type": "formula"
-    },
-    {
-      "field_name": "人工时(小时)",
-      "type": "select",
-      "options": [
-        "0.5",
-        "1",
-        "2",
-        "4"
-      ]
-    },
-    {
-      "field_name": "token花费(元)",
-      "type": "number"
-    },
-    {
-      "field_name": "发布链接",
-      "type": "text"
-    },
-    {
-      "field_name": "评论",
-      "type": "number"
     }
   ]
 }

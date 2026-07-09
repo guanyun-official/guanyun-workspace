@@ -7,10 +7,6 @@
       "type": "text"
     },
     {
-      "field_name": "标签简介",
-      "type": "text"
-    },
-    {
       "field_name": "关键词",
       "type": "select",
       "options": [
@@ -44,11 +40,15 @@
       ]
     },
     {
-      "field_name": "账号名",
+      "field_name": "小红书号",
       "type": "text"
     },
     {
-      "field_name": "小红书号",
+      "field_name": "标签简介",
+      "type": "text"
+    },
+    {
+      "field_name": "账号名",
       "type": "text"
     }
   ]

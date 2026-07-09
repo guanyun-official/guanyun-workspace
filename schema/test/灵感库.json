@@ -3,7 +3,7 @@
   "table_name": "灵感库",
   "fields": [
     {
-      "field_name": "文案",
+      "field_name": "优点",
       "type": "text"
     },
     {
@@ -12,7 +12,16 @@
       "link_table": "tbluluBPW441t0Hh"
     },
     {
-      "field_name": "缺点",
+      "field_name": "关联衣服",
+      "type": "link",
+      "link_table": "tblfxRrrHpzDGZvN"
+    },
+    {
+      "field_name": "文案",
+      "type": "text"
+    },
+    {
+      "field_name": "标题",
       "type": "text"
     },
     {
@@ -25,12 +34,7 @@
       ]
     },
     {
-      "field_name": "关联衣服",
-      "type": "link",
-      "link_table": "tblfxRrrHpzDGZvN"
-    },
-    {
-      "field_name": "标题",
+      "field_name": "缺点",
       "type": "text"
     },
     {
@@ -44,10 +48,6 @@
     },
     {
       "field_name": "镜头",
-      "type": "text"
-    },
-    {
-      "field_name": "优点",
       "type": "text"
     }
   ]

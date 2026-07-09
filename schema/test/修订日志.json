@@ -7,11 +7,7 @@
       "type": "text"
     },
     {
-      "field_name": "最终版本",
-      "type": "text"
-    },
-    {
-      "field_name": "来源",
+      "field_name": "关联技能",
       "type": "text"
     },
     {
@@ -19,7 +15,7 @@
       "type": "text"
     },
     {
-      "field_name": "关联技能",
+      "field_name": "原始产出",
       "type": "text"
     },
     {
@@ -27,7 +23,11 @@
       "type": "datetime"
     },
     {
-      "field_name": "原始产出",
+      "field_name": "最终版本",
+      "type": "text"
+    },
+    {
+      "field_name": "来源",
       "type": "text"
     }
   ]

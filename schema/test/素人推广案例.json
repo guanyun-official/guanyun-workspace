@@ -3,15 +3,7 @@
   "table_name": "素人推广案例",
   "fields": [
     {
-      "field_name": "笔记链接",
-      "type": "text"
-    },
-    {
-      "field_name": "小红书号",
-      "type": "text"
-    },
-    {
-      "field_name": "补充说明",
+      "field_name": "内容类型",
       "type": "text"
     },
     {
@@ -23,7 +15,11 @@
       "type": "text"
     },
     {
-      "field_name": "内容类型",
+      "field_name": "小红书号",
+      "type": "text"
+    },
+    {
+      "field_name": "推广方式",
       "type": "text"
     },
     {
@@ -31,7 +27,11 @@
       "type": "datetime"
     },
     {
-      "field_name": "推广方式",
+      "field_name": "笔记链接",
+      "type": "text"
+    },
+    {
+      "field_name": "补充说明",
       "type": "text"
     }
   ]

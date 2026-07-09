@@ -67,14 +67,15 @@ def dump(base_key: str) -> int:
         "base_token": token,
         "base": base_key,
         "dumped_at": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
-        "tables": {t["name"]: t["id"] for t in tables},
+        # 按名排序:飞书 API 的表/字段顺序不稳定,排序后 re-dump 只在真有增删改时出 diff(消灭重排噪音)
+        "tables": {t["name"]: t["id"] for t in sorted(tables, key=lambda t: t["name"])},
     }
     for t in tables:
         fields = _lark(["+field-list", "--base-token", token, "--table-id", t["id"]])["data"]["fields"]
         contract = {
             "table_id": t["id"],
             "table_name": t["name"],
-            "fields": [_field_contract(f) for f in fields],
+            "fields": sorted((_field_contract(f) for f in fields), key=lambda c: c["field_name"]),
         }
         p = out_dir / f"{t['name']}.json"
         p.write_text(json.dumps(contract, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

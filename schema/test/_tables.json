@@ -1,21 +1,21 @@
 {
   "base_token": "ZhzJbfkOsafwevsWkW8cfoILnfb",
   "base": "test",
-  "dumped_at": "2026-07-08T18:43:10+08:00",
+  "dumped_at": "2026-07-09T08:45:31+08:00",
   "tables": {
-    "衣服总表": "tblfxRrrHpzDGZvN",
-    "账号表": "tblBAkf3a9OBlOwP",
-    "内容类型表": "tblJYUzLt2lzZ4Vf",
-    "面料·工艺库": "tblNNNpKKHldnrK5",
-    "素材表": "tblzR7xcNNhCsMGs",
-    "笔记表": "tblsiceNwWpidwAG",
-    "关键词库": "tbluluBPW441t0Hh",
-    "目标客户": "tbl4Tnt3Kyt57Py9",
-    "灵感库": "tblvZKln6m8YgsI8",
-    "技能表": "tblMlwhyCXFYqhkJ",
     "Issue 表": "tblK1yVtWYLm18C9",
     "修订日志": "tbl5Ne13tAGnisne",
+    "关键词库": "tbluluBPW441t0Hh",
+    "内容类型表": "tblJYUzLt2lzZ4Vf",
+    "技能表": "tblMlwhyCXFYqhkJ",
+    "灵感库": "tblvZKln6m8YgsI8",
+    "目标客户": "tbl4Tnt3Kyt57Py9",
+    "笔记表": "tblsiceNwWpidwAG",
     "素人推广案例": "tblabbr3dK41LjzH",
-    "运行日志表": "tbln7zScvIxDW56k"
+    "素材表": "tblzR7xcNNhCsMGs",
+    "衣服总表": "tblfxRrrHpzDGZvN",
+    "账号表": "tblBAkf3a9OBlOwP",
+    "运行日志表": "tbln7zScvIxDW56k",
+    "面料·工艺库": "tblNNNpKKHldnrK5"
   }
 }
