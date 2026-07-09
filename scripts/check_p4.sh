@@ -74,6 +74,13 @@ else
   fail "install_cron 预览异常"
 fi
 
+echo "⑧ 运营 cron 预检(只读,不装)"
+if python3 scripts/preflight_operational.py --llm stub >/tmp/gy_preflight.log 2>&1; then
+  pass "preflight_operational 通过"
+else
+  fail "preflight_operational 失败"; tail -8 /tmp/gy_preflight.log | sed 's/^/    /'
+fi
+
 echo
 [ "$FAIL" -eq 0 ] && echo "✅ P4 验收全部通过" || echo "❌ P4 验收有失败项"
 exit "$FAIL"
