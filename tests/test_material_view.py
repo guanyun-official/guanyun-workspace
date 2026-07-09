@@ -114,6 +114,27 @@ class TestTraceAndSummary(unittest.TestCase):
         self.assertEqual(row["playbook"], "考据")
         self.assertEqual(row["used"], 5.0)
 
+    def test_material_usage_linked_vs_used_pct(self):
+        # 一个 60s 素材:选入两段(6s+4s=10s 软链),其中 6s 那段已用
+        mv.add_select("A", "p", "GY-1", "/raw/v.mp4", "video:0-6", linked=6.0, root=self.root)
+        cid2 = mv.add_select("A", "p", "GY-1", "/raw/v.mp4", "video:20-24", linked=4.0, root=self.root)
+        used_cid = mv.clip_id("GY-1", "video:0-6")
+        mv.record_usage(used_cid, "N1", "p", ts=1, root=self.root)
+        u = mv.material_usage("GY-1", total=60, root=self.root)
+        self.assertEqual(u["linked"], 10.0, "软链 6+4=10s")
+        self.assertEqual(u["used"], 6.0, "只有 6s 那段被用掉")
+        self.assertEqual(u["linked_pct"], 16.7)   # 10/60
+        self.assertEqual(u["used_pct"], 10.0)      # 6/60
+        self.assertNotIn(cid2, [])  # cid2 未用,不计入 used
+
+    def test_material_usage_dedupes_same_clip_across_views(self):
+        # 同一 clip 被两套方法论选入 → 只算一次(clip_id 稳定去重)
+        mv.add_select("A", "p1", "GY-2", "/raw/x.mp4", "video:0-5", linked=5.0, root=self.root)
+        mv.add_select("A", "p2", "GY-2", "/raw/x.mp4", "video:0-5", linked=5.0, root=self.root)
+        u = mv.material_usage("GY-2", root=self.root)
+        self.assertEqual(u["clips"], 1, "同 clip 跨视图去重")
+        self.assertEqual(u["linked"], 5.0)
+
     def test_write_summary_human_readable(self):
         mv.add_select("A", "p", "GY-1", "/raw/a.mp4", "video:0-6", dims={"主体": "马面裙"}, root=self.root)
         p = mv.write_summary("A", "p", root=self.root)

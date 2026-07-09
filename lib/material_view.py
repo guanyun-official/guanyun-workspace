@@ -144,6 +144,31 @@ def trace_note(note: str, root: Path = ASSET_ROOT) -> list[dict]:
     return out
 
 
+def material_usage(material_code: str, total: float | None = None, root: Path = ASSET_ROOT) -> dict:
+    """某原始素材的使用率(剪辑软件式 linked% vs used%,G3)。
+    - linked = 选入各视图的切片范围总和(按 clip_id 去重,同 clip 在多视图算一次);
+    - used   = 其中已被笔记用掉的切片范围总和(used ⊆ linked)。
+    给了 total(如视频总时长/图总量)则同时给 linked%/used%——回答"这段素材软链了多少、用了多少"。
+    每个 clip 的范围取其 select 的 `linked`(缺则按 1 计,退化为条数口径)。"""
+    clips: dict[str, float] = {}
+    vd = root / "_views"
+    if vd.exists():
+        for p in vd.rglob("*.jsonl"):
+            for s in _read_jsonl(p):
+                if s.get("material") == material_code:
+                    lk = s.get("linked")
+                    clips[s["clip_id"]] = float(lk) if lk is not None else 1.0
+    used_ids = {u["clip_id"] for u in _read_jsonl(_usage_path(root)) if u.get("clip_id") in clips}
+    linked = round(sum(clips.values()), 2)
+    used = round(sum(v for c, v in clips.items() if c in used_ids), 2)
+    out = {"material": material_code, "clips": len(clips), "used_clips": len(used_ids),
+           "linked": linked, "used": used}
+    if total:
+        out["linked_pct"] = pct(linked, total)
+        out["used_pct"] = pct(used, total)
+    return out
+
+
 def write_summary(account: str, playbook: str, root: Path = ASSET_ROOT) -> Path:
     """从视图 manifest 生成人可读 `.summary.md`(评审 finding#5 逃生口):每个子素材一行
     '为什么选它'(素材+切片+语义维度)。仅调试用、**非真相源**——发错料时人能回溯。返回路径。"""
