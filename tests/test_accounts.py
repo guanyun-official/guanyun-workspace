@@ -84,6 +84,14 @@ class TestPlaybooks(unittest.TestCase):
                            {"id": "高", "content_type": "同", "weight": 0.7, "view": "b"}]}
         self.assertEqual(accounts.playbook_for(s, "同")["id"], "高", "同 content_type 取最高权重")
 
+    def test_resolve_playbook_explicit_id_wins(self):
+        s = {"playbooks": [{"id": "甲", "content_type": "同", "weight": 0.3, "view": "a"},
+                           {"id": "乙", "content_type": "同", "weight": 0.7, "view": "b"}]}
+        # 显式指定「甲」→ 用甲(消歧义),即便乙权重更高
+        self.assertEqual(accounts.resolve_playbook(s, "甲", "同")["id"], "甲")
+        # 无显式 → 回退 content_type(取最高权重乙)
+        self.assertEqual(accounts.resolve_playbook(s, "", "同")["id"], "乙")
+
 
 class TestPlaybookValidation(unittest.TestCase):
     """评审 finding#4:显式 playbook 声明坏了不许静默(权重不归一/view 冲突/缺 id)。"""

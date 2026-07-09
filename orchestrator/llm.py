@@ -46,7 +46,8 @@ def gen_copy(note_fields: dict, mode: str = "stub") -> tuple[str, float]:
     account = _text_of(note_fields.get(NF.ACCOUNT))
     acc = _load_account(account)
     profile = acc.profile_text[:1200] if acc else ""      # 每号风格注入(缺则降级)
-    pb = accounts.playbook_for(acc.strategy, ctype) if acc else None  # G10/G11:解析所属方法论
+    # G10/G11:解析所属方法论——笔记显式「方法论」字段优先,否则按内容类型猜
+    pb = accounts.resolve_playbook(acc.strategy, _text_of(note_fields.get(NF.PLAYBOOK)), ctype) if acc else None
     pb_id = pb.get("id") if pb else ""
     recipe = _playbook_recipe(pb)
     if mode != "real":

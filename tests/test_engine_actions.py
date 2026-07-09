@@ -18,6 +18,7 @@ from orchestrator import alerts, engine, feishu_io, reminders  # noqa: E402
 from orchestrator.bitable import NoteFields as NF  # noqa: E402
 from orchestrator.bitable import NoteStatus as NS  # noqa: E402
 from orchestrator.bitable import RunLogFields as RLF  # noqa: E402
+from lib import material_view as mv  # noqa: E402
 
 MS = lambda dt: int(dt.timestamp() * 1000)  # noqa: E731
 NOW = datetime.now()
@@ -154,6 +155,40 @@ class TestPerNoteResilience(unittest.TestCase):
         good = {"record_id": "recG2", "fields": {NF.STATUS: NS.IDEA, NF.CODE: "PQ-G2"}}
         summary, _, _ = run_records([weird, good])
         self.assertIn("PQ-G2", summary["ideas"], "fields=None 不应炸整轮")
+
+
+class TestUsageBackfillOnPublish(unittest.TestCase):
+    """闭环:检测到发布回填→置已发 时,把笔记「关联子素材」的 clip_ids 记进 usage 账本。
+    这一步让 G5 回溯 / G6 视图余量 / G3 使用率 从**真实已发笔记**灌数,而非只有测试数据。"""
+
+    def test_publish_records_usage_from_clips(self):
+        root = Path(tempfile.mkdtemp())
+        orig = engine.mv.ASSET_ROOT
+        engine.mv.ASSET_ROOT = root
+        try:
+            note = {NF.STATUS: NS.TO_PUBLISH, NF.CODE: "PQ-PUB",
+                    NF.PUBLISH_LINK: {"link": "https://xhs/x"},
+                    NF.CLIPS: "clip_a, clip_b", NF.PLAYBOOK: "考据"}
+            summary, updates, _ = run_one(note)
+            self.assertTrue(any(p.get(NF.STATUS) == NS.PUBLISHED for _, _, p in updates), "应置已发")
+            self.assertEqual(set(mv.note_clips("PQ-PUB", root=root)), {"clip_a", "clip_b"},
+                             "发布应把两个 clip 记进 usage 账本")
+            self.assertEqual(summary["errors"], [])
+        finally:
+            engine.mv.ASSET_ROOT = orig
+
+    def test_publish_without_clips_no_usage(self):
+        root = Path(tempfile.mkdtemp())
+        orig = engine.mv.ASSET_ROOT
+        engine.mv.ASSET_ROOT = root
+        try:
+            note = {NF.STATUS: NS.TO_PUBLISH, NF.CODE: "PQ-NOCLIP",
+                    NF.PUBLISH_LINK: {"link": "https://xhs/y"}}
+            _, updates, _ = run_one(note)
+            self.assertTrue(any(p.get(NF.STATUS) == NS.PUBLISHED for _, _, p in updates), "仍应置已发")
+            self.assertEqual(mv.note_clips("PQ-NOCLIP", root=root), [], "没挂子素材则不记 usage")
+        finally:
+            engine.mv.ASSET_ROOT = orig
 
 
 class TestCostAccounting(unittest.TestCase):

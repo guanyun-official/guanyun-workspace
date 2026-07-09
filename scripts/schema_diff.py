@@ -25,6 +25,8 @@ P2_EXPECTED = {
     "added_fields": {
         ("笔记表", "AI声明", "checkbox"),        # P2
         ("运行日志表", "成本_元", "number"),       # M3 成本核算结构化(2026-07-09)
+        ("笔记表", "方法论", "text"),             # G11 显式所属 playbook(2026-07-09)
+        ("笔记表", "关联子素材", "text"),          # G5 usage 回填锚点:clip_ids(2026-07-09)
     },
     "added_options": {
         ("笔记表", "状态", "已批准"),

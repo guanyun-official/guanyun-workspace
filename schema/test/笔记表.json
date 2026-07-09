@@ -21,6 +21,10 @@
       ]
     },
     {
+      "field_name": "关联子素材",
+      "type": "text"
+    },
+    {
       "field_name": "关联素材",
       "type": "link",
       "link_table": "tblzR7xcNNhCsMGs"
@@ -71,6 +75,10 @@
     {
       "field_name": "新增关注",
       "type": "number"
+    },
+    {
+      "field_name": "方法论",
+      "type": "text"
     },
     {
       "field_name": "是否爆款",

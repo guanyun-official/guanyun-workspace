@@ -28,6 +28,8 @@ class NoteFields:
     PLANNED_AT = "计划发布日"
     LINKED_CLOTHES = "关联衣服"
     LINKED_MATERIALS = "关联素材"
+    PLAYBOOK = "方法论"        # 显式所属方法论 id(G11;为空则回退 content_type 解析)
+    CLIPS = "关联子素材"       # 用了哪些子素材 clip_id(逗号分隔;发布回填 usage 的锚点)
 
 
 class MaterialFields:

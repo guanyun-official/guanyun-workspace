@@ -55,6 +55,16 @@ def playbook_for(strategy: dict, content_type: str) -> dict | None:
     return max(cands, key=lambda pb: float(pb.get("weight") or 0))
 
 
+def resolve_playbook(strategy: dict, playbook_id: str = "", content_type: str = "") -> dict | None:
+    """解析笔记所属 playbook:显式 id 优先(G11:笔记表.方法论 字段),否则按 content_type 猜。
+    显式赋值消掉"同 content_type 多 playbook"的歧义;为空则回退 playbook_for。"""
+    if playbook_id:
+        for pb in playbooks_of(strategy):
+            if pb.get("id") == playbook_id:
+                return pb
+    return playbook_for(strategy, content_type)
+
+
 def validate_playbooks(strategy: dict) -> list[str]:
     """校验显式 playbooks 声明的健壮性(坏声明不静默,呼应 problems())。评审 finding#4:
     - 每个 playbook 须有 id;

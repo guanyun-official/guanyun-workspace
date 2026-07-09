@@ -14,6 +14,7 @@ from .bitable import NoteStatus as NS
 from .bitable import RunLogFields as RLF
 from .bitable import parse_ts as _rb_ts
 from .runbook import Action, route
+from lib import material_view as mv  # 盘上使用账本(纯叶子,无反向依赖)
 
 LOCK_FILE = config.WORKSPACE / "locks" / "orchestrator.lock"
 
@@ -133,11 +134,29 @@ def _h_assemble_package(ctx: _Ctx) -> None:
                       note_ref=ctx.name, detail=pkg[:300])
 
 
+def _record_note_usage(ctx: _Ctx) -> int:
+    """发布即回填使用账本:该笔记「关联子素材」里的 clip_ids → mv.record_usage(note, playbook)。
+    让 G5 回溯 / G6 视图余量 / G3 使用率从真实已发笔记灌数。盘上账本,失败不阻断置已发主流程。"""
+    clips = [c.strip() for c in bitable.text(ctx.f.get(NF.CLIPS)).split(",") if c.strip()]
+    if not clips:
+        return 0
+    pb = bitable.text(ctx.f.get(NF.PLAYBOOK))
+    ts = int(ctx.now.timestamp() * 1000)
+    try:
+        for cid in clips:
+            mv.record_usage(cid, ctx.name, pb, ts=ts, root=mv.ASSET_ROOT)
+        return len(clips)
+    except Exception as e:  # noqa: BLE001  账本是降噪账本,记不上不该拦住"置已发"
+        ctx.summary["errors"].append(f"{ctx.name}: usage回填失败 {type(e).__name__}: {e}")
+        return 0
+
+
 def _h_mark_published(ctx: _Ctx) -> None:
     feishu_io.update_record("笔记表", ctx.rid, {
         NF.PUBLISHED_AT: int(ctx.now.timestamp() * 1000), NF.STATUS: NS.PUBLISHED,
     })
-    feishu_io.log_run(f"检测到发布回填:{ctx.name}", "置已发", note_ref=ctx.name)
+    n = _record_note_usage(ctx)  # 发布回填 usage
+    feishu_io.log_run(f"检测到发布回填:{ctx.name}(记 {n} 子素材使用)", "置已发", note_ref=ctx.name)
 
 
 def _h_collect_metrics(ctx: _Ctx) -> None:
