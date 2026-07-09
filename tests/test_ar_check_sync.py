@@ -66,6 +66,13 @@ class TestArCheckSync(unittest.TestCase):
             "daily 排产必须通过 engine preflight 在单 writer 锁内执行",
         )
 
+    def test_ar_check_requires_media_task_gate_for_ai_editing(self):
+        """AI剪不能退回“跳过/伪装成片”；成熟度门要锁住 MediaTask 与 ready gate。"""
+        src = (ROOT / "scripts" / "ar_check.py").read_text(encoding="utf-8")
+        self.assertIn("media_processing.ensure_task", src)
+        self.assertIn("READY_NOTE", src)
+        self.assertIn("approved_material_codes", src)
+
 
 if __name__ == "__main__":
     unittest.main()

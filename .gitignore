@@ -11,6 +11,8 @@ __pycache__/
 *.pyc
 # 本地幂等账本(feishu_workbench 运行态)
 .feishu_workbench/
+# OMX/Codex 本地运行态
+.omx/
 # macOS
 .DS_Store
 backups/

@@ -1,4 +1,5 @@
 """通用策略解释器:mode来自strategy声明(改data变行为),引擎零账号特定逻辑。"""
+import json
 import sys, tempfile, unittest
 from datetime import date
 from pathlib import Path
@@ -203,15 +204,21 @@ class TestPlanner(unittest.TestCase):
         self.assertEqual(today["来源"], "现成成片")
         self.assertEqual(today["方法论"], "穿搭")
 
-    def test_materialize_day_does_not_publish_raw_material_as_finished_media(self):
-        """只有原料、仍需 AI 剪辑时不创建 Note，避免原料沿发布状态机被当成成片。"""
+    def test_materialize_day_creates_media_task_for_raw_material_without_note(self):
+        """只有原料、仍需 AI 剪辑时只创建媒体加工任务，不创建 Note。"""
         import scripts.planner as pl
+        from orchestrator import media_processing as mp
+        root = Path(tempfile.mkdtemp())
         strategies = {
             "A号": {
                 "account": "A号",
                 "cadence": {"posts_per_day": 1},
                 "autonomy": "approve",
-                "material_needs": {"唯美ootd": ["上身视频"]},
+                "playbooks": [{
+                    "id": "穿搭", "content_type": "唯美ootd", "weight": 1.0,
+                    "material_needs": ["上身视频"], "view": "穿搭",
+                    "edit_skill": "video-editing", "edit_params": {"style": "gentle"},
+                }],
             }
         }
         tables = {
@@ -219,17 +226,100 @@ class TestPlanner(unittest.TestCase):
             "笔记表": [],
             "素材表": [_rec({
                 "素材编号": "M1", "拍摄状态": "已拍", "关联衣服": "S1", "类型": "商品图",
+                "链接": "素材库/S1/01-原始拍摄/M1.jpg",
             })],
             "内容类型表": [{"record_id": "ct-1", "fields": {"内容类型名": "唯美ootd"}}],
         }
-        with mock.patch.object(pl, "load_strategies", return_value=strategies), \
-             mock.patch.object(pl.feishu_io, "list_records", side_effect=lambda table: tables[table]), \
-             mock.patch.object(pl.feishu_io, "create_record") as create:
-            result = pl.materialize_day(day=date(2026, 7, 9))
+        original_root = mp.ASSET_ROOT
+        mp.ASSET_ROOT = root
+        try:
+            with mock.patch.object(pl, "load_strategies", return_value=strategies), \
+                 mock.patch.object(pl.feishu_io, "list_records", side_effect=lambda table: tables[table]), \
+                 mock.patch.object(pl.feishu_io, "create_record") as create:
+                result = pl.materialize_day(day=date(2026, 7, 9))
+                again = pl.materialize_day(day=date(2026, 7, 10))
+        finally:
+            mp.ASSET_ROOT = original_root
 
         create.assert_not_called()
         self.assertEqual(result["created"], 0)
-        self.assertEqual(result["skipped"], [{"account": "A号", "reason": "media_processing_not_wired"}])
+        self.assertEqual(result["processing_created"], 1)
+        self.assertEqual(again["processing_existing"], 1)
+        self.assertEqual(result["skipped"], [{"account": "A号", "reason": "media_task:待生成剪单"}])
+        task_files = sorted((root / "_processing").glob("*.json"))
+        self.assertEqual(len(task_files), 1)
+        task = json.loads(task_files[0].read_text(encoding="utf-8"))
+        self.assertEqual(task["account"], "A号")
+        self.assertEqual(task["playbook"], "穿搭")
+        self.assertEqual(task["source_materials"][0]["code"], "M1")
+
+    def test_materialize_day_creates_note_only_after_media_task_ready(self):
+        """AI剪任务进入可建 Note 后，才把最终成片 Material 接入 Note 状态机。"""
+        import scripts.planner as pl
+        from orchestrator import media_processing as mp
+        root = Path(tempfile.mkdtemp())
+        strategies = {
+            "A号": {
+                "account": "A号",
+                "cadence": {"posts_per_day": 1},
+                "autonomy": "approve",
+                "playbooks": [{
+                    "id": "穿搭", "content_type": "唯美ootd", "weight": 1.0,
+                    "material_needs": ["上身视频"], "view": "穿搭",
+                    "edit_skill": "video-editing",
+                }],
+            }
+        }
+        tables = {
+            "衣服总表": [_rec({"衣服编号": "S1", "款式名称": "甲"})],
+            "笔记表": [],
+            "素材表": [
+                _rec({"素材编号": "M1", "拍摄状态": "已拍", "关联衣服": "S1", "类型": "商品图"}),
+                {"record_id": "mat-final", "fields": {
+                    "素材编号": "M-FINAL", "拍摄状态": "已拍", "关联衣服": "S1",
+                    "类型": "上身视频", "来源": "AI生成", "链接": "素材库/S1/03-成片/M-FINAL.mp4",
+                }},
+            ],
+            "内容类型表": [{"record_id": "ct-1", "fields": {"内容类型名": "唯美ootd"}}],
+        }
+        task_key = mp.task_key("A号", "穿搭", "S1", ["上身视频"])
+        task_dir = root / "_processing"
+        task_dir.mkdir(parents=True)
+        created = []
+
+        def create_record(table, fields):
+            created.append(fields)
+            tables["笔记表"].append({"record_id": "note-1", "fields": fields})
+            return "note-1"
+
+        original_root = mp.ASSET_ROOT
+        mp.ASSET_ROOT = root
+        try:
+            with mock.patch.object(pl, "load_strategies", return_value=strategies), \
+                 mock.patch.object(pl.feishu_io, "list_records", side_effect=lambda table: tables[table]), \
+                 mock.patch.object(pl.feishu_io, "create_record", side_effect=create_record) as create:
+                not_ready = pl.materialize_day(day=date(2026, 7, 8))
+                create.assert_not_called()
+                self.assertEqual(not_ready["created"], 0)
+                self.assertEqual(not_ready["skipped"], [{"account": "A号", "reason": "media_task:待生成剪单"}])
+
+                (task_dir / f"{task_key}.json").write_text(json.dumps({
+                    "task_key": task_key,
+                    "state": "可建 Note",
+                    "account": "A号",
+                    "playbook": "穿搭",
+                    "sku": "S1",
+                    "target_types": ["上身视频"],
+                    "output_contract": {"final_mp4": "素材库/S1/03-成片/M-FINAL.mp4", "material_code": "M-FINAL"},
+                }, ensure_ascii=False), encoding="utf-8")
+                result = pl.materialize_day(day=date(2026, 7, 9))
+        finally:
+            mp.ASSET_ROOT = original_root
+
+        self.assertEqual(result["created"], 1)
+        self.assertEqual(created[0]["状态"], "待出文案")
+        self.assertEqual(created[0]["关联素材"], ["mat-final"])
+        self.assertEqual(created[0]["关联衣服"], ["r"])
 
     def test_materialize_day_projects_view_clip_into_note(self):
         """View 候选创建 Note 时投影 playbook、clip_id 与原始 Material 关联。"""

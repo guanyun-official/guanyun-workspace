@@ -10,6 +10,7 @@
 - **Material（素材）** — 一个图/视频**整文件**，软链上墙（原件不动）+ 登记「素材表」。SKU 可选（挂得上就挂）。`素材表.适用账号` = **原料级候选账号**(ingest 时的粗提示)，与下面的 View（方法论级精选）是**两个层级不是冗余**。
 - **View（方法论视图）/ Clip（子素材）** — 盘上机器索引（`lib/material_view`，非 Bitable，2026-07-09 起）。每套 playbook 一套软链 bin(`_views/{账号}/{playbook}.jsonl`)；**Clip = 文件的一个切片/切面**，`clip_id=哈希(素材编号,span)` 稳定(搬家不断链)。同素材可被多方法论以不同 span 复用。
 - **UsageLedger（使用账本）** — 盘上 `_usage.jsonl`，usage **唯一真值**。发布回填「关联子素材」的 clip_ids → 记 note↔clip。支撑回溯(trace_note)、视图余量、linked%/used% 使用率。
+- **MediaTask（媒体加工任务）** — AI剪候选的盘上可恢复状态账本（`素材库/_processing/*.json`），状态为 `待生成剪单 → 剪单待人确认 → 待物化 → 成片待验收 → 可建 Note`。daily 只幂等创建/读取任务；只有 `可建 Note` 且输出 Material 已登记时，才进入 Note 状态机。
 - **SKU / 衣服** — 一件衣服，内容中枢（可选）。Note/Material 可关联到它。
 - **Runbook** — 状态→动作 的纯函数路由（`orchestrator/runbook.route`），推进器的决策核，零 IO 零 LLM。
 - **Record（记录适配器）** — `orchestrator/bitable.Record`：飞书多形态 record dict 的 seam。窄接口 `text/ts/link_ids/bool`，字段名走 `NoteFields/MaterialFields` 词汇常量。所有字段访问收口于此（候选A 深化，2026-07-08）。

@@ -57,6 +57,11 @@ except Exception as e:
 # P4 素材从哪来到哪去
 has_link_field = "关联素材" in json.dumps(json.load(open(ROOT/"schema/test/笔记表.json")),ensure_ascii=False)
 ck("素材来去", "乱素材→软链归类→登记素材表(ingest可执行,原件不动)", has_link_field and (ROOT/"scripts/ingest.py").exists(), "ingest.py scan/link/register + 素材表关联")
+planner_src = (ROOT/"scripts/planner.py").read_text()
+media_src = (ROOT/"orchestrator/media_processing.py").read_text() if (ROOT/"orchestrator/media_processing.py").exists() else ""
+ck("素材来去", "AI剪候选进入可恢复 MediaTask,验收后才建 Note",
+   "media_processing.ensure_task" in planner_src and "READY_NOTE" in media_src and "approved_material_codes" in planner_src,
+   "media_processing.ensure_task + READY_NOTE + approved_material_codes")
 
 # P5 效果回流迭代
 ck("效果回流","状态机含已发→已回流+热度分字段", "已回流" in json.dumps(json.load(open(ROOT/"schema/test/笔记表.json")),ensure_ascii=False), "状态机闭环")

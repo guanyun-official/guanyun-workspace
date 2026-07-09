@@ -16,10 +16,11 @@ from datetime import date, datetime, time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from orchestrator import accounts, bitable, feishu_io, metrics  # noqa: E402
+from orchestrator import accounts, bitable, feishu_io, media_processing, metrics  # noqa: E402
 from lib import material_view as mv  # noqa: E402
 from orchestrator.bitable import ClothesFields as CF  # noqa: E402
 from orchestrator.bitable import MaterialFields as MF  # noqa: E402
+from orchestrator.bitable import MaterialSource as MSrc  # noqa: E402
 from orchestrator.bitable import MaterialStatus as MS  # noqa: E402
 from orchestrator.bitable import NoteFields as NF  # noqa: E402
 from orchestrator.bitable import NoteStatus as NS  # noqa: E402
@@ -87,11 +88,24 @@ def plan(only: str | None = None, brand: str = "观云") -> dict:
     mats = [m["fields"] for m in feishu_io.list_records("素材表")]
 
     sku_types: dict[str, set] = {}
+    sku_materials: dict[str, list[dict]] = {}
+    approved_ai_materials = media_processing.approved_material_codes()
     for m in mats:
         if m.get(MF.SHOT_STATUS) == MS.SHOT:
+            code = _txt(m.get(MF.CODE))
+            is_unapproved_ai = _txt(m.get(MF.SOURCE)) == MSrc.AI and code not in approved_ai_materials
+            if is_unapproved_ai:
+                continue
             for sku in _txt(m.get(MF.LINKED_CLOTHES)).split(","):
                 if sku.strip():
-                    sku_types.setdefault(sku.strip(), set()).add(str(m.get(MF.TYPE)))
+                    sku_key = sku.strip()
+                    sku_types.setdefault(sku_key, set()).add(str(m.get(MF.TYPE)))
+                    sku_materials.setdefault(sku_key, []).append({
+                        "code": code,
+                        "type": _txt(m.get(MF.TYPE)),
+                        "link": _txt(m.get(MF.LINK)),
+                        "source": _txt(m.get(MF.SOURCE)),
+                    })
 
     ledger = mv.all_usage(root=mv.ASSET_ROOT)  # G6:使用账本(算各号视图已用掉哪些 clip)
     out: dict[str, dict] = {}
@@ -117,7 +131,8 @@ def plan(only: str | None = None, brand: str = "观云") -> dict:
             if need_types and (have & need_types):
                 ready.append({"sku": sku, "款式": style, "有素材": sorted(have & need_types)})
             elif have:  # 有原料但非目标成片→交剪辑skill,不催拍
-                editable.append({"sku": sku, "款式": style, "原料": sorted(have), "剪成": sorted(need_types)})
+                editable.append({"sku": sku, "款式": style, "原料": sorted(have), "剪成": sorted(need_types),
+                                 "原料素材": sku_materials.get(sku, [])})
             else:       # 无任何素材→催拍
                 shoot.append({"sku": sku, "款式": style, "要拍": sorted(need_types) or ["(无需求配置)"]})
         alert = s.get("runway_alert_days", 3)
@@ -157,6 +172,7 @@ def materialize_day(only: str | None = None, brand: str = "观云", day: date | 
     显式跳过而不是把原料伪装成成片推进发布链。
     """
     target_day = day or date.today()
+    strategies = load_strategies(brand)
     planned = plan(only=only, brand=brand)
     notes = feishu_io.list_records("笔记表")
     existing_codes = {_txt(r["fields"].get(NF.CODE)) for r in notes}
@@ -176,18 +192,18 @@ def materialize_day(only: str | None = None, brand: str = "观云", day: date | 
         for r in materials if _txt(r["fields"].get(MF.CODE))
     }
 
-    summary = {"created": 0, "existing": 0, "skipped": [], "errors": [], "record_ids": []}
+    summary = {
+        "created": 0, "existing": 0, "processing_created": 0, "processing_existing": 0,
+        "skipped": [], "errors": [], "record_ids": [],
+    }
     for account, account_plan in planned.items():
         today = account_plan.get("今日发")
         if not account_plan.get("自动") or not today:
             summary["skipped"].append({"account": account, "reason": "inactive_or_no_candidate"})
             continue
-        if today.get("来源") == "AI剪":
-            summary["skipped"].append({"account": account, "reason": "media_processing_not_wired"})
-            continue
-
         playbook = today.get("方法论") or ""
         pb = next((x for x in account_plan.get("方法论", []) if x.get("id") == playbook), {})
+        full_pb = accounts.resolve_playbook(strategies.get(account, {}), playbook_id=playbook) or pb
         content_type = pb.get("内容类型") or playbook
         content_type_id = content_types.get(content_type)
         if not content_type_id:
@@ -198,6 +214,21 @@ def materialize_day(only: str | None = None, brand: str = "观云", day: date | 
         if code in existing_codes:
             summary["existing"] += 1
             continue
+
+        ready_material_id = ""
+        if today.get("来源") == "AI剪":
+            task_result = media_processing.ensure_task(
+                account, full_pb, today, today.get("原料素材") or [], target_day,
+            )
+            if task_result["status"] == "created":
+                summary["processing_created"] += 1
+            else:
+                summary["processing_existing"] += 1
+            ready_code = media_processing.ready_material_code(task_result["task"])
+            ready_material_id = material_by_code.get(ready_code, "") if ready_code else ""
+            if not ready_material_id:
+                summary["skipped"].append({"account": account, "reason": f"media_task:{task_result['task'].get('state')}"})
+                continue
 
         fields = {
             NF.CODE: code,
@@ -214,6 +245,11 @@ def materialize_day(only: str | None = None, brand: str = "观云", day: date | 
             material_id = material_by_code.get(clip.get("material"))
             if material_id:
                 fields[NF.LINKED_MATERIALS] = [material_id]
+        elif today.get("来源") == "AI剪":
+            sku = today.get("sku")
+            if sku in clothes:
+                fields[NF.LINKED_CLOTHES] = [clothes[sku]]
+            fields[NF.LINKED_MATERIALS] = [ready_material_id]
         else:
             sku = today.get("sku")
             if sku in clothes:
