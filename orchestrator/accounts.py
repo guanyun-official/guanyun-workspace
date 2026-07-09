@@ -45,6 +45,16 @@ def playbooks_of(strategy: dict) -> list[dict]:
     } for t in types]
 
 
+def playbook_for(strategy: dict, content_type: str) -> dict | None:
+    """给一条笔记的内容类型,解析它属于哪套 playbook(G11 过渡解:按 content_type 匹配)。
+    多个 playbook 同 content_type 时取权重最高者(此为歧义点——彻底解需 Note 显式引用 playbook,
+    走 Base 迁移)。无匹配返 None(生成降级为通用画像)。"""
+    cands = [pb for pb in playbooks_of(strategy) if pb.get("content_type") == content_type]
+    if not cands:
+        return None
+    return max(cands, key=lambda pb: float(pb.get("weight") or 0))
+
+
 def validate_playbooks(strategy: dict) -> list[str]:
     """校验显式 playbooks 声明的健壮性(坏声明不静默,呼应 problems())。评审 finding#4:
     - 每个 playbook 须有 id;

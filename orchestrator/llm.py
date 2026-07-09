@@ -16,23 +16,41 @@ def _text_of(v) -> str:
     return bitable.text(v)
 
 
-def _account_profile(account: str, brand: str = "观云") -> str:
-    """加载账号画像 prose(候选C:统一 Account 定义的正文,不含 frontmatter)注入生成。缺则空(降级通用)。"""
+def _load_account(account: str, brand: str = "观云"):
+    """统一 Account 定义(画像 prose + strategy)。缺则 None(降级通用)。"""
     if not account:
-        return ""
+        return None
     from . import accounts
-    acc = accounts.load(account, brand)
-    return acc.profile_text[:1200] if acc else ""
+    return accounts.load(account, brand)
+
+
+def _playbook_recipe(pb: dict | None) -> str:
+    """把 playbook 声明的可注入配方拼成一行(切面/标题·正文公式;缺则空)——G10:方法论驱动生成。"""
+    if not pb:
+        return ""
+    bits = []
+    if pb.get("focus"):
+        bits.append(f"切面={pb['focus']}")
+    if pb.get("title_formula"):
+        bits.append(f"标题公式={pb['title_formula']}")
+    if pb.get("body_formula"):
+        bits.append(f"正文公式={pb['body_formula']}")
+    return ";".join(bits)
 
 
 def gen_copy(note_fields: dict, mode: str = "stub") -> tuple[str, float]:
-    """返回 (文案草稿, 成本_元)。mode: stub|real。"""
+    """返回 (文案草稿, 成本_元)。mode: stub|real。生成按该条所属 playbook 配方(G10)。"""
+    from . import accounts
     title = _text_of(note_fields.get(NF.TITLE)) or _text_of(note_fields.get(NF.CODE))
     ctype = _text_of(note_fields.get(NF.CONTENT_TYPE))
     account = _text_of(note_fields.get(NF.ACCOUNT))
-    profile = _account_profile(account)  # 每号风格注入(缺则降级)
+    acc = _load_account(account)
+    profile = acc.profile_text[:1200] if acc else ""      # 每号风格注入(缺则降级)
+    pb = accounts.playbook_for(acc.strategy, ctype) if acc else None  # G10/G11:解析所属方法论
+    pb_id = pb.get("id") if pb else ""
+    recipe = _playbook_recipe(pb)
     if mode != "real":
-        tag = f"|画像✓" if profile else ""
+        tag = ("|画像✓" if profile else "") + (f"|方法论:{pb_id}" if pb_id else "")
         return (f"[stub 占位文案|{ctype}|{account}{tag}] {title}——由 --llm real 生成正式稿。", 0.0)
 
     hint = _text_of(note_fields.get(NF.STORYBOARD))[:300]
@@ -41,6 +59,7 @@ def gen_copy(note_fields: dict, mode: str = "stub") -> tuple[str, float]:
         f"为观云(传统文化服装品牌,非遗面料复原/改良传统服饰)写一篇小红书笔记文案。\n"
         f"笔记:「{title}」 内容类型:{ctype} 账号:{account}\n"
         f"{'线索:' + hint if hint else ''}\n"
+        + (f"【本条方法论配方(按此写)】{recipe}\n" if recipe else "")
         + (f"【本账号画像(务必贴合其既有风格)】\n{profile}\n" if profile else
            "调性:清冷、唯美、克制,不硬广;考据有据(文物对照:钩子→出处稀缺→形制工艺考据→非遗升华;ootd:意境起笔→文化→版型面料→场景)。\n")
         + f"格式:第一行标题(≤20字),空行,正文(≤1000字,分段,可用少量 emoji),最后一行 3-5 个#标签。\n"

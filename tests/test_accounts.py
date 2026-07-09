@@ -73,6 +73,17 @@ class TestPlaybooks(unittest.TestCase):
     def test_empty_strategy_no_playbooks(self):
         self.assertEqual(accounts.playbooks_of({}), [])
 
+    def test_playbook_for_matches_content_type(self):
+        s = {"playbooks": [{"id": "考据", "content_type": "文物对照", "weight": 0.6, "view": "考据"},
+                           {"id": "科普", "content_type": "工艺科普", "weight": 0.4, "view": "科普"}]}
+        self.assertEqual(accounts.playbook_for(s, "文物对照")["id"], "考据")
+        self.assertIsNone(accounts.playbook_for(s, "不存在"), "无匹配返 None")
+
+    def test_playbook_for_picks_highest_weight_on_collision(self):
+        s = {"playbooks": [{"id": "低", "content_type": "同", "weight": 0.3, "view": "a"},
+                           {"id": "高", "content_type": "同", "weight": 0.7, "view": "b"}]}
+        self.assertEqual(accounts.playbook_for(s, "同")["id"], "高", "同 content_type 取最高权重")
+
 
 class TestPlaybookValidation(unittest.TestCase):
     """评审 finding#4:显式 playbook 声明坏了不许静默(权重不归一/view 冲突/缺 id)。"""
