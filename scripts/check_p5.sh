@@ -7,8 +7,15 @@ FAIL=0; pass(){ echo "  ✓ $1"; }; fail(){ echo "  ✗ $1"; FAIL=1; }
 echo "① 深链/发布包文案单测"
 python3 -m unittest tests.test_p5_links 2>&1 | grep -q "^OK" && pass "unittest OK" || fail "单测失败"
 
-echo "② hermes 通路(实发;HERMES_SKIP=1 跳过)"
+echo "② hermes 通路(实发;ALERT_DRY_RUN=1 验 dry 投递;HERMES_SKIP=1 跳过)"
 if [ "${HERMES_SKIP:-0}" = "1" ]; then pass "跳过(HERMES_SKIP=1)"
+elif [ "${ALERT_DRY_RUN:-0}" = "1" ]; then
+  OUT=$(python3 -c "from orchestrator import alerts; alerts.send('check_p5 通路自检')" 2>&1)
+  if echo "$OUT" | grep -q "alert:dry" && echo "$OUT" | grep -q "check_p5 通路自检"; then
+    pass "dry-run 投递链路可见"
+  else
+    fail "dry-run 投递链路异常"
+  fi
 elif python3 -c "
 from orchestrator import alerts
 raise SystemExit(0 if alerts.send('check_p5 通路自检') else 1)"; then pass "hermes→飞书 实发成功"
