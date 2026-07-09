@@ -17,17 +17,25 @@ class TestCollect(unittest.TestCase):
     def test_no_url_returns_empty(self):
         self.assertEqual(metrics.collect("", mode="real"), {})
 
-    def test_real_maps_metrics_to_fields(self):
-        from lib import xhs_fetch
-        payload = {"metrics": {"liked": 120, "collected": 30, "comments": 5, "shared": 2}}
-        with mock.patch.object(xhs_fetch, "note", return_value=payload):
+    def test_real_maps_interactinfo_with_cn_numbers(self):
+        # xhs-extract-master note 原子返回 interactInfo,计数可为中文('8.5万')
+        payload = {"interactInfo": {"likedCount": "8.5万", "collectedCount": "5.8万",
+                                    "commentCount": 815, "shareCount": 4386}}
+        with mock.patch.object(metrics, "_extract_note", return_value=payload):
             got = metrics.collect("https://xiaohongshu.com/note/x", mode="real")
-        self.assertEqual(got, {NF.LIKED: 120, NF.COLLECTED: 30, NF.COMMENTS: 5, NF.SHARED: 2})
+        self.assertEqual(got, {NF.LIKED: 85000, NF.COLLECTED: 58000, NF.COMMENTS: 815, NF.SHARED: 4386})
 
     def test_real_failure_degrades_not_crash(self):
-        from lib import xhs_fetch
-        with mock.patch.object(xhs_fetch, "note", side_effect=RuntimeError("网络挂")):
+        with mock.patch.object(metrics, "_extract_note", side_effect=RuntimeError("网络挂")):
             self.assertEqual(metrics.collect("https://x", mode="real"), {}, "取数失败返空不炸")
+
+    def test_cn_num_parsing(self):
+        self.assertEqual(metrics._cn_num("8.5万"), 85000)
+        self.assertEqual(metrics._cn_num("1.2亿"), 120000000)
+        self.assertEqual(metrics._cn_num("815"), 815)
+        self.assertEqual(metrics._cn_num(4386), 4386)
+        self.assertIsNone(metrics._cn_num("-"))
+        self.assertIsNone(metrics._cn_num(""))
 
 
 class TestAggregateByPlaybook(unittest.TestCase):

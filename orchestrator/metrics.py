@@ -6,29 +6,58 @@
 """
 from __future__ import annotations
 
-from . import bitable
+import json
+import re
+import subprocess
+
+from . import bitable, config
 from .bitable import NoteFields as NF
 
-# xhs_fetch 的 metrics 键 → 笔记表数值字段(热度分是 formula,Bitable 自算,不写)
-_METRIC_MAP = {"liked": NF.LIKED, "collected": NF.COLLECTED, "comments": NF.COMMENTS, "shared": NF.SHARED}
+# xhs-extract-master note 原子的 interactInfo.* → 笔记表数值字段(热度分是 formula,Bitable 自算,不写)
+_METRIC_MAP = {"likedCount": NF.LIKED, "collectedCount": NF.COLLECTED,
+               "commentCount": NF.COMMENTS, "shareCount": NF.SHARED}
+
+
+def _cn_num(v) -> int | None:
+    """小红书中文计数 → int:'8.5万'→85000,'1.2亿'→120000000,'815'→815,'-'/''→None。"""
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        return int(v)
+    if not isinstance(v, str):
+        return None
+    s = v.strip().replace(",", "")
+    m = re.match(r"^([\d.]+)\s*(万|亿)?$", s)
+    if not m:
+        return None
+    n = float(m.group(1)) * {"万": 1e4, "亿": 1e8}.get(m.group(2), 1)
+    return int(round(n))
+
+
+def _extract_note(url: str) -> dict:
+    """调已验证的非登录 SSR 提取技能 xhs-extract-master 的 note 原子,返回原始 note dict。
+    零封号不用我方账号(实测拉到巧荷账号公开数据 tikhub/redfox 皆 ✗ 仍成功)。"""
+    xhs = config.WORKSPACE / "skills" / "xhs-extract-master" / "scripts" / "xhs"
+    r = subprocess.run(["python3", str(xhs), "note", url],
+                       capture_output=True, text=True, timeout=90)
+    i = r.stdout.find("{")
+    return json.loads(r.stdout[i:]) if i >= 0 else {}
 
 
 def collect(url: str, mode: str = "stub") -> dict:
     """取一条已发笔记的互动数据 → {笔记表数值字段: 值}。
-    mode=stub 返 {}(零成本占位);real 走 xhs_fetch(非登录零封号)。无 url / 取数失败 → {} 不阻断。"""
+    mode=stub 返 {}(零成本占位);real 走 xhs-extract-master 非登录抓取。无 url / 取数失败 → {} 不阻断。"""
     if not url or mode != "real":
         return {}
     try:
-        from lib import xhs_fetch
-        m = (xhs_fetch.note(url) or {}).get("metrics") or {}
+        d = _extract_note(url)
     except Exception as e:  # noqa: BLE001  取数失败不拦主流程,下轮重试
         print(f"[效果采集降级] {e}")
         return {}
+    ii = d.get("interactInfo") or {}
     out = {}
     for k, field in _METRIC_MAP.items():
-        v = m.get(k)
-        if isinstance(v, (int, float)) and not isinstance(v, bool):
-            out[field] = int(v)
+        n = _cn_num(ii.get(k))
+        if n is not None:
+            out[field] = n
     return out
 
 
