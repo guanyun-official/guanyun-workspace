@@ -38,8 +38,9 @@ def _playbook_recipe(pb: dict | None) -> str:
     return ";".join(bits)
 
 
-def gen_copy(note_fields: dict, mode: str = "stub") -> tuple[str, float]:
-    """返回 (文案草稿, 成本_元)。mode: stub|real。生成按该条所属 playbook 配方(G10)。"""
+def gen_copy(note_fields: dict, mode: str = "stub") -> tuple[str, float, str]:
+    """返回 (文案草稿, 成本_元, 生成技能)。mode: stub|real。
+    生成按该条所属 playbook 配方(G10),并解析该方法论的生成技能 gen_skill(G13)。"""
     from . import accounts
     title = _text_of(note_fields.get(NF.TITLE)) or _text_of(note_fields.get(NF.CODE))
     ctype = _text_of(note_fields.get(NF.CONTENT_TYPE))
@@ -49,10 +50,11 @@ def gen_copy(note_fields: dict, mode: str = "stub") -> tuple[str, float]:
     # G10/G11:解析所属方法论——笔记显式「方法论」字段优先,否则按内容类型猜
     pb = accounts.resolve_playbook(acc.strategy, _text_of(note_fields.get(NF.PLAYBOOK)), ctype) if acc else None
     pb_id = pb.get("id") if pb else ""
+    gen_skill = accounts.gen_skill_of(pb)                 # G13:该方法论用哪个技能产笔记
     recipe = _playbook_recipe(pb)
     if mode != "real":
-        tag = ("|画像✓" if profile else "") + (f"|方法论:{pb_id}" if pb_id else "")
-        return (f"[stub 占位文案|{ctype}|{account}{tag}] {title}——由 --llm real 生成正式稿。", 0.0)
+        tag = ("|画像✓" if profile else "") + (f"|方法论:{pb_id}" if pb_id else "") + f"|技能:{gen_skill}"
+        return (f"[stub 占位文案|{ctype}|{account}{tag}] {title}——由 --llm real 生成正式稿。", 0.0, gen_skill)
 
     hint = _text_of(note_fields.get(NF.STORYBOARD))[:300]
     # 提示词自带品牌要点(P6演练教训:让 headless 去翻仓库会烧穿预算帽),零工具直出
@@ -76,4 +78,4 @@ def gen_copy(note_fields: dict, mode: str = "stub") -> tuple[str, float]:
     cost = round(float(d.get("total_cost_usd") or 0) * USD_CNY, 3)
     if not text:
         raise RuntimeError(f"claude -p 空结果: {r.stdout[:200]}")
-    return (text, cost)
+    return (text, cost, gen_skill)

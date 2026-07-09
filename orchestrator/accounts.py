@@ -42,7 +42,13 @@ def playbooks_of(strategy: dict) -> list[dict]:
         "weight": mix.get(t, round(1.0 / n, 3) if n else 0),
         "material_needs": needs.get(t, []),
         "view": t,
+        "gen_skill": "write-xiaohongshu",  # 生成该方法论笔记的技能(G13);显式 playbook 可覆盖
     } for t in types]
+
+
+def gen_skill_of(pb: dict | None) -> str:
+    """一套方法论用哪个技能产笔记(G13:能力=skill,playbook 指向自己的生成技能)。缺则默认。"""
+    return (pb.get("gen_skill") if pb else "") or "write-xiaohongshu"
 
 
 def playbook_for(strategy: dict, content_type: str) -> dict | None:

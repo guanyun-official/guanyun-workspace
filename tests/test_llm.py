@@ -29,14 +29,26 @@ class TestGenCopyStubUsesPlaybook(unittest.TestCase):
             "画像文本")
         note = {NF.TITLE: "某笔记", NF.CONTENT_TYPE: "文物对照", NF.ACCOUNT: "科普号"}
         with mock.patch.object(accounts, "load", return_value=acc):
-            text, cost = llm.gen_copy(note, mode="stub")
+            text, cost, skill = llm.gen_copy(note, mode="stub")
         self.assertIn("方法论:考据", text, "stub 应反映解析出的 playbook")
         self.assertEqual(cost, 0.0)
+        self.assertEqual(skill, "write-xiaohongshu", "应返回该方法论的生成技能(G13)")
 
     def test_stub_no_playbook_tag_when_account_unknown(self):
         with mock.patch.object(accounts, "load", return_value=None):
-            text, _ = llm.gen_copy({NF.CONTENT_TYPE: "x", NF.ACCOUNT: "无此号"}, mode="stub")
+            text, _, skill = llm.gen_copy({NF.CONTENT_TYPE: "x", NF.ACCOUNT: "无此号"}, mode="stub")
         self.assertNotIn("方法论:", text, "账号解析不到→不该硬凑方法论")
+        self.assertEqual(skill, "write-xiaohongshu", "解析不到也返回默认生成技能")
+
+    def test_explicit_gen_skill_wins(self):
+        acc = accounts.Account(
+            "视频号",
+            {"playbooks": [{"id": "上身流", "content_type": "ootd", "weight": 1.0,
+                            "view": "上身流", "gen_skill": "guanyun-OOTD-text"}]},
+            "画像")
+        with mock.patch.object(accounts, "load", return_value=acc):
+            _, _, skill = llm.gen_copy({NF.CONTENT_TYPE: "ootd", NF.ACCOUNT: "视频号"}, mode="stub")
+        self.assertEqual(skill, "guanyun-OOTD-text", "playbook 显式声明的生成技能应生效")
 
 
 if __name__ == "__main__":

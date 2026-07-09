@@ -108,7 +108,7 @@ def _h_gen_copy(ctx: _Ctx) -> None:
     if ctx.budget_blown:
         ctx.summary["errors"].append(f"{ctx.name}: 月度预算熔断,跳过生成")
         return
-    text, cost = llm.gen_copy(ctx.f, ctx.llm_mode)
+    text, cost, gen_skill = llm.gen_copy(ctx.f, ctx.llm_mode)  # G13:gen_skill=该方法论的生成技能
     feishu_io.update_record("笔记表", ctx.rid, {
         NF.DRAFT: text, NF.STATUS: NS.DRAFT_PENDING, NF.AI_DECLARED: True,
     })
@@ -116,7 +116,7 @@ def _h_gen_copy(ctx: _Ctx) -> None:
     ctx.summary["copy_cost_cny"] += cost
     fmt = _format_of(ctx.f, ctx.fmt_map)
     ctx.summary.setdefault("next_产物", []).append(f"{ctx.name}[{fmt or '?'}]:{_next_step(fmt)}")
-    feishu_io.log_run(f"文案草稿生成:{ctx.name}({fmt})", "生成文案", skill="write-xiaohongshu",
+    feishu_io.log_run(f"文案草稿生成:{ctx.name}({fmt})", "生成文案", skill=gen_skill,
                       note_ref=ctx.name, cost=cost,
                       detail=f"cost_cny={cost} llm={ctx.llm_mode} 格式={fmt} 下一步={_next_step(fmt)}")
 
