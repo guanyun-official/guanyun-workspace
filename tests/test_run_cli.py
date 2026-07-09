@@ -12,11 +12,15 @@ from orchestrator import run as cli
 class TestRunCLI(unittest.TestCase):
     def test_daily_materializes_plan_before_engine(self):
         events = []
+        def run_cycle(**kwargs):
+            kwargs["preflight"]()
+            events.append("engine")
+            return {"errors": []}
+
         with mock.patch.object(sys, "argv", ["orchestrator.run", "--mode", "daily"]), \
              mock.patch("scripts.planner.materialize_day",
                         side_effect=lambda: events.append("plan") or {"created": 1}), \
-             mock.patch.object(cli, "run",
-                               side_effect=lambda **_kwargs: events.append("engine") or {"errors": []}):
+             mock.patch.object(cli, "run", side_effect=run_cycle):
             code = cli.main()
 
         self.assertEqual(code, 0)

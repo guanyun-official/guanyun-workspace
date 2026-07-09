@@ -6,6 +6,7 @@ from __future__ import annotations
 import fcntl
 import traceback
 from datetime import datetime
+from typing import Callable
 
 from . import alerts, bitable, config, feishu_io, guard, llm, metrics, reminders
 from .bitable import ContentTypeFields as CTF
@@ -189,8 +190,9 @@ DISPATCH = {
 }
 
 
-def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dict:
-    """一轮推进。返回 summary dict(供日报/测试断言)。"""
+def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20,
+        preflight: Callable[[], dict] | None = None) -> dict:
+    """一轮推进。preflight 在取得单 writer 锁后、读取 Note 前执行。"""
     guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)
     LOCK_FILE.parent.mkdir(exist_ok=True)
     lf = open(LOCK_FILE, "w")
@@ -204,6 +206,10 @@ def run(mode: str = "heartbeat", llm_mode: str = "stub", limit: int = 20) -> dic
     summary: dict = {"mode": mode, "env": config.ENV_NAME, "actions": [], "ideas": [], "shoot": [],
                      "review": [], "packages": [], "errors": [], "unknown_status": [], "copy_cost_cny": 0.0}
     try:
+        if preflight is not None:
+            planning = preflight()
+            summary["planning"] = planning
+            summary["errors"].extend(f"排产:{e}" for e in planning.get("errors", []))
         notes = feishu_io.list_records("笔记表")
         # 月度成本熔断(审查 M1):real 模式先核算,超限本轮拒绝生成
         monthly_cost = _monthly_cost_cny() if llm_mode == "real" else 0.0

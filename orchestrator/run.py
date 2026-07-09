@@ -23,14 +23,11 @@ def main() -> int:
     ap.add_argument("--skip-plan", action="store_true")
     a = ap.parse_args()
     print(f"env={config.ENV_NAME} test_mode={config.TEST_MODE} mode={a.mode} llm={a.llm}")
-    planning = None
+    preflight = None
     if a.mode == "daily" and not a.skip_plan:
         from scripts.planner import materialize_day
-        planning = materialize_day()
-    s = run(mode=a.mode, llm_mode=a.llm, limit=a.limit)
-    if planning is not None:
-        s["planning"] = planning
-        s.setdefault("errors", []).extend(f"排产:{e}" for e in planning.get("errors", []))
+        preflight = materialize_day
+    s = run(mode=a.mode, llm_mode=a.llm, limit=a.limit, preflight=preflight)
     print(json.dumps(s, ensure_ascii=False, default=str, indent=1))
     return 1 if s.get("errors") else 0
 

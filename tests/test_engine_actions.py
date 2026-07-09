@@ -9,6 +9,7 @@ LOCK/STATE、stub 飞书读写、捕获 alerts),把每个动作"该写什么状�
 import sys
 import tempfile
 import unittest
+import fcntl
 from datetime import datetime, timedelta
 from pathlib import Path
 from unittest import mock
@@ -64,6 +65,23 @@ def only_patch(updates: list) -> dict:
 
 
 class TestActionHandlers(unittest.TestCase):
+    def test_locked_run_does_not_execute_preflight_writes(self):
+        """未取得单 writer 锁的 daily 必须在 Planner/Base 写入前退出。"""
+        lock_path = Path(tempfile.mkdtemp()) / "orchestrator.lock"
+        lock_path.touch()
+        holder = lock_path.open("w")
+        fcntl.flock(holder, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        preflight = mock.Mock(return_value={"created": 1})
+        try:
+            with mock.patch.object(engine, "LOCK_FILE", lock_path):
+                result = engine.run(mode="daily", preflight=preflight)
+        finally:
+            fcntl.flock(holder, fcntl.LOCK_UN)
+            holder.close()
+
+        self.assertEqual(result, {"skipped": "locked"})
+        preflight.assert_not_called()
+
     def test_list_idea_collects_no_write(self):
         summary, updates, _ = run_one({NF.STATUS: NS.IDEA, NF.CODE: "PQ-IDEA"})
         self.assertIn("PQ-IDEA", summary["ideas"])

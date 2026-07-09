@@ -60,6 +60,11 @@ class TestArCheckSync(unittest.TestCase):
             src,
             "ar_check 未验证 Planner→Note 物化能力，排产与状态推进断线也会误报 SCORE=100",
         )
+        self.assertIn(
+            "preflight = materialize_day",
+            (ROOT / "orchestrator" / "run.py").read_text(encoding="utf-8"),
+            "daily 排产必须通过 engine preflight 在单 writer 锁内执行",
+        )
 
 
 if __name__ == "__main__":
