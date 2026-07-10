@@ -4,7 +4,7 @@
 
 - 文件名 = 账号表里的账号名(如 `图文号1.md`)。
 - 内容 = account-teardown 对该号近~20篇的 6 维总结 + 素材利用偏好。**由 skill 填充,不手编**(占位可先写,拆解后覆盖)。
-- 消费方 = `orchestrator/llm.py` GEN_COPY 按笔记的账号(自动)加载对应画像注入提示词 → 生成贴该号既有风格。
+- 消费方 = `orchestrator/llm.py` GEN_COPY 按笔记的 `账号` link 加载对应画像注入提示词 → 生成贴该号既有风格。
 - 更新 = 每号内容风格漂移时重跑 account-teardown 覆盖(git 可回溯)。
 
 **红线**:画像里只存**可迁移打法/风格规律**,绝不存原帖文案片段(防搬运,与 account-teardown 出口闸一致)。
