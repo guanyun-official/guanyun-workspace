@@ -37,7 +37,7 @@ guanyun-workspace/
 
 ## 1. 已验证事实（2026-07-08 实测）
 
-- 测试 Base 100% 保真（14 表/字段/记录/视图/仪表盘），已开组织内链接编辑。
+- 测试 Base 曾按生产 14 表复制；2026-07-10 起转为 SourceOwnership 新体系工作台，不再保真生产结构，允许为验证唯一源删除冗余表/字段。
 - 工具链在位：lark-cli、hermes、claude headless（实测）、codex 0.136.0（已登录）、ffmpeg。
 - qiaohe-skill 14 个 SKILL.md 全合规；其中 4 个硬编码表 ID 待去除。
 - crontab 空；`content-skills`（竹序客户项目）不合并，借鉴其 stage→action 纯函数路由与 fail-safe noop 设计。

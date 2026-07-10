@@ -70,7 +70,7 @@ def cmd_gen(real: bool) -> None:
     print("\n===== 稿件(供人审) =====")
     for name, rec in sorted(_e2e_records().items()):
         f = rec["fields"]
-        print(f"\n--- {name} | 状态:{f.get('状态')} | 账号:{_txt(f.get('账号(自动)'))}")
+        print(f"\n--- {name} | 状态:{f.get('状态')} | 账号:{_txt(f.get('账号'))}")
         print(_txt(f.get("文案草稿"))[:500])
 
 

@@ -1,13 +1,12 @@
 {
   "base_token": "ZhzJbfkOsafwevsWkW8cfoILnfb",
   "base": "test",
-  "dumped_at": "2026-07-10T12:00:51+08:00",
+  "dumped_at": "2026-07-10T12:28:03+08:00",
   "tables": {
     "Issue 表": "tblK1yVtWYLm18C9",
     "修订日志": "tbl5Ne13tAGnisne",
     "关键词库": "tbluluBPW441t0Hh",
     "内容类型表": "tblJYUzLt2lzZ4Vf",
-    "技能表": "tblMlwhyCXFYqhkJ",
     "灵感库": "tblvZKln6m8YgsI8",
     "目标客户": "tbl4Tnt3Kyt57Py9",
     "笔记表": "tblsiceNwWpidwAG",

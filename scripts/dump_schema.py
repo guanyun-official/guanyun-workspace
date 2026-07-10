@@ -70,6 +70,13 @@ def dump(base_key: str) -> int:
         # 按名排序:飞书 API 的表/字段顺序不稳定,排序后 re-dump 只在真有增删改时出 diff(消灭重排噪音)
         "tables": {t["name"]: t["id"] for t in sorted(tables, key=lambda t: t["name"])},
     }
+    live_table_names = set(summary["tables"])
+    for stale in out_dir.glob("*.json"):
+        if stale.name == "_tables.json":
+            continue
+        if stale.stem not in live_table_names:
+            stale.unlink()
+            print(f"  - stale removed: {base_key}/{stale.name}")
     for t in tables:
         fields = _lark(["+field-list", "--base-token", token, "--table-id", t["id"]])["data"]["fields"]
         contract = {

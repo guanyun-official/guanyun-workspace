@@ -19,7 +19,7 @@ class NoteFields:
     TITLE = "标题"
     STATUS = "状态"
     AI_DECLARED = "AI声明"
-    ACCOUNT = "账号(自动)"
+    ACCOUNT = "账号"
     CONTENT_TYPE = "内容类型"
     DRAFT = "文案草稿"
     STORYBOARD = "脚本·分镜"
@@ -62,7 +62,6 @@ class AccountFields:
     NAME = "账号名"
     XHS_ID = "小红书号"
     HOMEPAGE = "主页链接"
-    AUDIENCE = "受众"
     LAUNCH_STATUS = "上线状态"
     CONTENT_TYPES_LOOKUP = "内容类型表-所属账号"
 

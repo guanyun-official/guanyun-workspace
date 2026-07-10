@@ -18,6 +18,7 @@ TYPE_IDS = {
     "number": 2,
     "select": 3,
     "datetime": 5,
+    "link": 21,
 }
 
 
@@ -30,6 +31,8 @@ def _print_human(plan: dict) -> None:
     )
     if s["deprecate_tables"]:
         print(f"  deprecate_tables={', '.join(s['deprecate_tables'])}")
+    if s["delete_tables"]:
+        print(f"  delete_tables={', '.join(s['delete_tables'])}")
     if s["rename_tables"]:
         print(f"  rename_tables={', '.join(s['rename_tables'])}")
     if s["missing_target_tables"] or s["unknown_tables"]:
@@ -73,10 +76,30 @@ def _create_field(table_id: str, field: dict) -> None:
     )
 
 
+def _create_link_field(table_id: str, field: dict) -> None:
+    body = base_workbench.link_create_body(field, config.tables())
+    _call(
+        "POST",
+        f"/open-apis/bitable/v1/apps/{config.BASE_TOKEN}/tables/{table_id}/fields",
+        data={
+            "field_name": body["name"],
+            "type": TYPE_IDS["link"],
+            "property": body["property"],
+        },
+    )
+
+
 def _delete_field(table_id: str, field_id: str) -> None:
     _call(
         "DELETE",
         f"/open-apis/bitable/v1/apps/{config.BASE_TOKEN}/tables/{table_id}/fields/{field_id}",
+    )
+
+
+def _delete_table(table_id: str) -> None:
+    _call(
+        "DELETE",
+        f"/open-apis/bitable/v1/apps/{config.BASE_TOKEN}/tables/{table_id}",
     )
 
 
@@ -90,6 +113,21 @@ def _apply_simple_adds(plan: dict) -> int:
             continue
         _create_field(table_id, field)
         print(f"  + created: {field['table']}.{field['field']}")
+        count += 1
+    return count
+
+
+def _apply_link_adds(plan: dict) -> int:
+    guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)
+    count = 0
+    for field in base_workbench.link_adds(plan):
+        table_id = config.tables()[field["table"]]
+        if field["field"] in _live_fields(table_id):
+            print(f"  ↷ skip existing: {field['table']}.{field['field']}")
+            continue
+        _create_link_field(table_id, field)
+        target = base_workbench.link_target_table(field)
+        print(f"  + linked: {field['table']}.{field['field']} -> {target}")
         count += 1
     return count
 
@@ -110,18 +148,44 @@ def _apply_deletes(plan: dict) -> int:
     return count
 
 
+def _apply_table_deletes(plan: dict) -> int:
+    guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)
+    count = 0
+    for table in plan["tables"]:
+        if table["table_action"] != "delete_table":
+            continue
+        try:
+            table_id = config.tables()[table["table"]]
+        except KeyError:
+            print(f"  ↷ skip absent table: {table['table']}")
+            continue
+        _delete_table(table_id)
+        print(f"  - deleted table: {table['table']}")
+        count += 1
+    return count
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--schema-dir", default=None)
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--apply-simple-adds", action="store_true",
                     help="physically create missing text/select/number/datetime fields in the test Base")
+    ap.add_argument("--apply-link-adds", action="store_true",
+                    help="physically create approved missing DuplexLink fields in the test Base")
     ap.add_argument("--apply-deletes", action="store_true",
                     help="physically delete fields whose target action is delete_field")
+    ap.add_argument("--apply-table-deletes", action="store_true",
+                    help="physically delete tables whose target action is delete_table")
     args = ap.parse_args(argv)
 
     plan = base_workbench.build_plan(Path(args.schema_dir) if args.schema_dir else None)
-    if args.schema_dir and (args.apply_simple_adds or args.apply_deletes):
+    if args.schema_dir and (
+        args.apply_simple_adds
+        or args.apply_link_adds
+        or args.apply_deletes
+        or args.apply_table_deletes
+    ):
         raise SystemExit("--apply-* must use the live configured schema/test + current Base, not an arbitrary schema dir")
     if args.json:
         print(json.dumps(plan, ensure_ascii=False, indent=2))
@@ -130,9 +194,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.apply_simple_adds:
         n = _apply_simple_adds(plan)
         print(f"\n✅ applied simple field additions: {n}")
+    if args.apply_link_adds:
+        n = _apply_link_adds(plan)
+        print(f"\n✅ applied link field additions: {n}")
     if args.apply_deletes:
         n = _apply_deletes(plan)
         print(f"\n✅ applied physical field deletes: {n}")
+    if args.apply_table_deletes:
+        n = _apply_table_deletes(plan)
+        print(f"\n✅ applied physical table deletes: {n}")
     return 1 if base_workbench.has_blocking_drift(plan) else 0
 
 

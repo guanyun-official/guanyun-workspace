@@ -22,7 +22,6 @@ class BaseAccount:
     name: str
     xhs_id: str
     homepage: str
-    audience: str
     launch_status: str
     content_type_names: tuple[str, ...]
 
@@ -72,7 +71,6 @@ def base_accounts(records: list[dict]) -> list[BaseAccount]:
             name=name,
             xhs_id=r.text(AF.XHS_ID).strip(),
             homepage=r.text(AF.HOMEPAGE).strip(),
-            audience=r.text(AF.AUDIENCE).strip(),
             launch_status=r.text(AF.LAUNCH_STATUS).strip(),
             content_type_names=_tuple_texts(r.raw(AF.CONTENT_TYPES_LOOKUP)),
         ))

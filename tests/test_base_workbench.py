@@ -63,12 +63,12 @@ class TestBaseWorkbench(unittest.TestCase):
         self.assertEqual(tuple(use["options"]), ("真实运营", "演练", "压测"))
         self.assertEqual(run["status"], "missing")
 
-    def test_skill_table_is_deprecated_not_owner(self):
+    def test_skill_table_is_deleted_not_owner(self):
         plan = base_workbench.build_plan(self.schema)
         skill = next(t for t in plan["tables"] if t["table"] == "技能表")
-        self.assertEqual(skill["table_action"], "deprecate_table")
+        self.assertEqual(skill["table_action"], "delete_table")
         self.assertIn("skills.lock.json", skill["reason"])
-        self.assertIn("技能表", plan["summary"]["deprecate_tables"])
+        self.assertIn("技能表", plan["summary"]["delete_tables"])
 
     def test_simple_adds_and_create_body(self):
         plan = base_workbench.build_plan(self.schema)
@@ -85,10 +85,23 @@ class TestBaseWorkbench(unittest.TestCase):
     def test_present_deletes(self):
         plan = base_workbench.build_plan(self.schema)
         deletes = {(f["table"], f["field"]) for f in base_workbench.present_deletes(plan)}
-        self.assertEqual(
-            deletes,
-            {("内容类型表", "取数字段·切面"), ("内容类型表", "文案元模版")},
+        self.assertTrue({("内容类型表", "取数字段·切面"), ("内容类型表", "文案元模版")} <= deletes)
+        self.assertIn(("笔记表", "token花费(元)"), deletes)
+        self.assertIn(("笔记表", "账号(自动)"), deletes)
+
+    def test_link_adds_and_create_body(self):
+        plan = base_workbench.build_plan(self.schema)
+        adds = {(f["table"], f["field"]): f for f in base_workbench.link_adds(plan)}
+        self.assertIn(("笔记表", "账号"), adds)
+        body = base_workbench.link_create_body(
+            adds[("笔记表", "账号")],
+            {"账号表": "tbl_account"},
         )
+        self.assertEqual(body["name"], "账号")
+        self.assertEqual(body["type"], "link")
+        self.assertEqual(body["property"]["table_id"], "tbl_account")
+        self.assertEqual(body["property"]["back_field_name"], "笔记表-账号")
+        self.assertTrue(body["property"]["multiple"])
 
     def test_unknown_or_missing_tables_are_blocking_drift(self):
         _write_table(self.schema, "陌生表", [("x", "text")])
@@ -96,7 +109,7 @@ class TestBaseWorkbench(unittest.TestCase):
         plan = base_workbench.build_plan(self.schema)
         self.assertTrue(base_workbench.has_blocking_drift(plan))
         self.assertIn("陌生表", plan["summary"]["unknown_tables"])
-        self.assertIn("技能表", plan["summary"]["missing_target_tables"])
+        self.assertNotIn("技能表", plan["summary"]["missing_target_tables"])
 
 
 if __name__ == "__main__":

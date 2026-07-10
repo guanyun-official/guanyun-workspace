@@ -5,7 +5,7 @@ schema_diff.py — 对比两份 schema dump(dump_schema.py 产出目录),输出�
 用法:
   python3 scripts/schema_diff.py <before_dir> <after_dir>              # 只打差异报告
   python3 scripts/schema_diff.py <before_dir> <after_dir> --assert-p2  # 断言 P2 预期:
-      只有登记过的受控新增/删除；零表删除、零改类型、零 select 选项删除,
+      只有登记过的受控新增/删除；零改类型、零 select 选项删除,
       预期外新增/删除也算失败。
 
 exit 0 = 通过;exit 1 = 断言失败或目录/文件问题。
@@ -22,10 +22,14 @@ from pathlib import Path
 # 这是 schema-diff 硬闸的白名单:登记过的算预期,没登记的新增/删除/改类型/改名一律报红——
 # 加/删字段时必须来这里登记一行,否则 check_p2 会拦住(反漂移:UI/误操作改 schema 无所遁形)。
 P2_EXPECTED = {
+    "removed_tables": {
+        '技能表',
+    },
     "added_fields": {
         ('Issue 表', 'github_issue_url', 'text'),
         ('Issue 表', '归属域', 'select'),
         ('修订日志', '修订类型', 'select'),
+        ('修订日志', '关联笔记', 'link'),
         ('修订日志', '审核人', 'text'),
         ('关键词库', '启用状态', 'select'),
         ('关键词库', '平台', 'select'),
@@ -43,25 +47,33 @@ P2_EXPECTED = {
         ('目标客户', '人群假设', 'text'),
         ('目标客户', '更新时间', 'datetime'),
         ('目标客户', '证据链接', 'text'),
+        ('目标客户', '适用账号', 'link'),
         ('笔记表', 'AI声明', 'checkbox'),
+        ('笔记表', '修订日志-关联笔记', 'link'),
         ('笔记表', '关联子素材', 'text'),
         ('笔记表', '发布包路径', 'text'),
         ('笔记表', '数据用途', 'select'),
         ('笔记表', '方法论', 'text'),
+        ('笔记表', '账号', 'link'),
         ('笔记表', '运行批次', 'text'),
         ('素人推广案例', '合作状态', 'select'),
         ('素人推广案例', '素材授权状态', 'select'),
         ('素人推广案例', '转化指标', 'text'),
+        ('素人推广案例', '适用账号', 'link'),
         ('素材表', '数据用途', 'select'),
         ('素材表', '相对路径', 'text'),
         ('素材表', '素材哈希', 'text'),
         ('素材表', '验收状态', 'select'),
         ('衣服总表', '内容优先级', 'select'),
         ('衣服总表', '生命周期状态', 'select'),
+        ('衣服总表', '笔记表-关联衣服', 'link'),
         ('衣服总表', '素材缺口摘要', 'text'),
         ('账号表', 'workspace_ref', 'text'),
         ('账号表', '画像更新时间', 'datetime'),
         ('账号表', '画像状态', 'select'),
+        ('账号表', '目标客户-适用账号', 'link'),
+        ('账号表', '笔记表-账号', 'link'),
+        ('账号表', '素人推广案例-适用账号', 'link'),
         ('账号表', '自动排产', 'select'),
         ('运行日志表', 'automation_id', 'text'),
         ('运行日志表', 'duration_ms', 'number'),
@@ -72,10 +84,23 @@ P2_EXPECTED = {
         ('面料·工艺库', '事实来源', 'text'),
         ('面料·工艺库', '可信级别', 'select'),
         ('面料·工艺库', '禁用说法', 'text'),
+        ('面料·工艺库', '笔记表-关联面料·工艺', 'link'),
     },
     "removed_fields": {
+        ('Issue 表', '关联技能', 'text'),
+        ('修订日志', '关联技能', 'text'),
         ('内容类型表', '取数字段·切面', 'text'),
         ('内容类型表', '文案元模版', 'text'),
+        ('笔记表', 'token花费(元)', 'number'),
+        ('笔记表', '人工时(小时)', 'select'),
+        ('笔记表', '结算日期', 'datetime'),
+        ('笔记表', '账号(自动)', 'lookup'),
+        ('笔记表', '颜色', 'select'),
+        ('素材表', '文件', 'attachment'),
+        ('素材表', '颜色', 'select'),
+        ('衣服总表', '排期表-关联衣服', 'link'),
+        ('账号表', '受众', 'text'),
+        ('面料·工艺库', '排期表-关联面料·工艺', 'link'),
     },
     "added_options": {
         ('笔记表', '状态', '已回流'),
@@ -162,8 +187,9 @@ def main() -> int:
     errors = []
     if at:
         errors.append(f"预期外新增表: {at}")
-    if rt:
-        errors.append(f"删除了表(禁止): {rt}")
+    got_rt = set(rt)
+    if got_rt != P2_EXPECTED.get("removed_tables", set()):
+        errors.append(f"删除表 ≠ 预期: 实际={sorted(got_rt)} 预期={sorted(P2_EXPECTED.get('removed_tables', set()))}")
     if tc:
         errors.append(f"字段类型被改(禁止): {tc}")
     if ro:
@@ -183,7 +209,7 @@ def main() -> int:
         for e in errors:
             print(f"  · {e}")
         return 1
-    print("\n✅ 断言通过:只有登记过的受控新增/删除,零表删零改类型零删选项")
+    print("\n✅ 断言通过:只有登记过的受控新增/删除,零改类型零删选项")
     return 0
 
 

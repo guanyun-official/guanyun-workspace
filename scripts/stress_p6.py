@@ -51,7 +51,7 @@ def s1_quota() -> None:
     now = datetime.now()
     total_today = sum(1 for r in feishu_io.list_records("笔记表")
                       if counts_toward_publish_quota(r["fields"], now)
-                      and "玉子" in str(r["fields"].get("账号(自动)")))
+                      and "玉子" in str(r["fields"].get("账号")))
     check("放行不超上限", total_today <= config.PER_ACCOUNT_DAILY_PUBLISH, f"(今日占额 {total_today})")
     check("超额被拒并告警", len(quota_errors) >= 1, f"(拒 {len(quota_errors)} 条)")
     for rid in rids:

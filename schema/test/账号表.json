@@ -24,10 +24,6 @@
       "link_table": "tblJYUzLt2lzZ4Vf"
     },
     {
-      "field_name": "受众",
-      "type": "text"
-    },
-    {
       "field_name": "小红书号",
       "type": "text"
     },
@@ -47,6 +43,21 @@
         "已拆解",
         "需重跑"
       ]
+    },
+    {
+      "field_name": "目标客户-适用账号",
+      "type": "link",
+      "link_table": "tbl4Tnt3Kyt57Py9"
+    },
+    {
+      "field_name": "笔记表-账号",
+      "type": "link",
+      "link_table": "tblsiceNwWpidwAG"
+    },
+    {
+      "field_name": "素人推广案例-适用账号",
+      "type": "link",
+      "link_table": "tblabbr3dK41LjzH"
     },
     {
       "field_name": "自动排产",

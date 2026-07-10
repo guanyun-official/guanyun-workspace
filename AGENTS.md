@@ -17,7 +17,7 @@
 ## Base 事实
 
 - **生产 Base(巧荷 Qiaohe-official-beta)**:`N9IVbi6pTatJG5sqyTTcc0vSn4g`,共 14 表。
-- **测试 Base**:`ZhzJbfkOsafwevsWkW8cfoILnfb`(复制自生产,14 表保真)。
+- **测试 Base**:`ZhzJbfkOsafwevsWkW8cfoILnfb`(曾复制自生产；2026-07-10 起按 SourceOwnership 重构为新体系工作台,当前 13 表,不再追求生产 14 表保真)。
 - **默认一切写操作只进测试 Base**(`.env` 的 `LARK_APP_TOKEN` 默认=测试 Base;`TEST_MODE=1`)。
   生产 Base 只读(dump schema 等);生产变更一律走"迁移清单 + 人工确认"(见 docs/PLAN.md P7)。
 - 旧观云 Base `ITz4bsLSWaKuSqsuUaocmEC0nXe` 已废弃,不纳入 schema 管理。
@@ -42,7 +42,7 @@
 | 运行日志表 | `tblgZRFvZiZtfxNN` |
 
 > 字段级契约(field_name/type/select 枚举)在 `schema/prod/<表名>.json`(`scripts/dump_schema.py` 产出);
-> 测试 Base 契约 dump 到 `schema/test/`。**测试 Base 的 table_id 与生产不同**,写代码取表一律按表名经 schema 解析,不硬编码 table_id。
+> 测试 Base 契约 dump 到 `schema/test/`。**测试 Base 的 table_id 与生产不同**,且测试 Base 可为验证新体系删表/删字段；写代码取表一律按表名经 schema 解析,不硬编码 table_id。
 
 ## 小红书账号(4 个;**以账号表 `tblveO3Wzm3Foo6v` 为准**,此处仅快照)
 

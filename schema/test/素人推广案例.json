@@ -57,6 +57,11 @@
     {
       "field_name": "转化指标",
       "type": "text"
+    },
+    {
+      "field_name": "适用账号",
+      "type": "link",
+      "link_table": "tblBAkf3a9OBlOwP"
     }
   ]
 }

@@ -7,18 +7,9 @@
       "type": "checkbox"
     },
     {
-      "field_name": "token花费(元)",
-      "type": "number"
-    },
-    {
-      "field_name": "人工时(小时)",
-      "type": "select",
-      "options": [
-        "0.5",
-        "1",
-        "2",
-        "4"
-      ]
+      "field_name": "修订日志-关联笔记",
+      "type": "link",
+      "link_table": "tbl5Ne13tAGnisne"
     },
     {
       "field_name": "关联子素材",
@@ -135,10 +126,6 @@
       ]
     },
     {
-      "field_name": "结算日期",
-      "type": "datetime"
-    },
-    {
       "field_name": "脚本·分镜",
       "type": "text"
     },
@@ -151,8 +138,9 @@
       "type": "number"
     },
     {
-      "field_name": "账号(自动)",
-      "type": "lookup"
+      "field_name": "账号",
+      "type": "link",
+      "link_table": "tblBAkf3a9OBlOwP"
     },
     {
       "field_name": "转发",
@@ -161,15 +149,6 @@
     {
       "field_name": "运行批次",
       "type": "text"
-    },
-    {
-      "field_name": "颜色",
-      "type": "select",
-      "options": [
-        "月影蓝",
-        "藕荷色",
-        "茶色"
-      ]
     }
   ]
 }

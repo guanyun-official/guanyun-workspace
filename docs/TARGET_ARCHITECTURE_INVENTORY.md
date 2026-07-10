@@ -87,7 +87,7 @@
 
 | 表 | 原因 | 迁移目标 |
 |---|---|---|
-| 技能表 | skill owner 是 git repo + `skills.lock.json`；Base 技能表会成为版本双源 | 删除或改为只读投影表；不再人工维护 |
+| 技能表 | skill owner 是 git repo + `skills.lock.json`；Base 技能表会成为版本双源 | 测试 Base 已删除；生产如需迁移只走人工迁移清单 |
 
 ## 3. 测试 Base：字段级目标
 
@@ -121,11 +121,11 @@
 - `token花费(元)`：成本 owner 应是 `运行日志表.成本_元`；若需要 Note ROI，改名为派生/汇总字段。
 - `人工时(小时)`、`结算日期`：若是财务/外包结算，另建财务 lane；否则删除。
 - `颜色`：应来自 `衣服总表.颜色·规格` 或素材 metadata，Note 不重复存。
-- `账号(自动)`：lookup 可暂留展示，但不应作为唯一账号字段。
+- `账号(自动)`：旧 lookup，测试 Base 已迁移到显式 `账号` link 后删除。
 
 新增：
 
-- `账号`：link 到账号表，作为 Note 所属账号的显式事实；`账号(自动)` 可迁移后删除。
+- `账号`：link 到账号表，作为 Note 所属账号的显式事实。
 - `数据用途`：select = `真实运营` / `演练` / `压测`，替代 `_SIM/_UAT/_STRESS` 只靠编号前缀。
 - `运行批次`：text，关联 orchestrator run_id。
 - `发布包路径`：text，可指向盘上待发布包。
@@ -467,11 +467,11 @@ Owner：workspace + Base 字段。
 1. 文档冻结本清单。
 2. 新增 BaseWorkbench dry-run：只读列出“当前字段 → 目标动作”。
 3. 新增 `账号` link、`数据用途`、`run_id` 等非破坏字段。
-4. 迁移 Note 的账号归属，从 `账号(自动)`/内容类型 lookup 转为显式 `账号` link。
+4. 迁移 Note 的账号归属，从 `账号(自动)`/内容类型 lookup 转为显式 `账号` link（测试 Base 已完成回填，旧 lookup 已进入删除目标）。
 5. 删除或废弃 `内容类型表.取数字段·切面`、`内容类型表.文案元模版`。
 6. 重写 `brands/README.md` 和 `brands/观云/lark_config.json`。
 7. 把旧 formulas/knowledge_base 拆分为品牌全局 style guide 与 source intelligence。
-8. 删除/降级 Base「技能表」。
+8. 删除/降级 Base「技能表」（测试 Base 已删除）。
 9. 将 Base「Issue 表」改名/改语义为员工需求，不再承担开发 issue。
 10. 每步后跑：
     - `python3.10 -m pytest -q`

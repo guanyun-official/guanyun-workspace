@@ -78,7 +78,7 @@ class TestPlanner(unittest.TestCase):
             s = {"V号": {"account":"V号","cadence":{"posts_per_day":1},"autonomy":"approve","runway_alert_days":3,
                         "playbooks":[{"id":"考据","weight":1.0,"material_needs":["文物对照图"],"view":"考据"}]}}
             tables = {"衣服总表":[], "素材表":[],
-                      "笔记表":[_rec({"排期编号":"PQ-1","账号(自动)":"V号","状态":"已发"})]}
+                      "笔记表":[_rec({"排期编号":"PQ-1","账号":"V号","状态":"已发"})]}
             p = self._run(s, tables)
             vr = {v["id"]: v for v in p["V号"]["视图余量"]}
             self.assertEqual(vr["考据"]["已选"], 2)
@@ -119,9 +119,9 @@ class TestPlanner(unittest.TestCase):
         # G7 反馈:已发笔记按方法论聚合均赞 → planner 输出「方法论表现」(闭环学习信号可见)
         s = {"F号": {"account": "F号", "cadence": {"posts_per_day": 1}, "autonomy": "approve"}}
         tables = {"衣服总表": [], "素材表": [], "笔记表": [
-            _rec({"排期编号": "N1", "账号(自动)": "F号", "状态": "已发", "方法论": "考据", "点赞": 300}),
-            _rec({"排期编号": "N2", "账号(自动)": "F号", "状态": "已发", "方法论": "考据", "点赞": 100}),
-            _rec({"排期编号": "N3", "账号(自动)": "F号", "状态": "已发", "方法论": "ootd", "点赞": 50})]}
+            _rec({"排期编号": "N1", "账号": "F号", "状态": "已发", "方法论": "考据", "点赞": 300}),
+            _rec({"排期编号": "N2", "账号": "F号", "状态": "已发", "方法论": "考据", "点赞": 100}),
+            _rec({"排期编号": "N3", "账号": "F号", "状态": "已发", "方法论": "ootd", "点赞": 50})]}
         perf = self._run(s, tables)["F号"]["方法论表现"]
         self.assertEqual(perf["考据"]["均赞"], 200.0, "考据两条均赞 (300+100)/2=200")
         self.assertEqual(perf["ootd"]["条数"], 1)

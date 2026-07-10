@@ -20,10 +20,6 @@
       ]
     },
     {
-      "field_name": "关联技能",
-      "type": "text"
-    },
-    {
       "field_name": "完成时间",
       "type": "datetime"
     },
