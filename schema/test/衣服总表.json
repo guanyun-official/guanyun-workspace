@@ -12,10 +12,6 @@
       ]
     },
     {
-      "field_name": "卖点内核",
-      "type": "text"
-    },
-    {
       "field_name": "启用账号",
       "type": "link",
       "link_table": "tblBAkf3a9OBlOwP"
@@ -25,38 +21,13 @@
       "type": "text"
     },
     {
-      "field_name": "季",
-      "type": "select",
-      "options": [
-        "春夏",
-        "秋冬"
-      ]
-    },
-    {
       "field_name": "工艺",
       "type": "link",
       "link_table": "tblNNNpKKHldnrK5"
     },
     {
-      "field_name": "年份",
-      "type": "select",
-      "options": [
-        "2024",
-        "2025",
-        "2026"
-      ]
-    },
-    {
-      "field_name": "形制·设计理念",
-      "type": "text"
-    },
-    {
       "field_name": "拍摄负责人",
       "type": "user"
-    },
-    {
-      "field_name": "文物出处·文化依据",
-      "type": "text"
     },
     {
       "field_name": "款式名称",
@@ -96,10 +67,6 @@
       "link_table": "tblzR7xcNNhCsMGs"
     },
     {
-      "field_name": "纹样",
-      "type": "text"
-    },
-    {
       "field_name": "衣服编号",
       "type": "text"
     },
@@ -111,15 +78,6 @@
       "field_name": "面料",
       "type": "link",
       "link_table": "tblNNNpKKHldnrK5"
-    },
-    {
-      "field_name": "颜色·规格",
-      "type": "select",
-      "options": [
-        "月影蓝",
-        "藕荷色",
-        "茶色"
-      ]
     }
   ]
 }
