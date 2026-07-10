@@ -89,7 +89,7 @@ else
   fi
 fi
 
-# ── ⑤ schema_diff 对齐探针:只有预期新增、零删除零改名 ─────────────
+# ── ⑤ schema_diff 对齐探针:只有受控新增/删除,零改名 ───────────────
 echo "⑤ scripts/schema_diff.py 断言通过(改造前快照 vs schema/test/)"
 if [ -z "${SNAP_DIR:-}" ]; then
   fail "无快照可比,跳过"

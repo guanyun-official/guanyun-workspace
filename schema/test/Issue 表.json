@@ -7,6 +7,10 @@
       "type": "text"
     },
     {
+      "field_name": "github_issue_url",
+      "type": "text"
+    },
+    {
       "field_name": "优先级",
       "type": "select",
       "options": [
@@ -22,6 +26,17 @@
     {
       "field_name": "完成时间",
       "type": "datetime"
+    },
+    {
+      "field_name": "归属域",
+      "type": "select",
+      "options": [
+        "内容",
+        "素材",
+        "账号",
+        "员工界面",
+        "开发"
+      ]
     },
     {
       "field_name": "提出人",

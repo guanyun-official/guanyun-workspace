@@ -17,7 +17,28 @@
       "link_table": "tblfxRrrHpzDGZvN"
     },
     {
+      "field_name": "去重键",
+      "type": "text"
+    },
+    {
+      "field_name": "可借鉴点",
+      "type": "text"
+    },
+    {
       "field_name": "文案",
+      "type": "text"
+    },
+    {
+      "field_name": "来源平台",
+      "type": "select",
+      "options": [
+        "小红书",
+        "抖音",
+        "其他"
+      ]
+    },
+    {
+      "field_name": "来源账号",
       "type": "text"
     },
     {
@@ -34,6 +55,10 @@
       ]
     },
     {
+      "field_name": "禁用片段/搬运风险",
+      "type": "text"
+    },
+    {
       "field_name": "缺点",
       "type": "text"
     },
@@ -41,6 +66,10 @@
       "field_name": "转化为笔记",
       "type": "link",
       "link_table": "tblsiceNwWpidwAG"
+    },
+    {
+      "field_name": "采集时间",
+      "type": "datetime"
     },
     {
       "field_name": "链接",

@@ -136,6 +136,8 @@ FIELD_RULES: tuple[FieldRule, ...] = (
     FieldRule("修订日志", "关联技能", "deprecate_field", "skill owner 是 git，不在修订日志维护"),
 )
 
+SIMPLE_CREATE_TYPES = frozenset({"text", "select", "number", "datetime"})
+
 
 def _load_schema_dir(schema_dir: Path) -> dict[str, dict]:
     out: dict[str, dict] = {}
@@ -200,3 +202,38 @@ def has_blocking_drift(plan: dict) -> bool:
     """Dry-run 自身的硬失败：目标清单与 schema 表集合不一致。字段缺失不是失败，是迁移计划。"""
     s = plan["summary"]
     return bool(s["missing_target_tables"] or s["unknown_tables"])
+
+
+def simple_create_body(field: dict) -> dict:
+    """Translate a dry-run add field into lark-cli base +field-create JSON.
+
+    Link/lookup/formula/attachment 这类需要额外 property 或数据迁移的字段不在第一刀自动建。
+    """
+    field_type = field["field_type"]
+    if field_type not in SIMPLE_CREATE_TYPES:
+        raise ValueError(f"{field['table']}.{field['field']} is not a simple field: {field_type}")
+    body = {"name": field["field"], "type": field_type}
+    options = field.get("options") or ()
+    if field_type == "select" and options:
+        body["property"] = {"options": [{"name": x} for x in options]}
+    return body
+
+
+def simple_adds(plan: dict) -> list[dict]:
+    """Missing add fields safe for first-wave physical creation."""
+    out = []
+    for table in plan["tables"]:
+        for field in table["fields"]:
+            if field["action"] == "add" and field["status"] == "missing" and field["field_type"] in SIMPLE_CREATE_TYPES:
+                out.append(field)
+    return out
+
+
+def present_deletes(plan: dict) -> list[dict]:
+    """Present fields whose target action is physical deletion."""
+    out = []
+    for table in plan["tables"]:
+        for field in table["fields"]:
+            if field["action"] == "delete_field" and field["status"] == "present":
+                out.append(field)
+    return out

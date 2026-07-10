@@ -3,21 +3,33 @@
   "table_name": "内容类型表",
   "fields": [
     {
+      "field_name": "slug",
+      "type": "text"
+    },
+    {
+      "field_name": "workspace_playbook_ref",
+      "type": "text"
+    },
+    {
       "field_name": "内容类型名",
       "type": "text"
     },
     {
-      "field_name": "取数字段·切面",
-      "type": "text"
+      "field_name": "启用状态",
+      "type": "select",
+      "options": [
+        "启用",
+        "停用"
+      ]
+    },
+    {
+      "field_name": "展示顺序",
+      "type": "number"
     },
     {
       "field_name": "所属账号",
       "type": "link",
       "link_table": "tblBAkf3a9OBlOwP"
-    },
-    {
-      "field_name": "文案元模版",
-      "type": "text"
     },
     {
       "field_name": "格式",

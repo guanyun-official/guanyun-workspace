@@ -15,6 +15,17 @@
       "type": "text"
     },
     {
+      "field_name": "合作状态",
+      "type": "select",
+      "options": [
+        "候选",
+        "联系中",
+        "合作中",
+        "已结束",
+        "弃用"
+      ]
+    },
+    {
       "field_name": "小红书号",
       "type": "text"
     },
@@ -31,7 +42,20 @@
       "type": "text"
     },
     {
+      "field_name": "素材授权状态",
+      "type": "select",
+      "options": [
+        "未知",
+        "已授权",
+        "未授权"
+      ]
+    },
+    {
       "field_name": "补充说明",
+      "type": "text"
+    },
+    {
+      "field_name": "转化指标",
       "type": "text"
     }
   ]

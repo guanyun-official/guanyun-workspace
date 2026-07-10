@@ -3,6 +3,19 @@
   "table_name": "面料·工艺库",
   "fields": [
     {
+      "field_name": "事实来源",
+      "type": "text"
+    },
+    {
+      "field_name": "可信级别",
+      "type": "select",
+      "options": [
+        "高",
+        "中",
+        "低"
+      ]
+    },
+    {
       "field_name": "名称",
       "type": "text"
     },
@@ -22,6 +35,10 @@
         "是",
         "否"
       ]
+    },
+    {
+      "field_name": "禁用说法",
+      "type": "text"
     },
     {
       "field_name": "科普说明",

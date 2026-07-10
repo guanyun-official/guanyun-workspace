@@ -3,6 +3,15 @@
   "table_name": "衣服总表",
   "fields": [
     {
+      "field_name": "内容优先级",
+      "type": "select",
+      "options": [
+        "高",
+        "中",
+        "低"
+      ]
+    },
+    {
       "field_name": "卖点内核",
       "type": "text"
     },
@@ -64,8 +73,22 @@
       "link_table": "tblvZKln6m8YgsI8"
     },
     {
+      "field_name": "生命周期状态",
+      "type": "select",
+      "options": [
+        "待拍",
+        "可发",
+        "暂停",
+        "归档"
+      ]
+    },
+    {
       "field_name": "素材数",
       "type": "formula"
+    },
+    {
+      "field_name": "素材缺口摘要",
+      "type": "text"
     },
     {
       "field_name": "素材表-关联衣服",

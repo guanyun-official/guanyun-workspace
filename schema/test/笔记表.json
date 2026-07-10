@@ -49,6 +49,10 @@
       "link_table": "tblJYUzLt2lzZ4Vf"
     },
     {
+      "field_name": "发布包路径",
+      "type": "text"
+    },
+    {
       "field_name": "发布链接",
       "type": "text"
     },
@@ -67,6 +71,15 @@
     {
       "field_name": "收藏",
       "type": "number"
+    },
+    {
+      "field_name": "数据用途",
+      "type": "select",
+      "options": [
+        "真实运营",
+        "演练",
+        "压测"
+      ]
     },
     {
       "field_name": "文案草稿",
@@ -144,6 +157,10 @@
     {
       "field_name": "转发",
       "type": "number"
+    },
+    {
+      "field_name": "运行批次",
+      "type": "text"
     },
     {
       "field_name": "颜色",

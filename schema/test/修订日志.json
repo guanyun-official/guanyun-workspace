@@ -7,6 +7,17 @@
       "type": "text"
     },
     {
+      "field_name": "修订类型",
+      "type": "select",
+      "options": [
+        "文案",
+        "事实",
+        "素材",
+        "合规",
+        "其他"
+      ]
+    },
+    {
       "field_name": "关联技能",
       "type": "text"
     },
@@ -16,6 +27,10 @@
     },
     {
       "field_name": "原始产出",
+      "type": "text"
+    },
+    {
+      "field_name": "审核人",
       "type": "text"
     },
     {

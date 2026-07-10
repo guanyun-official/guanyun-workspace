@@ -13,6 +13,8 @@ from . import accounts, bitable, feishu_io
 from .bitable import AccountFields as AF
 from .bitable import ContentTypeFields as CTF
 
+DEPRECATED_CONTENT_TYPE_KNOWHOW_FIELDS = ("取数字段·切面", "文案元模版")
+
 
 @dataclass(frozen=True)
 class BaseAccount:
@@ -43,8 +45,7 @@ class BaseContentType:
     name: str
     fmt: str
     account_ids: tuple[str, ...]
-    slice_fields: str
-    template: str
+    deprecated_knowhow_fields: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -112,8 +113,10 @@ def base_content_types(records: list[dict]) -> list[BaseContentType]:
             name=name,
             fmt=r.text(CTF.FORMAT).strip(),
             account_ids=tuple(r.link_ids(CTF.ACCOUNT_LINK)),
-            slice_fields=r.text(CTF.SLICE).strip(),
-            template=r.text(CTF.TEMPLATE).strip(),
+            deprecated_knowhow_fields=tuple(
+                field for field in DEPRECATED_CONTENT_TYPE_KNOWHOW_FIELDS
+                if r.text(field).strip()
+            ),
         ))
     return out
 
@@ -167,7 +170,7 @@ def build_checks(base: list[BaseAccount], workspace: list[WorkspaceAccount], cty
         f"unlinked={unlinked_types or '[]'}",
     ))
 
-    base_owned_knowhow = sorted(c.name for c in ctypes if c.slice_fields or c.template)
+    base_owned_knowhow = sorted(c.name for c in ctypes if c.deprecated_knowhow_fields)
     checks.append(Check(
         "source_owner_content_type_knowhow",
         "PASS" if not base_owned_knowhow else "FAIL",

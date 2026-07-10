@@ -70,6 +70,26 @@ class TestBaseWorkbench(unittest.TestCase):
         self.assertIn("skills.lock.json", skill["reason"])
         self.assertIn("技能表", plan["summary"]["deprecate_tables"])
 
+    def test_simple_adds_and_create_body(self):
+        plan = base_workbench.build_plan(self.schema)
+        adds = {(f["table"], f["field"]): f for f in base_workbench.simple_adds(plan)}
+        self.assertIn(("笔记表", "数据用途"), adds)
+        body = base_workbench.simple_create_body(adds[("笔记表", "数据用途")])
+        self.assertEqual(body["name"], "数据用途")
+        self.assertEqual(body["type"], "select")
+        self.assertEqual(
+            [x["name"] for x in body["property"]["options"]],
+            ["真实运营", "演练", "压测"],
+        )
+
+    def test_present_deletes(self):
+        plan = base_workbench.build_plan(self.schema)
+        deletes = {(f["table"], f["field"]) for f in base_workbench.present_deletes(plan)}
+        self.assertEqual(
+            deletes,
+            {("内容类型表", "取数字段·切面"), ("内容类型表", "文案元模版")},
+        )
+
     def test_unknown_or_missing_tables_are_blocking_drift(self):
         _write_table(self.schema, "陌生表", [("x", "text")])
         (self.schema / "技能表.json").unlink()

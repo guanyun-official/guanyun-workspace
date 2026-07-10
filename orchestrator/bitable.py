@@ -104,8 +104,6 @@ class ContentTypeFields:
     NAME = "内容类型名"
     FORMAT = "格式"
     ACCOUNT_LINK = "所属账号"
-    SLICE = "取数字段·切面"
-    TEMPLATE = "文案元模版"
 
 
 class NoteStatus:

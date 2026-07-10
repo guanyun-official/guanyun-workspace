@@ -9,7 +9,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from orchestrator import base_workbench  # noqa: E402
+from orchestrator import base_workbench, config, guard  # noqa: E402
+from orchestrator.feishu_io import _call  # noqa: E402
+
+
+TYPE_IDS = {
+    "text": 1,
+    "number": 2,
+    "select": 3,
+    "datetime": 5,
+}
 
 
 def _print_human(plan: dict) -> None:
@@ -40,17 +49,90 @@ def _print_human(plan: dict) -> None:
         print("\n✅ BaseWorkbench dry-run 可执行：字段动作待迁移，表集合无漂移")
 
 
+def _live_fields(table_id: str) -> dict[str, dict]:
+    data = _call(
+        "GET",
+        f"/open-apis/bitable/v1/apps/{config.BASE_TOKEN}/tables/{table_id}/fields",
+        {"page_size": 100},
+    )
+    return {f.get("field_name") or f.get("name"): f for f in data.get("items", [])}
+
+
+def _create_field(table_id: str, field: dict) -> None:
+    body = base_workbench.simple_create_body(field)
+    data = {
+        "field_name": body["name"],
+        "type": TYPE_IDS[body["type"]],
+    }
+    if body["type"] == "select" and body.get("property"):
+        data["property"] = body["property"]
+    _call(
+        "POST",
+        f"/open-apis/bitable/v1/apps/{config.BASE_TOKEN}/tables/{table_id}/fields",
+        data=data,
+    )
+
+
+def _delete_field(table_id: str, field_id: str) -> None:
+    _call(
+        "DELETE",
+        f"/open-apis/bitable/v1/apps/{config.BASE_TOKEN}/tables/{table_id}/fields/{field_id}",
+    )
+
+
+def _apply_simple_adds(plan: dict) -> int:
+    guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)
+    count = 0
+    for field in base_workbench.simple_adds(plan):
+        table_id = config.tables()[field["table"]]
+        if field["field"] in _live_fields(table_id):
+            print(f"  ↷ skip existing: {field['table']}.{field['field']}")
+            continue
+        _create_field(table_id, field)
+        print(f"  + created: {field['table']}.{field['field']}")
+        count += 1
+    return count
+
+
+def _apply_deletes(plan: dict) -> int:
+    guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)
+    count = 0
+    for field in base_workbench.present_deletes(plan):
+        table_id = config.tables()[field["table"]]
+        live = _live_fields(table_id)
+        if field["field"] not in live:
+            print(f"  ↷ skip absent: {field['table']}.{field['field']}")
+            continue
+        field_id = live[field["field"]]["field_id"]
+        _delete_field(table_id, field_id)
+        print(f"  - deleted: {field['table']}.{field['field']}")
+        count += 1
+    return count
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--schema-dir", default=None)
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--apply-simple-adds", action="store_true",
+                    help="physically create missing text/select/number/datetime fields in the test Base")
+    ap.add_argument("--apply-deletes", action="store_true",
+                    help="physically delete fields whose target action is delete_field")
     args = ap.parse_args(argv)
 
     plan = base_workbench.build_plan(Path(args.schema_dir) if args.schema_dir else None)
+    if args.schema_dir and (args.apply_simple_adds or args.apply_deletes):
+        raise SystemExit("--apply-* must use the live configured schema/test + current Base, not an arbitrary schema dir")
     if args.json:
         print(json.dumps(plan, ensure_ascii=False, indent=2))
     else:
         _print_human(plan)
+    if args.apply_simple_adds:
+        n = _apply_simple_adds(plan)
+        print(f"\n✅ applied simple field additions: {n}")
+    if args.apply_deletes:
+        n = _apply_deletes(plan)
+        print(f"\n✅ applied physical field deletes: {n}")
     return 1 if base_workbench.has_blocking_drift(plan) else 0
 
 

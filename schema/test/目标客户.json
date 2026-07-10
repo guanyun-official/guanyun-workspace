@@ -7,6 +7,10 @@
       "type": "text"
     },
     {
+      "field_name": "人群假设",
+      "type": "text"
+    },
+    {
       "field_name": "关键词",
       "type": "select",
       "options": [
@@ -44,7 +48,15 @@
       "type": "text"
     },
     {
+      "field_name": "更新时间",
+      "type": "datetime"
+    },
+    {
       "field_name": "标签简介",
+      "type": "text"
+    },
+    {
+      "field_name": "证据链接",
       "type": "text"
     },
     {

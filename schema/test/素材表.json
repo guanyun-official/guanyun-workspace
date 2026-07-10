@@ -33,6 +33,15 @@
       "type": "text"
     },
     {
+      "field_name": "数据用途",
+      "type": "select",
+      "options": [
+        "真实运营",
+        "演练",
+        "压测"
+      ]
+    },
+    {
       "field_name": "文件",
       "type": "attachment"
     },
@@ -46,6 +55,10 @@
     },
     {
       "field_name": "生成参数",
+      "type": "text"
+    },
+    {
+      "field_name": "相对路径",
       "type": "text"
     },
     {
@@ -72,6 +85,10 @@
       ]
     },
     {
+      "field_name": "素材哈希",
+      "type": "text"
+    },
+    {
       "field_name": "素材编号",
       "type": "text"
     },
@@ -95,6 +112,15 @@
         "月影蓝",
         "藕荷色",
         "茶色"
+      ]
+    },
+    {
+      "field_name": "验收状态",
+      "type": "select",
+      "options": [
+        "待验收",
+        "可用",
+        "弃用"
       ]
     }
   ]
