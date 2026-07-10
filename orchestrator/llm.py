@@ -38,6 +38,22 @@ def _playbook_recipe(pb: dict | None) -> str:
     return ";".join(bits)
 
 
+def run_prompt(prompt: str) -> tuple[str, float]:
+    """跑一次 claude -p(零工具直出,预算帽硬限),返回 (成稿文本, 成本_元)。
+    薄执行器(draft.py)与 gen_copy 共用的 real 生成底座;stub 占位由调用方自处理,不进本函数。"""
+    r = subprocess.run(
+        ["claude", "-p", prompt, "--output-format", "json", "--max-turns", "2",
+         "--max-budget-usd", str(config.PER_RUN_BUDGET_USD), "--allowedTools", ""],
+        capture_output=True, text=True, timeout=600, cwd=str(config.WORKSPACE),
+    )
+    d = json.loads(r.stdout[r.stdout.find("{"):])
+    text = (d.get("result") or "").strip()
+    cost = round(float(d.get("total_cost_usd") or 0) * USD_CNY, 3)
+    if not text:
+        raise RuntimeError(f"claude -p 空结果: {r.stdout[:200]}")
+    return (text, cost)
+
+
 def gen_copy(note_fields: dict, mode: str = "stub") -> tuple[str, float, str]:
     """返回 (文案草稿, 成本_元, 生成技能)。mode: stub|real。
     生成按该条所属 playbook 配方(G10),并解析该方法论的生成技能 gen_skill(G13)。"""
@@ -68,14 +84,5 @@ def gen_copy(note_fields: dict, mode: str = "stub") -> tuple[str, float, str]:
         + f"格式:第一行标题(≤20字),空行,正文(≤1000字,分段,可用少量 emoji),最后一行 3-5 个#标签。\n"
         f"只输出成稿文本,不要解释、不要读文件。"
     )
-    r = subprocess.run(
-        ["claude", "-p", prompt, "--output-format", "json", "--max-turns", "2",
-         "--max-budget-usd", str(config.PER_RUN_BUDGET_USD), "--allowedTools", ""],
-        capture_output=True, text=True, timeout=600, cwd=str(config.WORKSPACE),
-    )
-    d = json.loads(r.stdout[r.stdout.find("{"):])
-    text = (d.get("result") or "").strip()
-    cost = round(float(d.get("total_cost_usd") or 0) * USD_CNY, 3)
-    if not text:
-        raise RuntimeError(f"claude -p 空结果: {r.stdout[:200]}")
+    text, cost = run_prompt(prompt)  # 共用 real 生成底座(见上 run_prompt)
     return (text, cost, gen_skill)

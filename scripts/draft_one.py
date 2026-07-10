@@ -1,0 +1,46 @@
+"""薄执行器 CLI:给一个号即时产一条待审草稿(第一目标 A walking skeleton)。
+
+  python3 -m scripts.draft_one --account ootd号                     # 干跑(stub):打印草稿+笔记字段,不写库
+  python3 -m scripts.draft_one --account ootd号 --write             # 过红线闸写测试库笔记表(状态=草稿待发)
+  python3 -m scripts.draft_one --account ootd号 --llm real --write  # 真生成(预算帽)后写库
+  --title-seed "OOTD｜寒玉疏枝"                                      # 给标题线索(可选)
+
+红线:发布与 AI 声明是人手;本执行器只推到「草稿待发」,绝不代勾 AI 声明、绝不自动发布。
+--write 只在测试库(TEST_MODE)——写库闸拒生产 Base。
+"""
+from __future__ import annotations
+
+import argparse
+import json
+
+from orchestrator import config, draft
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--account", required=True)
+    ap.add_argument("--brand", default="观云")
+    ap.add_argument("--llm", choices=["stub", "real"], default="stub")
+    ap.add_argument("--title-seed", default="")
+    ap.add_argument("--write", action="store_true", help="过红线闸写测试库笔记表(默认干跑不写)")
+    a = ap.parse_args()
+    print(f"env={config.ENV_NAME} test_mode={config.TEST_MODE} account={a.account} llm={a.llm} write={a.write}")
+    r = draft.generate_draft(a.account, a.brand, a.llm, a.title_seed)
+    print(f"gen_skill={r['gen_skill']} few-shot载入={r['skill_loaded']} "
+          f"playbook={r['playbook_id']} 内容类型={r['content_type']} 成本_元={r['cost']}")
+    print("--- 标题 ---")
+    print(r["title"])
+    print("--- 文案草稿 ---")
+    print(r["draft_text"])
+    print("--- 笔记字段(将写入 笔记表)---")
+    print(json.dumps(r["note_fields"], ensure_ascii=False, indent=1))
+    if not a.write:
+        print("(干跑:未写库。加 --write 才过红线闸落测试库笔记表)")
+        return 0
+    rid = draft.create_draft_note(r)
+    print(f"✅ 已写测试库笔记表 record_id={rid}(状态=草稿待发,待人审;发布/AI声明人手)")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
