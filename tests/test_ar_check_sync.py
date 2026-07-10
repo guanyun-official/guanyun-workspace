@@ -1,11 +1,7 @@
-"""回归锁:ar_check 的「strategy 声明」计数必须与引擎(accounts.load_all)同源。
+"""回归锁:精简后的 ar_check 必须与引擎同源、且继续验证精简骨架的命门,不被静默改回/掏空。
 
-历史 bug:候选C 重构把 {号}.strategy.json 塌成 {号}.md 的 JSON frontmatter,
-planner 随之迁到 accounts.load_all;但 ar_check.py 仍按 *.strategy.json 文件后缀数,
-命中 0 个 → P3「每天发什么」+「模式泛化」失败 → SCORE 从 100 掉到 80。
-本测试锁住:验收脚本不得再按已废弃的文件后缀数声明,必须复用引擎加载器。
-零网络(只读源码 + 读 md frontmatter)。
-"""
+大刀阔斧后老锁(materialize_day/account_kernel/media/usage/近30天趋势)随重层一起去;
+新锁盯住精简骨架的三件命门:第一目标 A 可跑、精简唯一源、红线不可绕。零网络(只读源码 + md frontmatter)。"""
 import re
 import sys
 import unittest
@@ -15,85 +11,55 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from orchestrator import accounts  # noqa: E402
 
-# 匹配对已废弃后缀的实际 glob 调用(任意引号);注释里提及历史 bug 不算(允许文档化)。
 _DEAD_GLOB = re.compile(r"""glob\(\s*['"]\*\.strategy\.json""")
+
+
+def _ar_src() -> str:
+    return (ROOT / "scripts" / "ar_check.py").read_text(encoding="utf-8")
 
 
 class TestArCheckSync(unittest.TestCase):
     def test_no_dead_strategy_json_glob(self):
-        """ar_check 不得再 glob *.strategy.json 数声明(候选C 后该后缀已不存在)。"""
-        src = (ROOT / "scripts" / "ar_check.py").read_text(encoding="utf-8")
-        self.assertIsNone(
-            _DEAD_GLOB.search(src),
-            "ar_check 仍在 glob 已废弃的 *.strategy.json 后缀数声明——应复用 accounts.load_all 同源计数",
-        )
+        """ar_check 不得再 glob 已废弃的 *.strategy.json 后缀数声明。"""
+        self.assertIsNone(_DEAD_GLOB.search(_ar_src()),
+                          "ar_check 仍在 glob 已废弃的 *.strategy.json——应复用 accounts.load_all 同源计数")
 
     def test_ar_check_reuses_engine_loader(self):
-        """强制 ar_check 与 planner 同源:引用 accounts 加载器,而非另写一套文件约定。"""
-        src = (ROOT / "scripts" / "ar_check.py").read_text(encoding="utf-8")
-        self.assertIn(
-            "accounts", src,
-            "ar_check 应复用 orchestrator.accounts(与 planner 同源),避免声明格式漂移",
-        )
+        """ar_check 与 planner/薄执行器同源:复用 orchestrator.accounts,不另写文件约定。"""
+        self.assertIn("accounts", _ar_src(),
+                      "ar_check 应复用 orchestrator.accounts,避免声明格式漂移")
 
     def test_ar_check_guards_declaration_health(self):
-        """ar_check 须接入 accounts.problems,坏 frontmatter 才会验收报红(否则健壮性形同虚设)。"""
-        src = (ROOT / "scripts" / "ar_check.py").read_text(encoding="utf-8")
-        self.assertIn(
-            "problems", src,
-            "ar_check 未接入 accounts.problems——坏 {号}.md 声明不会被验收发现",
-        )
+        """ar_check 须接入 accounts.problems,坏 frontmatter 才会验收报红。"""
+        self.assertIn("problems", _ar_src(),
+                      "ar_check 未接入 accounts.problems——坏 {号}.md 声明不会被验收发现")
 
     def test_engine_sees_declarations(self):
-        """数据前提:引擎从 {号}.md 至少解析出 3 个非空 strategy 声明(ar_check 通过的门槛)。"""
+        """数据前提:引擎从 {号}.md 至少解析出 3 个非空 strategy 声明。"""
         declared = {n: a.strategy for n, a in accounts.load_all("观云").items() if a.strategy}
-        self.assertGreaterEqual(
-            len(declared), 3,
-            f"accounts.load_all 只解析出 {len(declared)} 个 strategy 声明,ar_check 需 >=3",
-        )
+        self.assertGreaterEqual(len(declared), 3,
+                                f"accounts.load_all 只解析出 {len(declared)} 个 strategy 声明,ar_check 需 >=3")
 
-    def test_ar_check_requires_daily_plan_materialization(self):
-        """“每天发什么”不能只会算报告；成熟度门必须锁住 Planner→Note 接线。"""
-        src = (ROOT / "scripts" / "ar_check.py").read_text(encoding="utf-8")
-        self.assertIn(
-            "materialize_day",
-            src,
-            "ar_check 未验证 Planner→Note 物化能力，排产与状态推进断线也会误报 SCORE=100",
-        )
-        self.assertIn(
-            "preflight = materialize_day",
-            (ROOT / "orchestrator" / "run.py").read_text(encoding="utf-8"),
-            "daily 排产必须通过 engine preflight 在单 writer 锁内执行",
-        )
+    def test_ar_check_verifies_thin_executor_A(self):
+        """精简命门①:ar_check 必须真跑薄执行器验第一目标 A,否则骨架断了也误报 SCORE=100。"""
+        src = _ar_src()
+        self.assertIn("draft", src)
+        self.assertIn("generate_draft", src)
+        self.assertIn("few-shot", src, "ar_check 未验证 gen_skill few-shot 真进生成(A 的核心缺口)")
 
-    def test_ar_check_requires_account_kernel_audit(self):
-        """账号表与 workspace Account data 不能双写真相；成熟度门要锁住 SourceOwnership。"""
-        src = (ROOT / "scripts" / "ar_check.py").read_text(encoding="utf-8")
-        self.assertIn("account_kernel", src)
-        self.assertIn("build_audit", src)
-        self.assertIn("账号内核", src)
+    def test_ar_check_guards_single_source(self):
+        """精简命门②:ar_check 必须校 Base 账号表 ↔ workspace 声明,锁住账号真相不双写。"""
+        src = _ar_src()
+        self.assertIn("账号表", src)
+        self.assertIn("load_all", src)
         self.assertIn("唯一源", src)
 
-    def test_ar_check_requires_media_task_gate_for_ai_editing(self):
-        """AI剪不能退回“跳过/伪装成片”；成熟度门要锁住 MediaTask 与 ready gate。"""
-        src = (ROOT / "scripts" / "ar_check.py").read_text(encoding="utf-8")
-        self.assertIn("media_processing.ensure_task", src)
-        self.assertIn("READY_NOTE", src)
-        self.assertIn("approved_material_codes", src)
-
-    def test_ar_check_requires_usage_projection_drift_guard(self):
-        """usage ledger 是唯一真值，ar_check 必须锁住 Bitable 投影对账告警。"""
-        src = (ROOT / "scripts" / "ar_check.py").read_text(encoding="utf-8")
-        self.assertIn("_usage_projection_drift", src)
-        self.assertIn("usage账本漂移", src)
-        self.assertIn("note_clips", src)
-
-    def test_ar_check_requires_playbook_performance_trends(self):
-        """方法论表现不能退回纯静态均值；成熟度门要锁住时间窗趋势。"""
-        src = (ROOT / "scripts" / "ar_check.py").read_text(encoding="utf-8")
-        self.assertIn("近30天", src)
-        self.assertIn("周环比", src)
-        self.assertIn("PUBLISHED_AT", src)
+    def test_ar_check_guards_redline(self):
+        """精简命门③:ar_check 必须锁红线——AI声明门 + 薄执行器过 base 闸/只到草稿待发。"""
+        src = _ar_src()
+        self.assertIn("assert_ai_declared", src)
+        self.assertIn("assert_base_allowed", src)
+        self.assertIn("红线", src)
 
 
 if __name__ == "__main__":

@@ -27,7 +27,6 @@ from orchestrator.bitable import ClothesFields as CF  # noqa: E402
 from orchestrator.bitable import MaterialFields as MF  # noqa: E402
 from orchestrator.bitable import MaterialSource as MSrc  # noqa: E402
 from orchestrator.bitable import MaterialStatus as MS  # noqa: E402
-from lib import material_view as mv  # noqa: E402
 
 ASSET_ROOT = Path(os.environ.get("GY_ASSET_ROOT", str(Path.home() / "素材库")))
 
@@ -120,13 +119,8 @@ def main() -> int:
     r.add_argument("--type", required=True); r.add_argument("--link", required=True)
     r.add_argument("--note", default=""); r.add_argument("--source", default="实拍")
     r.add_argument("--sku-link", dest="sku_link", default=None)
-    # 视图编入(每套发布方法论一套软链 bin;agent 把子素材选进来)
-    se = sub.add_parser("select"); se.add_argument("account"); se.add_argument("playbook")
-    se.add_argument("material"); se.add_argument("src"); se.add_argument("span")
-    se.add_argument("--dims", default=None); se.add_argument("--linked", type=float, default=None)
-    vi = sub.add_parser("view"); vi.add_argument("account"); vi.add_argument("playbook")
-    su = sub.add_parser("summary"); su.add_argument("account"); su.add_argument("playbook")
-    tr = sub.add_parser("trace"); tr.add_argument("note")
+    # 大刀阔斧:子素材视图(select/view/summary/trace,依赖 lib/material_view)已砍——过早精致,见交接文档 §5。
+    # 保留的是安全摄入原语 scan/link/register/orphans(原件不动、软链上墙、登记素材表)。
     a = ap.parse_args()
     if a.cmd == "scan":
         files = scan(a.src_dir)
@@ -138,17 +132,6 @@ def main() -> int:
         print(register(a.sku, a.code, a.__dict__["type"], a.link, a.note, a.source, a.sku_link))
     elif a.cmd == "orphans":
         import json as _j; print(_j.dumps(orphans(), ensure_ascii=False, indent=1))
-    elif a.cmd == "select":
-        dims = json.loads(a.dims) if a.dims else None
-        cid = mv.add_select(a.account, a.playbook, a.material, a.src, a.span, dims=dims, linked=a.linked)
-        mv.write_summary(a.account, a.playbook)  # 顺手刷新人读逃生口
-        print(cid)
-    elif a.cmd == "view":
-        print(json.dumps(mv.view_selects(a.account, a.playbook), ensure_ascii=False, indent=1))
-    elif a.cmd == "summary":
-        print(mv.write_summary(a.account, a.playbook))
-    elif a.cmd == "trace":
-        print(json.dumps(mv.trace_note(a.note), ensure_ascii=False, indent=1))
     return 0
 
 
