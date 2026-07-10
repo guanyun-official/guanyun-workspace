@@ -43,12 +43,14 @@
       "install": "symlink"
     },
     {
-      "name": "content-loop-local",
+      "name": "local-skills",
       "local": "/Users/bamboo/Githubs/guanyun-workspace/local-skills",
       "ref": "workspace-native",
       "sha": "local",
       "skills": [
-        "content-loop"
+        "writing-amateur-ootd",
+        "writing-brand-newpiece",
+        "writing-ootd-caption"
       ],
       "install": "symlink"
     }
