@@ -67,5 +67,37 @@ class CreateDraftNoteRedline(unittest.TestCase):
             config.BASE_TOKEN, config.TEST_MODE = orig_token, orig_mode
 
 
+class CreateDraftNoteLinkResolution(unittest.TestCase):
+    """回归锁:账号/内容类型是 link 字段,写库前名字→record_id,不再把字符串塞进 link 字段炸写。"""
+
+    def test_resolves_account_and_content_type_to_record_ids(self):
+        from unittest import mock
+        from orchestrator import feishu_io
+        r = draft.generate_draft("ootd号", llm_mode="stub")
+        fake = {"账号表": [{"record_id": "recACC", "fields": {"账号名": "ootd号"}}],
+                "内容类型表": [{"record_id": "recCT", "fields": {"内容类型名": "视频唯美OOTD"}}]}
+        cap = {}
+        with mock.patch.object(feishu_io, "list_records", lambda t: fake.get(t, [])), \
+                mock.patch.object(feishu_io, "create_record",
+                                  lambda table, fields: cap.update(fields=fields) or "recNEW"):
+            rid = draft.create_draft_note(r)
+        self.assertEqual(rid, "recNEW")
+        self.assertEqual(cap["fields"][NF.ACCOUNT], ["recACC"])       # link 收 record_id 列表,非字符串
+        self.assertEqual(cap["fields"][NF.CONTENT_TYPE], ["recCT"])
+        self.assertEqual(cap["fields"][NF.STATUS], NS.DRAFT_PENDING)
+
+    def test_drops_unresolvable_link_instead_of_crashing(self):
+        from unittest import mock
+        from orchestrator import feishu_io
+        r = draft.generate_draft("ootd号", llm_mode="stub")
+        cap = {}
+        with mock.patch.object(feishu_io, "list_records", lambda t: []), \
+                mock.patch.object(feishu_io, "create_record",
+                                  lambda table, fields: cap.update(fields=fields) or "recNEW"):
+            draft.create_draft_note(r)
+        self.assertNotIn(NF.ACCOUNT, cap["fields"])      # 孤儿名挂不上就不写 link,不炸写
+        self.assertNotIn(NF.CONTENT_TYPE, cap["fields"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -120,8 +120,27 @@ def generate_draft(account_name: str, brand: str = "观云", llm_mode: str = "st
     }
 
 
+def _resolve_link(table: str, name_field: str, name: str) -> list[str]:
+    """把名字解析成该表匹配行的 record_id 列表——账号/内容类型是 link 字段,飞书要 record_id 不是字符串。"""
+    from . import bitable, feishu_io
+    if not name:
+        return []
+    return [r["record_id"] for r in feishu_io.list_records(table)
+            if bitable.text(r["fields"].get(name_field)).strip() == name]
+
+
 def create_draft_note(result: dict) -> str:
-    """把生成结果写成笔记表一行(状态=草稿待发)。先过 base 红线闸(只许测试库);返回 record_id。"""
+    """把生成结果写成笔记表一行(状态=草稿待发)。先过 base 红线闸(只许测试库);返回 record_id。
+    账号/内容类型是 link 字段:名字→record_id 后再写;挂不上就不写该 link(不因孤儿名炸写)。"""
     from . import feishu_io
+    from .bitable import AccountFields as AF, ContentTypeFields as CTF
     guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)  # 红线:TEST_MODE 下只许写测试 Base
-    return feishu_io.create_record(NF.TABLE, result["note_fields"])
+    fields = dict(result["note_fields"])
+    for fkey, table, name_field in ((NF.ACCOUNT, AF.TABLE, AF.NAME),
+                                    (NF.CONTENT_TYPE, CTF.TABLE, CTF.NAME)):
+        ids = _resolve_link(table, name_field, fields.get(fkey, ""))
+        if ids:
+            fields[fkey] = ids            # link 字段收 record_id 列表
+        else:
+            fields.pop(fkey, None)        # 挂不上则不写该 link(避免 link 字段收字符串被飞书拒写)
+    return feishu_io.create_record(NF.TABLE, fields)
