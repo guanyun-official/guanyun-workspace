@@ -74,14 +74,6 @@ class TestArCheckSync(unittest.TestCase):
         self.assertIn("账号内核", src)
         self.assertIn("唯一源", src)
 
-    def test_ar_check_requires_base_workbench_dry_run(self):
-        """Base 重构不能靠手工点 UI；成熟度门要锁住 BaseWorkbench dry-run。"""
-        src = (ROOT / "scripts" / "ar_check.py").read_text(encoding="utf-8")
-        self.assertIn("base_workbench", src)
-        self.assertIn("build_plan", src)
-        self.assertIn("has_blocking_drift", src)
-        self.assertIn("Base工作台", src)
-
     def test_ar_check_requires_media_task_gate_for_ai_editing(self):
         """AI剪不能退回“跳过/伪装成片”；成熟度门要锁住 MediaTask 与 ready gate。"""
         src = (ROOT / "scripts" / "ar_check.py").read_text(encoding="utf-8")

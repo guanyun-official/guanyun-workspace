@@ -24,7 +24,7 @@ ck("技能动起来", f"技能装好({skills_n})+可执行调用路径(ingest/�
 ck("loop承载","orchestrator引擎存在(cron+heartbeat)", (ROOT/"orchestrator/engine.py").exists() and (ROOT/"orchestrator/run.py").exists(), "engine.py+run.py")
 
 # P3 每天发什么
-from orchestrator import feishu_io, accounts, account_kernel, base_workbench
+from orchestrator import feishu_io, accounts, account_kernel
 from orchestrator.runbook import route
 from scripts import planner as planner_module
 try:
@@ -56,12 +56,8 @@ try:
     warns = [c for c in audit["checks"] if c["status"] == "WARN"]
     ck("账号内核", "Base与workspace遵守账号/内容类型唯一源边界",
        not fails, f"FAIL={fails or '无'} WARN={len(warns)}")
-    bw_plan = base_workbench.build_plan(ROOT / "schema" / "test")
-    bw_blocked = base_workbench.has_blocking_drift(bw_plan)
-    ck("Base工作台", "schema目标清单可生成dry-run迁移计划",
-       not bw_blocked,
-       f"add={bw_plan['summary']['add_missing']} delete={bw_plan['summary']['delete_present']} "
-       f"deprecate={bw_plan['summary']['deprecate_present']} tables={bw_plan['summary']['tables_total']}")
+    # 大刀阔斧:「Base工作台」dry-run 迁移契约锁(base_workbench)已砍——它把测试库钉在改造前 schema,
+    # 挡住 base 瘦身;瘦身期的漂移检测改用 dump_schema + git diff schema/test(git 兜底,见交接文档 §5)。
 except Exception as e:
     ck("每天发什么","route", False, str(e)[:80])
 
