@@ -24,7 +24,7 @@ ck("技能动起来", f"技能装好({skills_n})+可执行调用路径(ingest/�
 ck("loop承载","orchestrator引擎存在(cron+heartbeat)", (ROOT/"orchestrator/engine.py").exists() and (ROOT/"orchestrator/run.py").exists(), "engine.py+run.py")
 
 # P3 每天发什么
-from orchestrator import feishu_io, accounts
+from orchestrator import feishu_io, accounts, account_kernel
 from orchestrator.runbook import route
 from scripts import planner as planner_module
 try:
@@ -51,6 +51,11 @@ try:
     ck("模式泛化","加模式=写strategy声明零代码(引擎通用解释)", has_planner and n_strat>=3, f"{n_strat}个账号模式=data,planner通用解释")
     probs = accounts.problems("观云")
     ck("声明健壮","账号 frontmatter 全部可解析(坏声明不静默漏号)", not probs, f"解析失败={probs or '无'}")
+    audit = account_kernel.build_audit(brand="观云")
+    fails = [c for c in audit["checks"] if c["status"] == "FAIL"]
+    warns = [c for c in audit["checks"] if c["status"] == "WARN"]
+    ck("账号内核", "Base与workspace遵守账号/内容类型唯一源边界",
+       not fails, f"FAIL={fails or '无'} WARN={len(warns)}")
 except Exception as e:
     ck("每天发什么","route", False, str(e)[:80])
 

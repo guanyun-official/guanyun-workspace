@@ -66,6 +66,14 @@ class TestArCheckSync(unittest.TestCase):
             "daily 排产必须通过 engine preflight 在单 writer 锁内执行",
         )
 
+    def test_ar_check_requires_account_kernel_audit(self):
+        """账号表与 workspace Account data 不能双写真相；成熟度门要锁住 SourceOwnership。"""
+        src = (ROOT / "scripts" / "ar_check.py").read_text(encoding="utf-8")
+        self.assertIn("account_kernel", src)
+        self.assertIn("build_audit", src)
+        self.assertIn("账号内核", src)
+        self.assertIn("唯一源", src)
+
     def test_ar_check_requires_media_task_gate_for_ai_editing(self):
         """AI剪不能退回“跳过/伪装成片”；成熟度门要锁住 MediaTask 与 ready gate。"""
         src = (ROOT / "scripts" / "ar_check.py").read_text(encoding="utf-8")

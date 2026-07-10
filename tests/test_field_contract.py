@@ -40,7 +40,8 @@ def _schema_field_types(table_name: str) -> dict:
 class TestFieldConstantContract(unittest.TestCase):
     # 每个字段词汇类都声明自己 TABLE,测试自动遍历——将来新增词汇类只需加进这里
     FIELDSETS = [bitable.NoteFields, bitable.MaterialFields,
-                 bitable.RunLogFields, bitable.ContentTypeFields, bitable.ClothesFields]
+                 bitable.RunLogFields, bitable.ContentTypeFields, bitable.ClothesFields,
+                 bitable.AccountFields]
 
     def test_declared_constants_subset_of_schema(self):
         for fs in self.FIELDSETS:

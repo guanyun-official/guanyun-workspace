@@ -56,6 +56,17 @@ class ClothesFields:
     NAME = "款式名称"
 
 
+class AccountFields:
+    """账号表字段词汇(AccountKernel 对齐 Base 账号行与 workspace Account data 用)。"""
+    TABLE = "账号表"
+    NAME = "账号名"
+    XHS_ID = "小红书号"
+    HOMEPAGE = "主页链接"
+    AUDIENCE = "受众"
+    LAUNCH_STATUS = "上线状态"
+    CONTENT_TYPES_LOOKUP = "内容类型表-所属账号"
+
+
 class MaterialStatus:
     """素材拍摄状态取值(素材表 拍摄状态 select 枚举)。planner 靠「已拍」判可用素材。"""
     TABLE = "素材表"
@@ -92,6 +103,9 @@ class ContentTypeFields:
     TABLE = "内容类型表"
     NAME = "内容类型名"
     FORMAT = "格式"
+    ACCOUNT_LINK = "所属账号"
+    SLICE = "取数字段·切面"
+    TEMPLATE = "文案元模版"
 
 
 class NoteStatus:

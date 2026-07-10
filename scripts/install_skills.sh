@@ -31,10 +31,12 @@ PY
     exit 1
   fi
   [ -f "$src/SKILL.md" ] || { echo "❌ [$name] $skill 缺 SKILL.md" >&2; exit 1; }
-  # SHA 漂移只警告不失败(lock 是期望值,源仓库本地可先行)
-  head="$(git -C "$src_root" rev-parse HEAD 2>/dev/null || echo unknown)"
-  if [ "$head" != "$sha" ]; then
-    echo "  ⚠ [$name] 本地 HEAD=$head ≠ lock sha=$sha(考虑更新 skills.lock.json)" >&2
+  # 远程 source 才做 SHA 漂移警告；workspace-native source 用 sha=local 显式标记。
+  if [ "$sha" != "local" ]; then
+    head="$(git -C "$src_root" rev-parse HEAD 2>/dev/null || echo unknown)"
+    if [ "$head" != "$sha" ]; then
+      echo "  ⚠ [$name] 本地 HEAD=$head ≠ lock sha=$sha(考虑更新 skills.lock.json)" >&2
+    fi
   fi
   ln -sfn "$src" "$DEST/$skill"
   echo "  ✓ skills/$skill → $src"

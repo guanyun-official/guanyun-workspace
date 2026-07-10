@@ -7,6 +7,7 @@
 纯函数,零网络零文件依赖(真实 lock 只测结构不碰 local 路径)。
 """
 import json
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -56,6 +57,18 @@ class TestSkillsLock(unittest.TestCase):
             skills_lock.validate(lock), [],
             "真实 skills.lock.json 结构语义应合法(含 content-loop-local 本地 source)",
         )
+
+    def test_install_skills_does_not_warn_for_local_source_marker(self):
+        p = subprocess.run(
+            ["bash", "scripts/install_skills.sh"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertNotIn("content-loop-local", p.stderr)
+        self.assertNotIn("lock sha=local", p.stderr)
 
 
 if __name__ == "__main__":
