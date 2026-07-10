@@ -3,14 +3,6 @@
   "table_name": "内容类型表",
   "fields": [
     {
-      "field_name": "slug",
-      "type": "text"
-    },
-    {
-      "field_name": "workspace_playbook_ref",
-      "type": "text"
-    },
-    {
       "field_name": "内容类型名",
       "type": "text"
     },
