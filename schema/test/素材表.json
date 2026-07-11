@@ -33,15 +33,6 @@
       "type": "text"
     },
     {
-      "field_name": "数据用途",
-      "type": "select",
-      "options": [
-        "真实运营",
-        "演练",
-        "压测"
-      ]
-    },
-    {
       "field_name": "来源",
       "type": "select",
       "options": [
@@ -81,10 +72,6 @@
       ]
     },
     {
-      "field_name": "素材哈希",
-      "type": "text"
-    },
-    {
       "field_name": "素材编号",
       "type": "text"
     },
@@ -100,15 +87,6 @@
     {
       "field_name": "链接",
       "type": "text"
-    },
-    {
-      "field_name": "验收状态",
-      "type": "select",
-      "options": [
-        "待验收",
-        "可用",
-        "弃用"
-      ]
     }
   ]
 }

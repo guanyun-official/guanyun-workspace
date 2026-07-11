@@ -32,8 +32,8 @@ class TestRecord(unittest.TestCase):
         r2=Record({"状态":"待发布"})                       # 直接给 fields
         self.assertEqual(r2.text(NF.STATUS),"待发布")
     def test_link_ids_and_bool(self):
-        r=Record({"关联衣服":[{"record_ids":["rec1","rec2"]}],"AI声明":True})
-        self.assertEqual(r.link_ids(NF.LINKED_CLOTHES),["rec1","rec2"])
+        r=Record({"关联素材":[{"record_ids":["rec1","rec2"]}],"AI声明":True})
+        self.assertEqual(r.link_ids(NF.LINKED_MATERIALS),["rec1","rec2"])
         self.assertTrue(r.bool(NF.AI_DECLARED))
 
 if __name__=="__main__": unittest.main()

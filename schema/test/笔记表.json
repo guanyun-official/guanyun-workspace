@@ -7,15 +7,6 @@
       "type": "checkbox"
     },
     {
-      "field_name": "修订日志-关联笔记",
-      "type": "link",
-      "link_table": "tbl5Ne13tAGnisne"
-    },
-    {
-      "field_name": "关联子素材",
-      "type": "text"
-    },
-    {
       "field_name": "关联素材",
       "type": "link",
       "link_table": "tblzR7xcNNhCsMGs"
@@ -25,23 +16,9 @@
       "type": "formula"
     },
     {
-      "field_name": "关联衣服",
-      "type": "link",
-      "link_table": "tblfxRrrHpzDGZvN"
-    },
-    {
-      "field_name": "关联面料·工艺",
-      "type": "link",
-      "link_table": "tblNNNpKKHldnrK5"
-    },
-    {
       "field_name": "内容类型",
       "type": "link",
       "link_table": "tblJYUzLt2lzZ4Vf"
-    },
-    {
-      "field_name": "发布包路径",
-      "type": "text"
     },
     {
       "field_name": "发布链接",
@@ -62,15 +39,6 @@
     {
       "field_name": "收藏",
       "type": "number"
-    },
-    {
-      "field_name": "数据用途",
-      "type": "select",
-      "options": [
-        "真实运营",
-        "演练",
-        "压测"
-      ]
     },
     {
       "field_name": "文案草稿",
@@ -126,10 +94,6 @@
       ]
     },
     {
-      "field_name": "脚本·分镜",
-      "type": "text"
-    },
-    {
       "field_name": "计划发布日",
       "type": "datetime"
     },
@@ -145,10 +109,6 @@
     {
       "field_name": "转发",
       "type": "number"
-    },
-    {
-      "field_name": "运行批次",
-      "type": "text"
     }
   ]
 }

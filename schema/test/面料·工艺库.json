@@ -40,11 +40,6 @@
       "type": "text"
     },
     {
-      "field_name": "笔记表-关联面料·工艺",
-      "type": "link",
-      "link_table": "tblsiceNwWpidwAG"
-    },
-    {
       "field_name": "类型",
       "type": "select",
       "options": [

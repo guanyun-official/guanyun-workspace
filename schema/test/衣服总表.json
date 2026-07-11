@@ -49,11 +49,6 @@
       ]
     },
     {
-      "field_name": "笔记表-关联衣服",
-      "type": "link",
-      "link_table": "tblsiceNwWpidwAG"
-    },
-    {
       "field_name": "素材数",
       "type": "formula"
     },
