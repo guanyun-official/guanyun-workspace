@@ -16,6 +16,7 @@ class TestInstallCronPreview(unittest.TestCase):
     def test_preview_has_backup_and_weekly(self):
         out = self._preview()
         self.assertIn("backup_tables.py", out)      # 数据安全底线:每日备份
+        self.assertIn("collect_metrics", out)       # 周日效果回流采集
         self.assertIn("claude -p", out)             # 周复盘飞轮
 
     def test_preview_has_no_dangling_deleted_engine_ref(self):

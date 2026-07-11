@@ -35,7 +35,9 @@ done
 BLOCK="$MARK_BEGIN
 # 每日 23:30 备份运营库(误删可恢复;数据安全底线)
 30 23 * * * cd $ROOT && $PY scripts/backup_tables.py >> logs/cron.log 2>&1
-# 周复盘飞轮(D2):周日20点,agent读运行日志+效果→提SKILL.md改进(人审PR,不自动merge)
+# 周日19:00 效果回流采集:非登录 extract skill 抓已发note互动数据写回点赞/收藏 + 按方法论复盘(需 TIKHUB_API_KEY 取列表)
+0 19 * * 0 cd $ROOT && $PY -m scripts.collect_metrics --real >> logs/weekly.log 2>&1
+# 周复盘飞轮(D2):周日20点,agent读上面采集回的效果数→提SKILL.md改进(人审PR,不自动merge)
 0 20 * * 0 cd $ROOT && claude -p \"读运行日志表本周记录与已回流笔记的热度分,总结哪类内容/衣服/关键词表现好,对 qiaohe-skill 的 write-xiaohongshu 或 guanyun-OOTD-text 提出 SKILL.md 改进建议并开 PR,不要自动 merge\" --max-turns 20 --max-budget-usd 1.0 >> logs/weekly.log 2>&1
 $MARK_END"
 
