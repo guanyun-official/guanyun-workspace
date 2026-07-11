@@ -11,19 +11,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from orchestrator import config, feishu_io  # noqa: E402
 
-TABLES = ["笔记表", "素材表", "账号表", "运行日志表"]
-
 
 def main() -> int:
     out = config.WORKSPACE / "backups" / f"{config.ENV_NAME}-{datetime.now():%Y%m%d}"
     out.mkdir(parents=True, exist_ok=True)
-    for t in TABLES:
-        recs = feishu_io.list_records(t)
+    tables = list(config.tables().keys())  # 全表备份:完整不漏(误删可恢复),自适应 schema 增删表
+    ok = 0
+    for t in tables:
+        try:
+            recs = feishu_io.list_records(t)
+        except Exception as e:  # noqa: BLE001  单表失败不拖垮整轮备份,其余照备
+            print(f"  ✗ {t}: {e}")
+            continue
         (out / f"{t}.json").write_text(
             json.dumps(recs, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"  {t}: {len(recs)} 条")
-    print(f"✅ 备份 → {out}")
-    return 0
+        ok += 1
+    print(f"✅ 备份 {ok}/{len(tables)} 表 → {out}")
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":
