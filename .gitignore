@@ -23,3 +23,6 @@ locks/reminder_state.json
 brands/*/materials/**/*.jpg
 brands/*/materials/**/*.mp4
 brands/*/materials/**/*.png
+brands/*/materials/**/*.mov
+brands/*/materials/**/*.heic
+brands/*/materials/**/*.mp4
