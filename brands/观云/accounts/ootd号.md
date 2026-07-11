@@ -12,6 +12,14 @@
       "view": "视频唯美OOTD",
       "gen_skill": "writing-ootd-caption",
       "material_needs": ["上身视频"]
+    },
+    {
+      "id": "图文唯美OOTD",
+      "content_type": "图文唯美OOTD",
+      "weight": 0.5,
+      "view": "图文唯美OOTD",
+      "gen_skill": "writing-ootd-caption",
+      "material_needs": ["上身图"]
     }
   ],
   "runway_alert_days": 4,

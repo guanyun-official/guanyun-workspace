@@ -39,11 +39,18 @@ def load_clothes(clothes_code: str, brand: str = "观云") -> str:
     return p.read_text(encoding="utf-8") if p.exists() else ""
 
 
-def pick_playbook(acc) -> dict:
-    """A 阶段一号一模式:取该号第一套 playbook;无则报错(坏声明不静默漏号)。"""
+def pick_playbook(acc, content_type: str = "") -> dict:
+    """取该号 playbook:content_type 给定→按内容类型选(**一号多模式**);否则第一套。
+    无 playbook / 指定内容类型不存在 → 报错(坏声明/选错模式不静默漏)。"""
     pbs = acc.playbooks()
     if not pbs:
         raise ValueError(f"账号「{acc.name}」无 playbook 声明,无法生成")
+    if content_type:
+        for pb in pbs:
+            if (pb.get("content_type") or pb.get("id") or "") == content_type:
+                return pb
+        raise ValueError(f"账号「{acc.name}」无内容类型「{content_type}」的 playbook(现有:"
+                         f"{[pb.get('content_type') or pb.get('id') for pb in pbs]})")
     return pbs[0]
 
 
@@ -99,15 +106,16 @@ def _split_title(draft_text: str, fallback: str) -> str:
 
 
 def generate_draft(account_name: str, brand: str = "观云", llm_mode: str = "stub",
-                   title_seed: str = "", clothes: str = "") -> dict:
+                   title_seed: str = "", clothes: str = "", content_type: str = "") -> dict:
     """读声明 → 加载 gen_skill few-shot(+可选真实衣服 know-how)→ 组稿 → 生成 → 组一条待审笔记字段。
-    clothes=知识库衣服编号(如 GY-001):绑定后按真实产品写、防编造(官号品牌新作应绑)。**不写库**(纯计算)。"""
+    clothes=知识库衣服编号(如 GY-001):绑定后按真实产品写、防编造(官号品牌新作应绑)。
+    content_type=指定模式(一号多模式时选哪个 playbook;空=第一套)。**不写库**(纯计算)。"""
     acc = accounts.load(account_name, brand)
     if acc is None:
         raise ValueError(f"账号声明不存在:brands/{brand}/accounts/{account_name}.md")
     if acc.error:
         raise ValueError(f"账号「{account_name}」声明解析失败:{acc.error}")
-    pb = pick_playbook(acc)
+    pb = pick_playbook(acc, content_type)
     gen_skill = accounts.gen_skill_of(pb)
     skill_text = load_gen_skill(gen_skill)
     clothes_text = load_clothes(clothes, brand)

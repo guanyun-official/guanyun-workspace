@@ -253,5 +253,23 @@ class ClothesConsistentMaterials(unittest.TestCase):
         self.assertNotIn(NF.LINKED_MATERIALS, cap["fields"])  # GY-003 无匹配素材→不挂错图
 
 
+class MultiMode(unittest.TestCase):
+    """一号多模式(scalable):content_type 选对应 playbook(默认第一套);选不存在的模式报错不静默。
+    ootd号 声明了 视频唯美OOTD + 图文唯美OOTD 两模式,共用 writing-ootd-caption,素材需求不同。"""
+
+    def test_content_type_selects_playbook(self):
+        a = draft.generate_draft("ootd号", llm_mode="stub")                              # 默认第一套
+        b = draft.generate_draft("ootd号", llm_mode="stub", content_type="图文唯美OOTD")  # 选第二模式
+        self.assertEqual(a["playbook_id"], "视频唯美OOTD")
+        self.assertEqual(a["material_needs"], ["上身视频"])
+        self.assertEqual(b["playbook_id"], "图文唯美OOTD")
+        self.assertEqual(b["material_needs"], ["上身图"])        # 不同模式→不同素材需求
+        self.assertEqual(a["gen_skill"], b["gen_skill"])          # 同号共用生成技能
+
+    def test_unknown_content_type_raises(self):
+        with self.assertRaises(ValueError):
+            draft.generate_draft("ootd号", llm_mode="stub", content_type="不存在的模式xyz")
+
+
 if __name__ == "__main__":
     unittest.main()
