@@ -119,7 +119,6 @@ def aggregate_by_playbook(notes: list[dict], now: datetime | None = None) -> dic
 
 
 def _num(v) -> int:
-    try:
-        return int(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0
-    except (ValueError, TypeError):
-        return 0
+    """健壮取数:int/float/字符串数字/中文计数('8.5万')都吃(飞书数值字段回读常为字符串)。非数→0。"""
+    n = _cn_num(v)
+    return n if n is not None else 0

@@ -77,5 +77,23 @@ class TestAggregateByPlaybook(unittest.TestCase):
         self.assertIsNone(agg["ootd"]["周环比"], "上周均赞为 0 时不伪造环比")
 
 
+class TestNumRobust(unittest.TestCase):
+    """回归锁(实测抓到):飞书数值字段回读常是字符串,聚合取数必须吃字符串/中文计数,否则均赞恒 0。"""
+
+    def test_num_parses_string_and_cn(self):
+        self.assertEqual(metrics._num("100"), 100)      # 字符串数字(点赞回读实况)
+        self.assertEqual(metrics._num(100), 100)        # int
+        self.assertEqual(metrics._num("8.5万"), 85000)  # 中文计数
+        self.assertEqual(metrics._num(""), 0)           # 空→0
+        self.assertEqual(metrics._num(None), 0)         # None→0
+
+    def test_aggregate_reads_string_liked(self):
+        """已发 note 的 点赞='130'(字符串)也能被 aggregate 正确均赞。"""
+        notes = [{NF.PLAYBOOK: "素人", NF.LIKED: "130", NF.COLLECTED: "10"},
+                 {NF.PLAYBOOK: "素人", NF.LIKED: "160", NF.COLLECTED: "20"}]
+        agg = metrics.aggregate_by_playbook(notes)
+        self.assertEqual(agg["素人"]["均赞"], 145.0)
+
+
 if __name__ == "__main__":
     unittest.main()
