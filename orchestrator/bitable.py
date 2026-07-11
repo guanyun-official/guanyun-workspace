@@ -41,9 +41,7 @@ class MaterialFields:
     SHOT_STATUS = "拍摄状态"
     SOURCE = "来源"
     NOTE = "备注"
-    LINKED_CLOTHES = "关联衣服"
-    LINKED_CRAFT = "关联面料·工艺"
-    ACCOUNTS = "适用账号"
+    ACCOUNTS = "适用账号"   # 赛道(账号×模式)投影;§4 素材按赛道存不挂衣服
 
 
 class ClothesFields:

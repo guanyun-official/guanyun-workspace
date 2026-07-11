@@ -23,7 +23,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from orchestrator import feishu_io  # noqa: E402
-from orchestrator.bitable import ClothesFields as CF  # noqa: E402
 from orchestrator.bitable import MaterialFields as MF  # noqa: E402
 from orchestrator.bitable import MaterialSource as MSrc  # noqa: E402
 from orchestrator.bitable import MaterialStatus as MS  # noqa: E402
@@ -31,8 +30,8 @@ from orchestrator.bitable import MaterialStatus as MS  # noqa: E402
 ASSET_ROOT = Path(os.environ.get("GY_ASSET_ROOT", str(Path.home() / "素材库")))
 
 
-def _manifest(sku: str) -> Path:
-    return ASSET_ROOT / sku / "manifest.jsonl"
+def _manifest(batch: str) -> Path:
+    return ASSET_ROOT / batch / "manifest.jsonl"
 
 
 def scan(src_dir: str) -> list[dict]:
@@ -45,39 +44,28 @@ def scan(src_dir: str) -> list[dict]:
     return out
 
 
-def link(src: str, sku: str, category: str, name: str | None = None) -> str:
-    """软链 src 进 素材库/{SKU}/{category}/{name}。原件不动。返回软链路径。"""
+def link(src: str, batch: str, category: str, name: str | None = None) -> str:
+    """软链 src 进 素材库/{批次}/{category}/{name}(§4:存按拍摄批次,不按SKU)。原件不动。返回软链路径。"""
     srcp = Path(src).expanduser().resolve()
     if not srcp.exists():
         raise FileNotFoundError(srcp)
-    dst_dir = ASSET_ROOT / sku / category
+    dst_dir = ASSET_ROOT / batch / category
     dst_dir.mkdir(parents=True, exist_ok=True)
     dst = dst_dir / (name or srcp.name)
     if dst.is_symlink() or dst.exists():
         dst.unlink()
     dst.symlink_to(srcp)  # 引用,不复制
-    _manifest(sku).parent.mkdir(parents=True, exist_ok=True)
-    with open(_manifest(sku), "a", encoding="utf-8") as f:
+    _manifest(batch).parent.mkdir(parents=True, exist_ok=True)
+    with open(_manifest(batch), "a", encoding="utf-8") as f:
         f.write(json.dumps({"role": "material", "src": str(srcp), "link": str(dst),
                             "category": category, "by": "ingest"}, ensure_ascii=False) + "\n")
     return str(dst)
 
 
-def _clothes_map() -> dict:
-    """衣服编号→record_id(挂 SKU 用)。"""
-    from orchestrator import bitable
-    m = {}
-    for c in feishu_io.list_records("衣服总表"):
-        code = bitable.text(c["fields"].get(CF.CODE))
-        if code:
-            m[code] = c["record_id"]
-    return m
-
-
-def register(sku: str, code: str, mtype: str, link_path: str, note: str = "",
-             source: str = MSrc.REAL, link_sku: str | None = None, accounts: list | None = None) -> str:
-    """登记素材进测试库素材表 + **挂 SKU**(解决'素材没跟SKU挂钩乱')。
-    link_sku=衣服编号(如 GY-001);挂不上(SKU 不存在)则留孤儿并在返回打标。"""
+def register(code: str, mtype: str, link_path: str, note: str = "",
+             source: str = MSrc.REAL, accounts: list | None = None) -> str:
+    """登记素材进测试库素材表(§4:素材按赛道存,不挂衣服)。
+    accounts=适用账号 record_id 列表(赛道=账号×模式 投影);类型(类型字段)是薄执行器选素材的 key。"""
     fields = {
         MF.CODE: code,
         MF.TYPE: mtype,
@@ -86,23 +74,19 @@ def register(sku: str, code: str, mtype: str, link_path: str, note: str = "",
         MF.SOURCE: source,
         MF.NOTE: note,
     }
-    target = link_sku or sku
-    cmap = _clothes_map()
-    if target in cmap:
-        fields[MF.LINKED_CLOTHES] = [cmap[target]]  # 摄入即挂 SKU,不再是孤儿
     if accounts:
-        fields[MF.ACCOUNTS] = accounts
+        fields[MF.ACCOUNTS] = accounts   # 适用账号=赛道投影(薄执行器按此+类型筛选)
     return feishu_io.create_record("素材表", fields)
 
 
 def orphans() -> list[dict]:
-    """列出未挂钩素材(无关联衣服也无关联面料工艺),供 agent 补挂 SKU(存量清理)。"""
+    """列出未归赛道素材(无适用账号),供 agent 补挂赛道(§4:素材按赛道不挂衣服)。"""
     from orchestrator import bitable
-    _t = bitable.text  # 候选A:统一字段取文本
+    _t = bitable.text
     out = []
     for m in feishu_io.list_records("素材表"):
         f = m["fields"]
-        if not _t(f.get(MF.LINKED_CLOTHES)).strip() and not _t(f.get(MF.LINKED_CRAFT)).strip():
+        if not _t(f.get(MF.ACCOUNTS)).strip():
             out.append({"record_id": m["record_id"], "素材编号": _t(f.get(MF.CODE)),
                         "类型": f.get(MF.TYPE), "备注": _t(f.get(MF.NOTE))})
     return out
@@ -112,13 +96,13 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("scan"); s.add_argument("src_dir")
-    l = sub.add_parser("link"); l.add_argument("src"); l.add_argument("sku")
+    l = sub.add_parser("link"); l.add_argument("src"); l.add_argument("batch")
     l.add_argument("category"); l.add_argument("name", nargs="?")
     sub.add_parser("orphans")
-    r = sub.add_parser("register"); r.add_argument("sku"); r.add_argument("code")
+    r = sub.add_parser("register"); r.add_argument("code")
     r.add_argument("--type", required=True); r.add_argument("--link", required=True)
     r.add_argument("--note", default=""); r.add_argument("--source", default="实拍")
-    r.add_argument("--sku-link", dest="sku_link", default=None)
+    r.add_argument("--accounts", default="", help="适用账号 record_id 逗号分隔(赛道投影)")
     # 大刀阔斧:子素材视图(select/view/summary/trace,依赖 lib/material_view)已砍——过早精致,见交接文档 §5。
     # 保留的是安全摄入原语 scan/link/register/orphans(原件不动、软链上墙、登记素材表)。
     a = ap.parse_args()
@@ -127,9 +111,10 @@ def main() -> int:
         print(json.dumps(files, ensure_ascii=False, indent=1))
         print(f"# {len(files)} 个文件待 agent 理解归类", file=sys.stderr)
     elif a.cmd == "link":
-        print(link(a.src, a.sku, a.category, a.name))
+        print(link(a.src, a.batch, a.category, a.name))
     elif a.cmd == "register":
-        print(register(a.sku, a.code, a.__dict__["type"], a.link, a.note, a.source, a.sku_link))
+        accs = [x for x in a.accounts.split(",") if x]
+        print(register(a.code, a.__dict__["type"], a.link, a.note, a.source, accs or None))
     elif a.cmd == "orphans":
         import json as _j; print(_j.dumps(orphans(), ensure_ascii=False, indent=1))
     return 0
