@@ -179,5 +179,24 @@ class IngestToSelectRoundtrip(unittest.TestCase):
         self.assertEqual(ids, ["recNEW"])
 
 
+class ClothesGrounding(unittest.TestCase):
+    """#35 防编造:绑定真实衣服→注入其 know-how;没绑→prompt 含禁编造指令(实测发现官号凭空编产品)。"""
+
+    def test_bound_clothes_injected(self):
+        r = draft.generate_draft("官号@巧荷·东方美学", llm_mode="stub", clothes="GY-003")
+        self.assertTrue(r["clothes_grounded"])
+        self.assertIn("紫藤", r["prompt"])            # GY-003 紫藤烟雨真实 know-how 进 prompt
+        self.assertIn("严格以此为准", r["prompt"])     # 防编造强约束
+
+    def test_unbound_forbids_fabrication(self):
+        r = draft.generate_draft("官号@巧荷·东方美学", llm_mode="stub")  # 没绑衣服
+        self.assertFalse(r["clothes_grounded"])
+        self.assertIn("严禁编造", r["prompt"])         # 没绑就禁编造具体产品/朝代
+
+    def test_missing_clothes_code_not_grounded(self):
+        r = draft.generate_draft("ootd号", llm_mode="stub", clothes="GY-不存在")
+        self.assertFalse(r["clothes_grounded"])        # 编号不存在=没绑,不炸
+
+
 if __name__ == "__main__":
     unittest.main()

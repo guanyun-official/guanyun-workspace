@@ -22,11 +22,13 @@ def main() -> int:
     ap.add_argument("--brand", default="观云")
     ap.add_argument("--llm", choices=["stub", "real"], default="stub")
     ap.add_argument("--title-seed", default="")
+    ap.add_argument("--clothes", default="", help="绑定知识库真实衣服编号(如 GY-001);官号品牌新作应绑,防编造")
     ap.add_argument("--write", action="store_true", help="过红线闸写测试库笔记表(默认干跑不写)")
     a = ap.parse_args()
     print(f"env={config.ENV_NAME} test_mode={config.TEST_MODE} account={a.account} llm={a.llm} write={a.write}")
-    r = draft.generate_draft(a.account, a.brand, a.llm, a.title_seed)
-    print(f"gen_skill={r['gen_skill']} few-shot载入={r['skill_loaded']} "
+    r = draft.generate_draft(a.account, a.brand, a.llm, a.title_seed, clothes=a.clothes)
+    print(f"gen_skill={r['gen_skill']} few-shot载入={r['skill_loaded']} 绑定衣服={r['clothes'] or '无'}"
+          f"({'真实事实✓' if r['clothes_grounded'] else '未绑·禁编造'}) "
           f"playbook={r['playbook_id']} 内容类型={r['content_type']} 成本_元={r['cost']}")
     print("--- 标题 ---")
     print(r["title"])

@@ -29,6 +29,15 @@ def load_gen_skill(name: str) -> str:
     return ""
 
 
+def load_clothes(clothes_code: str, brand: str = "观云") -> str:
+    """加载知识库里某件真实衣服的 know-how(款式/面料/工艺/卖点/形制/文物出处/纹样)。
+    官号品牌新作/需具体产品的模式按此写**真实产品**,不编造。knowledge_base/衣服/{编号}.md;无则空串。"""
+    if not clothes_code:
+        return ""
+    p = config.WORKSPACE / "brands" / brand / "knowledge_base" / "衣服" / f"{clothes_code}.md"
+    return p.read_text(encoding="utf-8") if p.exists() else ""
+
+
 def pick_playbook(acc) -> dict:
     """A 阶段一号一模式:取该号第一套 playbook;无则报错(坏声明不静默漏号)。"""
     pbs = acc.playbooks()
@@ -37,8 +46,9 @@ def pick_playbook(acc) -> dict:
     return pbs[0]
 
 
-def compose_prompt(acc, pb: dict, skill_text: str, title_seed: str = "") -> str:
-    """把账号画像 + 该模式配方 + gen_skill 的真实帖 few-shot 拼成生成 prompt(生成的唯一注入口)。"""
+def compose_prompt(acc, pb: dict, skill_text: str, title_seed: str = "", clothes_text: str = "") -> str:
+    """把账号画像 + 该模式配方 + gen_skill few-shot + (可选)真实衣服 know-how 拼成生成 prompt。
+    clothes_text 给定=写真实产品的事实源(防编造);没给=禁止编造具体产品/朝代/工艺。"""
     profile = (acc.profile_text or "")[:1200]
     fewshot = (skill_text or "")[:1500]
     ctype = pb.get("content_type") or pb.get("id") or ""
@@ -59,6 +69,12 @@ def compose_prompt(acc, pb: dict, skill_text: str, title_seed: str = "") -> str:
         parts.append(f"【本账号画像(务必贴合其既有风格)】\n{profile}")
     if fewshot:
         parts.append(f"【生成技能与真实帖 few-shot(照此调性/形制,勿抄原文)】\n{fewshot}")
+    if clothes_text:
+        parts.append("【本条要展示的真实衣服(朝代/形制/工艺/纹样/面料/款式**严格以此为准,不得编造**)】\n"
+                     + clothes_text[:1500])
+    else:
+        parts.append("【未绑定具体衣服】**严禁编造**不存在的具体产品名/朝代/形制/工艺(如凭空说'宋制褙子'、"
+                     "展开讲某面料是几经绞/哪道非遗工序)——没有事实来源就别写具体产品/朝代断言,只写该号通用调性、留白。")
     parts.append("篇幅与格式**按上面 gen_skill 的调性来**:视频配文就短(一句到几句意境,别凑字/别写科普段落),"
                  "图文种草就展开写。统一:第一行标题(≤20字),空行,正文,最后一行 3-5 个#标签(≤1000字封顶)。")
     parts.append("只输出成稿文本,不要解释、不要读文件。")
@@ -82,8 +98,9 @@ def _split_title(draft_text: str, fallback: str) -> str:
 
 
 def generate_draft(account_name: str, brand: str = "观云", llm_mode: str = "stub",
-                   title_seed: str = "") -> dict:
-    """读声明 → 加载 gen_skill few-shot → 组稿 → 生成 → 组一条待审笔记字段。**不写库**(纯计算)。"""
+                   title_seed: str = "", clothes: str = "") -> dict:
+    """读声明 → 加载 gen_skill few-shot(+可选真实衣服 know-how)→ 组稿 → 生成 → 组一条待审笔记字段。
+    clothes=知识库衣服编号(如 GY-001):绑定后按真实产品写、防编造(官号品牌新作应绑)。**不写库**(纯计算)。"""
     acc = accounts.load(account_name, brand)
     if acc is None:
         raise ValueError(f"账号声明不存在:brands/{brand}/accounts/{account_name}.md")
@@ -92,7 +109,8 @@ def generate_draft(account_name: str, brand: str = "观云", llm_mode: str = "st
     pb = pick_playbook(acc)
     gen_skill = accounts.gen_skill_of(pb)
     skill_text = load_gen_skill(gen_skill)
-    prompt = compose_prompt(acc, pb, skill_text, title_seed)
+    clothes_text = load_clothes(clothes, brand)
+    prompt = compose_prompt(acc, pb, skill_text, title_seed, clothes_text)
     if llm_mode == "real":
         draft_text, cost = llm.run_prompt(prompt)
     else:
@@ -113,6 +131,8 @@ def generate_draft(account_name: str, brand: str = "观云", llm_mode: str = "st
         "material_needs": pb.get("material_needs") or [],   # #32 选素材的 key(类型 vocab)
         "gen_skill": gen_skill,
         "skill_loaded": bool(skill_text),
+        "clothes": clothes,
+        "clothes_grounded": bool(clothes_text),   # 是否绑定了真实衣服 know-how(官号应为 True 防编造)
         "content_type": ctype,
         "title": title,
         "draft_text": draft_text,
