@@ -42,6 +42,7 @@ class MaterialFields:
     SOURCE = "来源"
     NOTE = "备注"
     ACCOUNTS = "适用账号"   # 赛道(账号×模式)投影;§4 素材按赛道存不挂衣服
+    CITED = "被引用次数"    # 被笔记引用次数(formula 自算);选素材少用优先→分散防撞图 #36
 
 
 class AccountFields:

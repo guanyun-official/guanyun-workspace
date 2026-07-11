@@ -157,6 +157,18 @@ class SelectAndAttachMaterials(unittest.TestCase):
             draft.create_draft_note(r)
         self.assertNotIn(NF.LINKED_MATERIALS, cap["fields"])  # 无候选不挂,不炸
 
+    def test_prefers_least_cited_to_spread(self):
+        """#36 去重:同类型多候选,按被引用次数升序『少用优先』→ 素材分散,减少跨号/跨条撞图。"""
+        from unittest import mock
+        from orchestrator import feishu_io
+        mats = [  # 表序上 recHot 在前,但它被引用多;应让 recCold 先
+            {"record_id": "recHot", "fields": {"类型": "上身图", "拍摄状态": "已拍", "被引用次数": 5}},
+            {"record_id": "recCold", "fields": {"类型": "上身图", "拍摄状态": "已拍", "被引用次数": 0}},
+        ]
+        with mock.patch.object(feishu_io, "list_records", lambda t: mats):
+            self.assertEqual(draft.select_materials(["上身图"], limit=1), ["recCold"])  # 少用的先
+            self.assertEqual(draft.select_materials(["上身图"], limit=2), ["recCold", "recHot"])
+
 
 class IngestToSelectRoundtrip(unittest.TestCase):
     """摄入→选 端到端契约:ingest.register 登记的素材(类型+适用账号+已拍)能被 draft.select_materials 选到。"""

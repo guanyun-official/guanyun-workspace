@@ -164,7 +164,7 @@ def select_materials(material_needs: list[str], account_rec_id: str = "", limit:
     needs = set(material_needs or [])
     if not needs:
         return []
-    out: list[str] = []
+    cands: list[dict] = []
     for m in feishu_io.list_records(MF.TABLE):
         f = m["fields"]
         if bitable.text(f.get(MF.TYPE)) not in needs:
@@ -176,10 +176,22 @@ def select_materials(material_needs: list[str], account_rec_id: str = "", limit:
             continue                       # 显式标了别号=排除;没标=可用
         if clothes and clothes not in (bitable.text(f.get(MF.CODE)) + "|" + bitable.text(f.get(MF.NOTE))):
             continue                       # #36 品牌新作:只选标了该衣服的素材,否则货不对板
-        out.append(m["record_id"])
-        if len(out) >= limit:
-            break
-    return out
+        cands.append(m)
+    # #36 少用优先:按被引用次数升序(stable,同分保持原序)→ 素材天然分散,减少跨号/跨条撞图
+    cands.sort(key=lambda m: _cited_count(m["fields"].get(MF.CITED)))
+    return [m["record_id"] for m in cands[:limit]]
+
+
+def _cited_count(v) -> int:
+    """被引用次数(formula 字段,可能 int/str/list/dict/None)→ int,坏值当 0(不炸,当没被引用)。"""
+    if isinstance(v, list):
+        v = v[0] if v else 0
+    if isinstance(v, dict):
+        v = v.get("value") or v.get("text") or 0
+    try:
+        return int(float(v))
+    except (TypeError, ValueError):
+        return 0
 
 
 def create_draft_note(result: dict) -> str:
