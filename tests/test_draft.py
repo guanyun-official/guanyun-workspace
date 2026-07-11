@@ -271,5 +271,22 @@ class MultiMode(unittest.TestCase):
             draft.generate_draft("ootd号", llm_mode="stub", content_type="不存在的模式xyz")
 
 
+class ContentAddressing(unittest.TestCase):
+    """#38 内容寻址:select_materials 按备注里的内容标签(场景/调性/衣服)选,不只类型∩赛道。"""
+
+    def test_select_by_content_tag(self):
+        from unittest import mock
+        from orchestrator import feishu_io
+        mats = [
+            {"record_id": "rFront", "fields": {"类型": "上身图", "拍摄状态": "已拍",
+                                               "素材编号": "SC-01", "备注": "正面站姿"}},
+            {"record_id": "rBacklit", "fields": {"类型": "上身图", "拍摄状态": "已拍",
+                                                 "素材编号": "SC-02", "备注": "侧身逆光·意境"}},
+        ]
+        with mock.patch.object(feishu_io, "list_records", lambda t: mats):
+            self.assertEqual(draft.select_materials(["上身图"], content="逆光"), ["rBacklit"])  # 按内容寻址
+            self.assertEqual(draft.select_materials(["上身图"], content="没有的场景"), [])         # 无匹配→空
+
+
 if __name__ == "__main__":
     unittest.main()
