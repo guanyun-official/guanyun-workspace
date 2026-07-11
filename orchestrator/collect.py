@@ -13,12 +13,20 @@ from . import bitable, config, feishu_io, guard, metrics
 from .bitable import NoteFields as NF, NoteStatus as NS
 
 
+def _link(v) -> str:
+    """发布链接(url 字段)→ **真链接**:dict 取 link(不是 text!否则拿到描述文字采集失败),字符串原样。
+    实测发现:collect 曾用 bitable.text 取链接,url 字段 text 优先→拿到标题而非 URL,真采集必挂。"""
+    if isinstance(v, dict):
+        return str(v.get("link") or v.get("text") or "").strip()
+    return bitable.text(v).strip()
+
+
 def published_notes() -> list[dict]:
     """笔记表里 状态=已发 且有 发布链接 的 note(record dict)。"""
     out = []
     for r in feishu_io.list_records(NF.TABLE):
         f = r["fields"]
-        if bitable.text(f.get(NF.STATUS)) == NS.PUBLISHED and bitable.text(f.get(NF.PUBLISH_LINK)).strip():
+        if bitable.text(f.get(NF.STATUS)) == NS.PUBLISHED and _link(f.get(NF.PUBLISH_LINK)):
             out.append(r)
     return out
 
@@ -30,7 +38,7 @@ def collect_and_writeback(mode: str = "stub", limit: int = 50) -> dict:
     notes = published_notes()[:limit]
     updated = 0
     for r in notes:
-        url = bitable.text(r["fields"].get(NF.PUBLISH_LINK)).strip()
+        url = _link(r["fields"].get(NF.PUBLISH_LINK))   # 取真链接(dict.link),不是 text
         vals = metrics.collect(url, mode=mode)   # {NF.LIKED: n, NF.COLLECTED: n, ...};stub→{}
         if vals:
             feishu_io.update_record(NF.TABLE, r["record_id"], vals)

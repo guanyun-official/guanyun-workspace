@@ -26,6 +26,15 @@ class TestCollect(unittest.TestCase):
             got = metrics.collect("https://xiaohongshu.com/note/x", mode="real")
         self.assertEqual(got, {NF.LIKED: 85000, NF.COLLECTED: 58000, NF.COMMENTS: 815, NF.SHARED: 4386})
 
+    def test_real_maps_nested_note_interactinfo(self):
+        """实测真上线暴露:xhs-extract-master --url 返回的 interactInfo 嵌在 note 下,不是顶层。
+        真链 6538dbf7 采到 liked=805/collected=470,零 key(tikhub/redfox 皆✗仍成)。"""
+        payload = {"note": {"interactInfo": {"likedCount": "805", "collectedCount": "470",
+                                             "commentCount": "92", "shareCount": "104"}}}
+        with mock.patch.object(metrics, "_extract_note", return_value=payload):
+            got = metrics.collect("https://xiaohongshu.com/note/x", mode="real")
+        self.assertEqual(got, {NF.LIKED: 805, NF.COLLECTED: 470, NF.COMMENTS: 92, NF.SHARED: 104})
+
     def test_real_failure_degrades_not_crash(self):
         with mock.patch.object(metrics, "_extract_note", side_effect=RuntimeError("网络挂")):
             self.assertEqual(metrics.collect("https://x", mode="real"), {}, "取数失败返空不炸")

@@ -49,6 +49,13 @@ class CollectWriteback(unittest.TestCase):
             s = collect.collect_and_writeback(mode="stub")
         self.assertEqual(s, {"采集": 0, "写回": 0})
 
+    def test_link_takes_url_not_text(self):
+        """回归(真上线暴露):发布链接是 url 字段 {link,text},取 link 不取 text,
+        否则真采集拿到描述文字必挂(实测端到端才发现)。"""
+        self.assertEqual(collect._link({"link": "https://xhs/real", "text": "描述文字"}), "https://xhs/real")
+        self.assertEqual(collect._link("https://plain"), "https://plain")
+        self.assertEqual(collect._link(None), "")
+
     def test_write_guard_blocks_prod_under_test_mode(self):
         """红线:TEST_MODE 下回流写回也只许测试 Base(闸先抛)。"""
         orig_token, orig_mode = config.BASE_TOKEN, config.TEST_MODE

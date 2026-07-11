@@ -38,7 +38,7 @@ def _extract_note(url: str) -> dict:
     """调已验证的非登录 SSR 提取技能 xhs-extract-master 的 note 原子,返回原始 note dict。
     零封号不用我方账号(实测拉到巧荷账号公开数据 tikhub/redfox 皆 ✗ 仍成功)。"""
     xhs = config.WORKSPACE / "skills" / "xhs-extract-master" / "scripts" / "xhs"
-    r = subprocess.run(["python3", str(xhs), "note", url],
+    r = subprocess.run(["python3", str(xhs), "note", "--url", url],  # 技能要 --url,位置参数返空(实测)
                        capture_output=True, text=True, timeout=90)
     i = r.stdout.find("{")
     return json.loads(r.stdout[i:]) if i >= 0 else {}
@@ -54,7 +54,7 @@ def collect(url: str, mode: str = "stub") -> dict:
     except Exception as e:  # noqa: BLE001  取数失败不拦主流程,下轮重试
         print(f"[效果采集降级] {e}", file=sys.stderr)  # 诊断走 stderr,不污染 stdout(否则骗过测试监控 tail)
         return {}
-    ii = d.get("interactInfo") or {}
+    ii = (d.get("note") or {}).get("interactInfo") or d.get("interactInfo") or {}  # 真实在 note.interactInfo(实测)
     out = {}
     for k, field in _METRIC_MAP.items():
         n = _cn_num(ii.get(k))
