@@ -76,6 +76,27 @@ class BadDataDegrades(unittest.TestCase):
         self.assertEqual(metrics.aggregate_by_playbook([{NF.LIKED: 10}]), {})  # 无 playbook 的行被跳过,不崩
 
 
+class ExtremeInputs(unittest.TestCase):
+    """极端输入边界(#34 步骤7 生产级压测):超长/特殊字符/空白 title_seed 与 clothes → 不崩、标题安全截断。"""
+
+    def test_huge_title_seed_no_crash(self):
+        r = draft.generate_draft("ootd号", llm_mode="stub", title_seed="观" * 8000)
+        self.assertLessEqual(len(r["note_fields"][NF.TITLE]), 60)  # 标题恒截断 ≤60,不把超长塞进标题
+        self.assertEqual(r["note_fields"][NF.STATUS], NS.DRAFT_PENDING)
+
+    def test_special_chars_title_seed_no_crash(self):
+        for seed in ("OOTD｜🌸风\n入\"大'明；", "<script>alert(1)</script>", "‮反转‬零宽​字符", "，。！×÷—…"):
+            r = draft.generate_draft("ootd号", llm_mode="stub", title_seed=seed)
+            self.assertTrue(r["note_fields"][NF.TITLE])            # 出标题不炸
+            self.assertNotIn(NF.AI_DECLARED, r["note_fields"])     # 极端输入也绝不自带 AI 声明
+
+    def test_bogus_clothes_code_not_grounded_no_crash(self):
+        for bad in ("../../../etc/passwd", "GY-不存在", "🌸", "  "):
+            r = draft.generate_draft("官号@巧荷·东方美学", llm_mode="stub", clothes=bad)
+            self.assertFalse(r["clothes_grounded"])                # 绑不到真实衣服=未落地,不炸
+            self.assertIn("严禁编造", r["prompt"])                  # 未绑→仍强制禁编造
+
+
 class RoutingDeterminism(unittest.TestCase):
     """路由确定性/幂等:同号重复生成→同方法论落点,且永不自带 AI 声明。"""
 

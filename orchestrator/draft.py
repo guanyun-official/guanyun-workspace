@@ -31,8 +31,9 @@ def load_gen_skill(name: str) -> str:
 
 def load_clothes(clothes_code: str, brand: str = "观云") -> str:
     """加载知识库里某件真实衣服的 know-how(款式/面料/工艺/卖点/形制/文物出处/纹样)。
-    官号品牌新作/需具体产品的模式按此写**真实产品**,不编造。knowledge_base/衣服/{编号}.md;无则空串。"""
-    if not clothes_code:
+    官号品牌新作/需具体产品的模式按此写**真实产品**,不编造。knowledge_base/衣服/{编号}.md;无则空串。
+    编号只认干净标识(含 / \\ .. 的一律拒,防路径穿越读到知识库外的文件)。"""
+    if not clothes_code or any(c in clothes_code for c in ("/", "\\", "..")):
         return ""
     p = config.WORKSPACE / "brands" / brand / "knowledge_base" / "衣服" / f"{clothes_code}.md"
     return p.read_text(encoding="utf-8") if p.exists() else ""
