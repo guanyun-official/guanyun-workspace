@@ -12,11 +12,6 @@
       "link_table": "tbluluBPW441t0Hh"
     },
     {
-      "field_name": "关联衣服",
-      "type": "link",
-      "link_table": "tblfxRrrHpzDGZvN"
-    },
-    {
       "field_name": "去重键",
       "type": "text"
     },

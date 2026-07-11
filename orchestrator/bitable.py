@@ -44,13 +44,6 @@ class MaterialFields:
     ACCOUNTS = "适用账号"   # 赛道(账号×模式)投影;§4 素材按赛道存不挂衣服
 
 
-class ClothesFields:
-    """衣服总表字段词汇(planner 排产、ingest 挂 SKU 用)。"""
-    TABLE = "衣服总表"
-    CODE = "衣服编号"
-    NAME = "款式名称"
-
-
 class AccountFields:
     """账号表字段词汇(AccountKernel 对齐 Base 账号行与 workspace Account data 用)。"""
     TABLE = "账号表"

@@ -56,13 +56,13 @@ class TestPlaybooks(unittest.TestCase):
         self.assertEqual(pbs[0]["view"], "考据")
 
     def test_synthesized_from_legacy_content_mix(self):
-        s = {"content_mix": {"文物对照": 0.6, "工艺科普": 0.4},
-             "material_needs": {"文物对照": ["文物对照图"], "工艺科普": ["工艺特写"]}}
+        s = {"content_mix": {"视频唯美OOTD": 0.6, "素人图文种草": 0.4},
+             "material_needs": {"视频唯美OOTD": ["上身视频"], "素人图文种草": ["上身图"]}}
         pbs = {pb["id"]: pb for pb in accounts.playbooks_of(s)}
-        self.assertEqual(set(pbs), {"文物对照", "工艺科普"}, "每个内容类型合成一个 playbook")
-        self.assertEqual(pbs["文物对照"]["weight"], 0.6, "权重取自 content_mix")
-        self.assertEqual(pbs["文物对照"]["material_needs"], ["文物对照图"])
-        self.assertEqual(pbs["文物对照"]["view"], "文物对照", "view 键默认=内容类型 id")
+        self.assertEqual(set(pbs), {"视频唯美OOTD", "素人图文种草"}, "每个内容类型合成一个 playbook")
+        self.assertEqual(pbs["视频唯美OOTD"]["weight"], 0.6, "权重取自 content_mix")
+        self.assertEqual(pbs["视频唯美OOTD"]["material_needs"], ["上身视频"])
+        self.assertEqual(pbs["视频唯美OOTD"]["view"], "视频唯美OOTD", "view 键默认=内容类型 id")
 
     def test_synthesized_weight_defaults_even(self):
         s = {"material_needs": {"a": ["x"], "b": ["y"]}}  # 无 content_mix → 均分权重
@@ -74,9 +74,9 @@ class TestPlaybooks(unittest.TestCase):
         self.assertEqual(accounts.playbooks_of({}), [])
 
     def test_playbook_for_matches_content_type(self):
-        s = {"playbooks": [{"id": "考据", "content_type": "文物对照", "weight": 0.6, "view": "考据"},
-                           {"id": "科普", "content_type": "工艺科普", "weight": 0.4, "view": "科普"}]}
-        self.assertEqual(accounts.playbook_for(s, "文物对照")["id"], "考据")
+        s = {"playbooks": [{"id": "OOTD", "content_type": "视频唯美OOTD", "weight": 0.6, "view": "OOTD"},
+                           {"id": "种草", "content_type": "素人图文种草", "weight": 0.4, "view": "种草"}]}
+        self.assertEqual(accounts.playbook_for(s, "视频唯美OOTD")["id"], "OOTD")
         self.assertIsNone(accounts.playbook_for(s, "不存在"), "无匹配返 None")
 
     def test_playbook_for_picks_highest_weight_on_collision(self):

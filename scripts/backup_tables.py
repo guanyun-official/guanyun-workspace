@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from orchestrator import config, feishu_io  # noqa: E402
 
-TABLES = ["笔记表", "素材表", "账号表", "衣服总表", "运行日志表"]
+TABLES = ["笔记表", "素材表", "账号表", "运行日志表"]
 
 
 def main() -> int:
