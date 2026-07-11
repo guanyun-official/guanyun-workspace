@@ -22,21 +22,22 @@ class TestCronStatus(unittest.TestCase):
         self.assertEqual(cs.check_crontab(runner=runner).status, "WARN")
         self.assertEqual(cs.check_crontab(require_installed=True, runner=runner).status, "FAIL")
 
-    def test_installed_crontab_requires_daily_heartbeat_and_backup(self):
+    def test_installed_crontab_requires_backup(self):
+        """lean:大刀阔斧后 cron 只需 backup(数据安全底线)+ 周复盘,不再要 daily/heartbeat。"""
         block = f"""{cs.MARK_BEGIN}
-0 9 * * * cd /x && python3 -m orchestrator.run --mode daily --llm stub
-*/30 9-21 * * * cd /x && python3 -m orchestrator.run --mode heartbeat --llm stub
 30 23 * * * cd /x && python3 scripts/backup_tables.py
+0 20 * * 0 cd /x && claude -p "周复盘"
 {cs.MARK_END}
 """
 
         check = cs.check_crontab(runner=lambda *_a, **_k: completed(block))
 
         self.assertEqual(check.status, "PASS")
-        self.assertIn("llm=stub", check.detail)
+        self.assertIn("backup=True", check.detail)
 
-    def test_incomplete_marked_crontab_fails(self):
-        block = f"{cs.MARK_BEGIN}\n0 9 * * * cd /x && python3 -m orchestrator.run --mode daily --llm stub\n{cs.MARK_END}"
+    def test_marked_crontab_without_backup_fails(self):
+        """缺 backup(数据安全底线)= FAIL,即使有周复盘。"""
+        block = f'{cs.MARK_BEGIN}\n0 20 * * 0 cd /x && claude -p "周复盘"\n{cs.MARK_END}'
 
         check = cs.check_crontab(runner=lambda *_a, **_k: completed(block))
 

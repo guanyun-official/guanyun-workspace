@@ -12,14 +12,14 @@ class TestOperationalModeDocs(unittest.TestCase):
 
         self.assertIn("ZhzJbfkOsafwevsWkW8cfoILnfb", text)
         self.assertIn("TEST_MODE=1", text)
-        self.assertIn("preflight_operational.py --llm stub", text)
+        self.assertIn("draft_one", text)                    # 大刀阔斧后:内容生成走薄执行器(手动)
         self.assertIn("cron_status.py --require-installed", text)
-        self.assertIn("trial_report.py --since", text)
-        self.assertIn("--llm stub --install", text)
-        self.assertIn("--llm real --install", text)
+        self.assertIn("install_cron.sh --install", text)    # 只留 backup + 周复盘 cron
         self.assertNotIn("生产token", text)
         self.assertNotIn("TEST_MODE=0", text)
         self.assertNotIn("migrate_p2_to_prod.py --apply", text)
+        self.assertNotIn("orchestrator.run", text)          # 重引擎已删,不得悬空引用
+        self.assertNotIn("preflight_operational", text)
 
     def test_plan_marks_production_base_readonly_for_current_launch(self):
         text = (ROOT / "docs" / "PLAN.md").read_text(encoding="utf-8")

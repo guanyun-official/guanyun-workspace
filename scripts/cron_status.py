@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import subprocess
 import sys
 from dataclasses import asdict, dataclass
@@ -49,12 +48,12 @@ def check_crontab(
     block = _marked_block(proc.stdout)
     if not block:
         return Check("crontab", "FAIL" if require_installed else "WARN", "未安装 guanyun-orchestrator 标记块")
-    modes = re.findall(r"--mode\s+(daily|heartbeat)\s+--llm\s+(stub|real)", block)
+    # 大刀阔斧后重引擎已删,cron 不再有 orchestrator.run daily/heartbeat;只校数据安全底线=每日备份。
     has_backup = "backup_tables.py" in block
-    if {m for m, _ in modes} != {"daily", "heartbeat"} or not has_backup:
-        return Check("crontab", "FAIL", f"标记块不完整 modes={modes} backup={has_backup}")
-    llms = sorted({llm for _, llm in modes})
-    return Check("crontab", "PASS", f"installed llm={','.join(llms)} backup={has_backup}")
+    if not has_backup:
+        return Check("crontab", "FAIL", "标记块缺 backup_tables cron(数据安全底线)")
+    has_weekly = "claude -p" in block
+    return Check("crontab", "PASS", f"installed backup={has_backup} weekly={has_weekly}")
 
 
 def check_local_logs(log_dir: Path = config.WORKSPACE / "logs") -> Check:
