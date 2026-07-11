@@ -35,6 +35,9 @@ try:
        a_ok, f"few-shot载入={r['skill_loaded']} gen_skill={r['gen_skill']} 状态={r['note_fields'][NF.STATUS]}")
     ck("A可跑", "gen_skill 真实帖 few-shot 真进生成 prompt(不再只是标签)",
        "OOTD｜蓝罗裁夏" in r["prompt"], "该号真实历史帖 few-shot 出现在组稿 prompt")
+    mats = draft.select_materials(r.get("material_needs") or [])
+    ck("完整包", "薄执行器按 material_needs 选到素材(#32:类型∩已拍→挂关联素材)",
+       len(mats) >= 1, f"material_needs={r.get('material_needs')} 候选素材={len(mats)}")
 except Exception as e:
     ck("A可跑", "薄执行器 draft.generate_draft", False, str(e)[:100])
 

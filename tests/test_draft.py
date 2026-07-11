@@ -99,5 +99,64 @@ class CreateDraftNoteLinkResolution(unittest.TestCase):
         self.assertNotIn(NF.CONTENT_TYPE, cap["fields"])
 
 
+class SelectAndAttachMaterials(unittest.TestCase):
+    """#32:薄执行器选素材(类型 ∈ material_needs + 已拍 + 赛道)挂进笔记表·关联素材。"""
+
+    def test_select_by_type_and_shot_status(self):
+        from unittest import mock
+        from orchestrator import feishu_io
+        mats = [
+            {"record_id": "recV", "fields": {"类型": "上身视频", "拍摄状态": "已拍"}},
+            {"record_id": "recImg", "fields": {"类型": "上身图", "拍摄状态": "已拍"}},
+            {"record_id": "recTodo", "fields": {"类型": "上身视频", "拍摄状态": "待拍"}},
+        ]
+        with mock.patch.object(feishu_io, "list_records", lambda t: mats):
+            ids = draft.select_materials(["上身视频"])
+        self.assertEqual(ids, ["recV"])  # 只 上身视频 且 已拍
+
+    def test_select_respects_track_tag(self):
+        """适用账号显式标了别号→排除;没标→可用(赛道投影)。"""
+        from unittest import mock
+        from orchestrator import feishu_io
+        mats = [
+            {"record_id": "recOwn", "fields": {"类型": "上身视频", "拍摄状态": "已拍",
+                                               "适用账号": [{"record_ids": ["recOOTD"]}]}},
+            {"record_id": "recOther", "fields": {"类型": "上身视频", "拍摄状态": "已拍",
+                                                 "适用账号": [{"record_ids": ["recX"]}]}},
+            {"record_id": "recUntagged", "fields": {"类型": "上身视频", "拍摄状态": "已拍"}},
+        ]
+        with mock.patch.object(feishu_io, "list_records", lambda t: mats):
+            ids = draft.select_materials(["上身视频"], account_rec_id="recOOTD")
+        self.assertIn("recOwn", ids)
+        self.assertIn("recUntagged", ids)
+        self.assertNotIn("recOther", ids)
+
+    def test_create_draft_note_attaches_materials(self):
+        from unittest import mock
+        from orchestrator import feishu_io
+        r = draft.generate_draft("ootd号", llm_mode="stub")  # material_needs=[上身视频]
+        fake = {"账号表": [{"record_id": "recACC", "fields": {"账号名": "ootd号"}}],
+                "内容类型表": [{"record_id": "recCT", "fields": {"内容类型名": "视频唯美OOTD"}}],
+                "素材表": [{"record_id": "recV", "fields": {"类型": "上身视频", "拍摄状态": "已拍"}}]}
+        cap = {}
+        with mock.patch.object(feishu_io, "list_records", lambda t: fake.get(t, [])), \
+                mock.patch.object(feishu_io, "create_record",
+                                  lambda table, fields: cap.update(fields=fields) or "recN"):
+            draft.create_draft_note(r)
+        self.assertEqual(cap["fields"][NF.LINKED_MATERIALS], ["recV"])  # 素材挂进关联素材
+
+    def test_no_candidate_no_crash(self):
+        from unittest import mock
+        from orchestrator import feishu_io
+        r = draft.generate_draft("ootd号", llm_mode="stub")
+        cap = {}
+        with mock.patch.object(feishu_io, "list_records",
+                               lambda t: {"账号表": [{"record_id": "recA", "fields": {"账号名": "ootd号"}}]}.get(t, [])), \
+                mock.patch.object(feishu_io, "create_record",
+                                  lambda table, fields: cap.update(fields=fields) or "recN"):
+            draft.create_draft_note(r)
+        self.assertNotIn(NF.LINKED_MATERIALS, cap["fields"])  # 无候选不挂,不炸
+
+
 if __name__ == "__main__":
     unittest.main()

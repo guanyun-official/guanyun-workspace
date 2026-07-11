@@ -109,6 +109,7 @@ def generate_draft(account_name: str, brand: str = "观云", llm_mode: str = "st
     return {
         "account": account_name,
         "playbook_id": pb.get("id") or "",
+        "material_needs": pb.get("material_needs") or [],   # #32 选素材的 key(类型 vocab)
         "gen_skill": gen_skill,
         "skill_loaded": bool(skill_text),
         "content_type": ctype,
@@ -129,18 +130,49 @@ def _resolve_link(table: str, name_field: str, name: str) -> list[str]:
             if bitable.text(r["fields"].get(name_field)).strip() == name]
 
 
+def select_materials(material_needs: list[str], account_rec_id: str = "", limit: int = 3) -> list[str]:
+    """#32 选素材:素材表里 类型 ∈ material_needs + 拍摄状态=已拍 +(适用账号空 或 含该号)的候选 record_id(≤limit)。
+    赛道投影:显式标了别号的素材排除,没标(未归赛道)的可用。空 material_needs / 无候选 → [](不炸)。"""
+    from . import bitable, feishu_io
+    from .bitable import MaterialFields as MF, MaterialStatus as MS
+    needs = set(material_needs or [])
+    if not needs:
+        return []
+    out: list[str] = []
+    for m in feishu_io.list_records(MF.TABLE):
+        f = m["fields"]
+        if bitable.text(f.get(MF.TYPE)) not in needs:
+            continue
+        if bitable.text(f.get(MF.SHOT_STATUS)) != MS.SHOT:
+            continue
+        accs = bitable.Record(m).link_ids(MF.ACCOUNTS)
+        if account_rec_id and accs and account_rec_id not in accs:
+            continue                       # 显式标了别号=排除;没标=可用
+        out.append(m["record_id"])
+        if len(out) >= limit:
+            break
+    return out
+
+
 def create_draft_note(result: dict) -> str:
     """把生成结果写成笔记表一行(状态=草稿待发)。先过 base 红线闸(只许测试库);返回 record_id。
-    账号/内容类型是 link 字段:名字→record_id 后再写;挂不上就不写该 link(不因孤儿名炸写)。"""
+    账号/内容类型是 link 字段:名字→record_id 后再写;挂不上就不写该 link(不因孤儿名炸写)。
+    #32:按 material_needs 选素材,挂进「关联素材」——从「半个包(纯文案)」升到「完整可发包(文案+素材)」。"""
     from . import feishu_io
     from .bitable import AccountFields as AF, ContentTypeFields as CTF
     guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)  # 红线:TEST_MODE 下只许写测试 Base
     fields = dict(result["note_fields"])
-    for fkey, table, name_field in ((NF.ACCOUNT, AF.TABLE, AF.NAME),
-                                    (NF.CONTENT_TYPE, CTF.TABLE, CTF.NAME)):
-        ids = _resolve_link(table, name_field, fields.get(fkey, ""))
-        if ids:
-            fields[fkey] = ids            # link 字段收 record_id 列表
-        else:
-            fields.pop(fkey, None)        # 挂不上则不写该 link(避免 link 字段收字符串被飞书拒写)
+    acc_ids = _resolve_link(AF.TABLE, AF.NAME, fields.get(NF.ACCOUNT, ""))
+    if acc_ids:
+        fields[NF.ACCOUNT] = acc_ids
+    else:
+        fields.pop(NF.ACCOUNT, None)
+    ct_ids = _resolve_link(CTF.TABLE, CTF.NAME, fields.get(NF.CONTENT_TYPE, ""))
+    if ct_ids:
+        fields[NF.CONTENT_TYPE] = ct_ids
+    else:
+        fields.pop(NF.CONTENT_TYPE, None)
+    mat_ids = select_materials(result.get("material_needs") or [], acc_ids[0] if acc_ids else "")
+    if mat_ids:
+        fields[NF.LINKED_MATERIALS] = mat_ids   # #32 完整包:选定素材挂关联素材
     return feishu_io.create_record(NF.TABLE, fields)
