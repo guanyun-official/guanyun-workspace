@@ -35,8 +35,8 @@ done
 BLOCK="$MARK_BEGIN
 # 每日 08:00 轻调度器派活(#8):每号每模式落一条『待出文案』待人/系统出稿,已在途去重。绝不自动发布、绝不代勾AI声明。
 0 8 * * * cd $ROOT && $PY -m scripts.daily_dispatch --write >> logs/cron.log 2>&1
-# 每周一08:30 真跑综合验收(反'设计到位真跑没到位':verify_usable 逐条过全流程全模式全红线,红了记日志催修)
-30 8 * * 1 cd $ROOT && $PY scripts/verify_usable.py >> logs/verify.log 2>&1 || echo "$(date) verify_usable 红,体系未完全可用" >> logs/verify.log
+# 每周一08:30 真跑综合验收(反'设计到位真跑没到位':verify_usable 逐条过全流程全模式全红线,非0退出=未完全可用记日志)
+30 8 * * 1 cd $ROOT && $PY scripts/verify_usable.py >> logs/verify.log 2>&1
 # 每日 23:30 备份运营库(误删可恢复;数据安全底线)
 30 23 * * * cd $ROOT && $PY scripts/backup_tables.py >> logs/cron.log 2>&1
 # 周日19:00 效果回流采集:非登录 extract skill 抓已发note互动数据写回点赞/收藏 + 按方法论复盘(零key SSR,已实测真采赞805;列表从自己base已发笔记读,不需TIKHUB)
