@@ -61,6 +61,13 @@ def pending_ideas(brand: str = "观云") -> list[dict]:
     return out
 
 
+def mark_idea_converted(idea_id: str, note_id: str) -> None:
+    """灵感转化为笔记后回填灵感库,闭合 trend_imitate 环(灵感→出稿→回填)。
+    『转化为笔记』是 **link 字段**,写 record_id 列表不是字符串——实测真跑才暴露的坑,codify 防复发。"""
+    guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)  # 红线:只写测试库
+    feishu_io.update_record("灵感库", idea_id, {"转化为笔记": [note_id]})
+
+
 def _open_slots() -> set:
     """已有『待出文案/草稿待发』在途的 (账号, 内容类型),用于去重不重复派活。"""
     open_status = {NS.NEED_COPY, NS.DRAFT_PENDING}

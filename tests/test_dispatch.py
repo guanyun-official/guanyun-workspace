@@ -44,6 +44,15 @@ class DailyAssignments(unittest.TestCase):
         self.assertEqual([i["标题"] for i in ideas], ["高定工艺印度丝"])
         self.assertEqual(ideas[0]["可借鉴"], "手部特写好")
 
+    def test_mark_idea_converted_writes_link_list(self):
+        """回填闭环:『转化为笔记』是 link 字段,必须写 record_id 列表(实测真跑坑)。"""
+        cap = {}
+        with mock.patch.object(feishu_io, "update_record",
+                               lambda table, rid, f: cap.update(table=table, rid=rid, fields=f)):
+            dispatch.mark_idea_converted("recIdea", "recNote")
+        self.assertEqual(cap["table"], "灵感库")
+        self.assertEqual(cap["fields"]["转化为笔记"], ["recNote"])  # link=列表非字符串
+
 
 class DispatchRedline(unittest.TestCase):
     def test_write_blocks_prod_base(self):
