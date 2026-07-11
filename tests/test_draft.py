@@ -198,5 +198,48 @@ class ClothesGrounding(unittest.TestCase):
         self.assertFalse(r["clothes_grounded"])        # 编号不存在=没绑,不炸
 
 
+class ClothesConsistentMaterials(unittest.TestCase):
+    """#36 品牌新作货对板闸:绑衣服时只选『编号/备注标了该衣服』的素材,标不上宁可 0 条,不挂错图。
+    实测发现:官号文案绑 GY-003、素材却是孔府蓝罗(GY-001)→货不对板=对读者等于编造。"""
+
+    def test_clothes_filters_to_matching_materials(self):
+        from unittest import mock
+        from orchestrator import feishu_io
+        mats = [
+            {"record_id": "recA", "fields": {"类型": "形象图", "拍摄状态": "已拍",
+                                             "素材编号": "SC-GY-001-05", "备注": "月影蓝形象图"}},
+            {"record_id": "recB", "fields": {"类型": "形象图", "拍摄状态": "已拍",
+                                             "素材编号": "SC-紫藤-01", "备注": "GY-003 紫藤形象图"}},
+        ]
+        with mock.patch.object(feishu_io, "list_records", lambda t: mats):
+            self.assertEqual(draft.select_materials(["形象图"], clothes="GY-001"), ["recA"])  # 只 GY-001
+            self.assertEqual(draft.select_materials(["形象图"], clothes="GY-003"), ["recB"])  # 只 GY-003(备注标)
+            self.assertEqual(draft.select_materials(["形象图"], clothes="GY-999"), [])          # 无匹配→0,不挂错
+
+    def test_empty_clothes_keeps_track_behavior(self):
+        """非品牌新作(clothes 空)不按衣服过滤,#32 赛道选素材行为不变。"""
+        from unittest import mock
+        from orchestrator import feishu_io
+        mats = [{"record_id": "recX", "fields": {"类型": "上身图", "拍摄状态": "已拍", "素材编号": "SC-x"}}]
+        with mock.patch.object(feishu_io, "list_records", lambda t: mats):
+            self.assertEqual(draft.select_materials(["上身图"]), ["recX"])
+
+    def test_create_note_brand_mismatch_attaches_no_materials(self):
+        """官号绑 GY-003、库里素材只有 GY-001 → 一条都不挂(宁缺毋滥,货对板),不炸。"""
+        from unittest import mock
+        from orchestrator import feishu_io
+        r = draft.generate_draft("官号@巧荷·东方美学", llm_mode="stub", clothes="GY-003")
+        fake = {"账号表": [{"record_id": "recACC", "fields": {"账号名": "官号@巧荷·东方美学"}}],
+                "内容类型表": [{"record_id": "recCT", "fields": {"内容类型名": "品牌新作展示"}}],
+                "素材表": [{"record_id": "recV", "fields": {"类型": "上身视频", "拍摄状态": "已拍",
+                                                          "素材编号": "SC-GY-001-01"}}]}
+        cap = {}
+        with mock.patch.object(feishu_io, "list_records", lambda t: fake.get(t, [])), \
+                mock.patch.object(feishu_io, "create_record",
+                                  lambda table, fields: cap.update(fields=fields) or "recN"):
+            draft.create_draft_note(r)
+        self.assertNotIn(NF.LINKED_MATERIALS, cap["fields"])  # GY-003 无匹配素材→不挂错图
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -152,9 +152,13 @@ def _resolve_link(table: str, name_field: str, name: str) -> list[str]:
             if bitable.text(r["fields"].get(name_field)).strip() == name]
 
 
-def select_materials(material_needs: list[str], account_rec_id: str = "", limit: int = 3) -> list[str]:
+def select_materials(material_needs: list[str], account_rec_id: str = "", limit: int = 3,
+                     clothes: str = "") -> list[str]:
     """#32 选素材:素材表里 类型 ∈ material_needs + 拍摄状态=已拍 +(适用账号空 或 含该号)的候选 record_id(≤limit)。
-    赛道投影:显式标了别号的素材排除,没标(未归赛道)的可用。空 material_needs / 无候选 → [](不炸)。"""
+    赛道投影:显式标了别号的素材排除,没标(未归赛道)的可用。空 material_needs / 无候选 → [](不炸)。
+
+    #36 clothes(衣服编号)给定=**品牌新作货对板闸**:只选『编号/备注里标了该衣服』的素材——
+    防官号文案绑某衣服、素材却是另一件的『货不对板=对读者等于编造』。标不上就宁可 0 条(不挂错图)。"""
     from . import bitable, feishu_io
     from .bitable import MaterialFields as MF, MaterialStatus as MS
     needs = set(material_needs or [])
@@ -170,6 +174,8 @@ def select_materials(material_needs: list[str], account_rec_id: str = "", limit:
         accs = bitable.Record(m).link_ids(MF.ACCOUNTS)
         if account_rec_id and accs and account_rec_id not in accs:
             continue                       # 显式标了别号=排除;没标=可用
+        if clothes and clothes not in (bitable.text(f.get(MF.CODE)) + "|" + bitable.text(f.get(MF.NOTE))):
+            continue                       # #36 品牌新作:只选标了该衣服的素材,否则货不对板
         out.append(m["record_id"])
         if len(out) >= limit:
             break
@@ -194,7 +200,8 @@ def create_draft_note(result: dict) -> str:
         fields[NF.CONTENT_TYPE] = ct_ids
     else:
         fields.pop(NF.CONTENT_TYPE, None)
-    mat_ids = select_materials(result.get("material_needs") or [], acc_ids[0] if acc_ids else "")
+    mat_ids = select_materials(result.get("material_needs") or [], acc_ids[0] if acc_ids else "",
+                               clothes=result.get("clothes", ""))  # #36 品牌新作按衣服选素材,货对板
     if mat_ids:
         fields[NF.LINKED_MATERIALS] = mat_ids   # #32 完整包:选定素材挂关联素材
     return feishu_io.create_record(NF.TABLE, fields)
