@@ -18,3 +18,8 @@ __pycache__/
 backups/
 locks/
 locks/reminder_state.json
+
+# 演示素材媒体文件(真实存在于磁盘,base 引用绝对路径,不入库)
+brands/*/materials/**/*.jpg
+brands/*/materials/**/*.mp4
+brands/*/materials/**/*.png
