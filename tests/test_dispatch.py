@@ -31,6 +31,19 @@ class DailyAssignments(unittest.TestCase):
         rows = dispatch.dispatch("观云", write=False)
         self.assertEqual(len(rows), len(dispatch.daily_assignments("观云")))
 
+    def test_pending_ideas_only_unconverted_valid(self):
+        """灵感库→出稿前置:只捞『未转化+有效标题』的爆款灵感(trend_imitate 原料)。"""
+        rows = [
+            {"record_id": "i1", "fields": {"标题": "高定工艺印度丝", "优点": "手部特写好",
+                                           "链接": "https://xhs/1", "转化为笔记": ""}},
+            {"record_id": "i2", "fields": {"标题": "已转化", "转化为笔记": "recNote"}},  # 已转化→跳
+            {"record_id": "i3", "fields": {"标题": "（无标题）"}},                        # 无效→跳
+        ]
+        with mock.patch.object(feishu_io, "list_records", lambda t: rows):
+            ideas = dispatch.pending_ideas("观云")
+        self.assertEqual([i["标题"] for i in ideas], ["高定工艺印度丝"])
+        self.assertEqual(ideas[0]["可借鉴"], "手部特写好")
+
 
 class DispatchRedline(unittest.TestCase):
     def test_write_blocks_prod_base(self):

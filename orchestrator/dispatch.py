@@ -44,6 +44,23 @@ def daily_assignments(brand: str = "观云") -> list[dict]:
     return out
 
 
+def pending_ideas(brand: str = "观云") -> list[dict]:
+    """灵感库里『还没转化为笔记』的爆款灵感(=爆款模仿 trend_imitate 的原料):标题+可借鉴优点+爆款源链接。
+    连上需求/灵感→出稿的前置一环:员工采集的爆款进灵感库,这里捞出未转化的待出稿(出稿用 --title-seed 承接)。"""
+    out = []
+    for r in feishu_io.list_records("灵感库"):
+        f = r["fields"]
+        if bitable.text(f.get("转化为笔记")).strip():
+            continue                                          # 已转化→跳过
+        title = bitable.text(f.get("标题")).strip()
+        if not title or title == "（无标题）":
+            continue                                          # 无效灵感跳过
+        out.append({"record_id": r["record_id"], "标题": title,
+                    "可借鉴": bitable.text(f.get("优点")).strip(),
+                    "爆款源": bitable.text(f.get("链接")).strip()})
+    return out
+
+
 def _open_slots() -> set:
     """已有『待出文案/草稿待发』在途的 (账号, 内容类型),用于去重不重复派活。"""
     open_status = {NS.NEED_COPY, NS.DRAFT_PENDING}

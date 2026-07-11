@@ -26,7 +26,14 @@ def main() -> int:
         print(f"    素材来源[{r['sourcing']}]:{r['sourcing_hint']}")
     if not a.write:
         print("(干跑:未写库。加 --write 把活落成『待出文案』占位)")
-    print("红线:调度器只派活到『待出文案』,绝不出稿即发、绝不代勾 AI 声明——出稿走 draft_one,发布/声明人手。")
+    # 爆款模仿(trend_imitate)原料:灵感库未转化的爆款灵感,提示可借鉴点+出稿承接
+    ideas = dispatch.pending_ideas(a.brand)
+    if ideas:
+        print(f"\n爆款模仿待办({len(ideas)} 条灵感未转化,trend_imitate 号可据此出稿):")
+        for it in ideas[:8]:
+            print(f"  · {it['标题']}  可借鉴:{it['可借鉴'] or '—'}")
+        print("  出稿:draft_one --account <trend_imitate号> --title-seed \"<灵感标题/可借鉴>\";出后回填灵感库『转化为笔记』。")
+    print("\n红线:调度器只派活到『待出文案』,绝不出稿即发、绝不代勾 AI 声明——出稿走 draft_one,发布/声明人手。")
     return 0
 
 
