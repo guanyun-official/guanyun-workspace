@@ -78,6 +78,13 @@ except Exception as e:
 # ── 效果回流:状态机闭环(已发→已回流)────────────────────────────
 note_schema = json.dumps(json.load(open(ROOT / "schema/test/笔记表.json")), ensure_ascii=False)
 ck("效果回流", "笔记状态机含 已发→已回流", "已回流" in note_schema, "状态机闭环字段在册")
+try:
+    from orchestrator import collect
+    cs = collect.collect_and_writeback(mode="stub")   # 读已发→stub采集→写回(stub 零成本不写)
+    ck("效果闭环", "回流采集薄执行器接线(读已发→采集 skill→写回点赞/收藏,不炸)",
+       "采集" in cs and "写回" in cs, f"已发采集={cs.get('采集')} 写回={cs.get('写回')}(stub不写)")
+except Exception as e:
+    ck("效果闭环", "回流采集薄执行器", False, str(e)[:100])
 
 # ── 版本管理:skills.lock 锁清单 ──────────────────────────────────
 ck("版本管理", "skills.lock 锁 remote/local 技能清单", (ROOT / "skills.lock.json").exists(), "skills.lock.json")
