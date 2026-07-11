@@ -30,15 +30,16 @@ def _link(table: str, name_field: str, name: str) -> list[str]:
             if bitable.text(r["fields"].get(name_field)).strip() == name]
 
 
-def sim_one(account_name: str, liked: int = 128, collected: int = 32) -> dict:
-    """走一圈闭环:出完整包→模拟已发+回流→写测试库 _SIM 已发 note。返回该圈事实(供复盘/断言)。"""
+def sim_one(account_name: str, content_type: str = "", liked: int = 128, collected: int = 32) -> dict:
+    """走一圈闭环:出完整包→模拟已发+回流→写测试库 _SIM 已发 note。返回该圈事实(供复盘/断言)。
+    content_type 给定=一号多模式时走指定模式(否则第一套)。"""
     guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)  # 红线:只写测试库
-    r = draft.generate_draft(account_name, llm_mode="stub")
+    r = draft.generate_draft(account_name, llm_mode="stub", content_type=content_type)
     acc = _link(AF.TABLE, AF.NAME, account_name)
     ct = _link(CTF.TABLE, CTF.NAME, r["content_type"])
-    mats = draft.select_materials(r.get("material_needs") or [], acc[0] if acc else "")
+    mats = draft.select_materials(r.get("material_needs") or [], acc[0] if acc else "", clothes=r.get("clothes", ""))
     fields = {
-        NF.CODE: f"{SIM}-{account_name}",
+        NF.CODE: f"{SIM}-{account_name}-{r['playbook_id']}",
         NF.TITLE: f"[闭环模拟] {r['title']}",
         NF.PLAYBOOK: r["playbook_id"],
         NF.DRAFT: r["draft_text"],
@@ -73,9 +74,14 @@ def main() -> int:
     a = ap.parse_args()
     print(f"env={config.ENV_NAME} test_mode={config.TEST_MODE}")
     cleanup()  # 先清残留 _SIM
+    all_accs = accounts.load_all("观云")
     rounds = []
-    for i, name in enumerate(sorted(accounts.load_all("观云"))):
-        rounds.append(sim_one(name, liked=100 + i * 30, collected=20 + i * 10))
+    i = 0
+    for name in sorted(all_accs):                       # 全账号 × 全模式(一号多模式完整覆盖,不只第一套)
+        for pb in all_accs[name].playbooks():
+            ct = pb.get("content_type") or pb.get("id") or ""
+            rounds.append(sim_one(name, content_type=ct, liked=100 + i * 30, collected=20 + i * 10))
+            i += 1
     for x in rounds:
         ok = x["few_shot"] and x["素材数"] >= 1
         print(f"  {'✓' if ok else '✗'} {x['account']}｜{x['playbook']}: few-shot={x['few_shot']} "
