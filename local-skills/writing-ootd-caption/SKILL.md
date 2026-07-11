@@ -1,30 +1,36 @@
 ---
 name: writing-ootd-caption
-description: Writes short, literary, aesthetic OOTD video captions (对仗/意境短句, 考据味) for 观云 汉服 design-oriented account (ootd号 巧荷｜OOTD). Composes with video-editing for the clip. Not for amateur 种草 or brand-official copy.
+description: Writes short poetic OOTD video captions (唯美/意境短句/对仗, 克制留白) for 观云 汉服 design-oriented account (ootd号 巧荷｜OOTD). Voice = aesthetic imagery, NOT 考据/科普/形制详解 (that belongs to the brand-official account). One title + a few short 意境 lines matching a video, never a long 图文 body. Composes with video-editing. Not for amateur 种草 or brand copy.
 ---
 
 # writing-ootd-caption · 视频唯美 OOTD 文案
 
-给 ootd号(巧荷｜OOTD,服装设计师人设)写视频配文。**唯美、克制、有考据味**——对仗/意境短句,不口语、不硬广。
+给 ootd号(巧荷｜OOTD,服装设计师人设)写视频配文。**唯美、克制、意境**——把衣服放进光/风/颜色里,少解释多氛围。对仗/意境短句,不口语、不硬广。
+
+## ⚠️ 这个号不是"考据号"
+- **调性 = 唯美/意境,不是考据科普。** 别写"四经绞罗四根经线相互绞转…苏州非遗织造"这种形制/工艺科普段落——**那是官号(品牌新作展示)的活**。
+- 朝代/形制词(大明、宋、罗)**只当意境里的一个词轻点**(如"风入大明"),点到即止,不展开、不上课。
+- **短。** 视频配文=一句到几句意境,不是长图文正文。宁可留白,不要凑字。
 
 ## 何时用
-- 账号:ootd号。形式:视频(对镜穿搭)+ 一句唯美文案。
+- 账号:ootd号。形式:视频(对镜穿搭)+ 一句/几句唯美文案。
 - 视频剪辑走通用 `video-editing`(+ 需要分镜时 `qiaohe-video-script`);本 skill 只管文案。
 
-## 怎么写(高自由度)
-- **对仗/意境短句**,一句成题,克制留白。
-- **考据有据**:朝代/形制(明代、宋代、罗、马面裙…)可点,但不说错;不碰山正之争。
-- 标题格式常见 `OOTD｜<意象短句>`。
+## 方法论(从本号真实帖提炼)
+- **一句成题的意境句**:`OOTD｜<意象短句>`,对仗/通感/留白(蓝罗裁夏，风入大明 / 寒玉疏枝 / 孔府遗风，月影入罗)。
+- **正文极短**:0-3 句,承接标题的意境,写光、风、色、身姿,不写科普。可完全无正文,只一句题。
+- **偶尔"没想到"钩子**:古今反差起趣(原来500年前我们就有polo衫了！/ 是800年前的宋代风雅)——轻俏,不说教。
+- **克制**:少 emoji、少标签(3-5 个足够)、不硬广、不喊定制。
 
-## 例子(本号真实历史帖)
+## 例子(本号真实历史帖=few-shot 基准)
 - OOTD｜蓝罗裁夏，风入大明
 - OOTD｜寒玉疏枝
 - OOTD｜孔府遗风，月影入罗
-- OOTD｜ 是800年前的宋代风雅
-- OOTD｜原来500年前我们就有polo衫了！(偶尔用"没想到"式钩子)
+- OOTD｜是800年前的宋代风雅
+- OOTD｜原来500年前我们就有polo衫了！(偶尔"没想到"式钩子)
 
 ## 禁忌
-- 不俗、不口语化、不硬广;考据别说错;出口过防搬运。
+- **不写考据/形制/工艺科普段落**(那是官号);不俗、不口语化、不硬广;朝代别说错;出口过防搬运。
 
 ## 交出什么
-一条待人审的视频草稿:一句文案 + 建议用哪段视频素材(从 ootd 模式的素材里选)+ 若需剪辑,给 video-editing 的剪辑要点。**发布人手,AI 声明人勾。**
+一条待人审的视频草稿:短意境文案(标题+至多几句)+ 建议用哪段视频素材(从 ootd 模式的素材里选)+ 若需剪辑给 video-editing 的要点。**发布人手,AI 声明人勾。**

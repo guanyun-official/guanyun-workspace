@@ -59,7 +59,8 @@ def compose_prompt(acc, pb: dict, skill_text: str, title_seed: str = "") -> str:
         parts.append(f"【本账号画像(务必贴合其既有风格)】\n{profile}")
     if fewshot:
         parts.append(f"【生成技能与真实帖 few-shot(照此调性/形制,勿抄原文)】\n{fewshot}")
-    parts.append("格式:第一行标题(≤20字),空行,正文(≤1000字,分段,可用少量 emoji),最后一行 3-5 个#标签。")
+    parts.append("篇幅与格式**按上面 gen_skill 的调性来**:视频配文就短(一句到几句意境,别凑字/别写科普段落),"
+                 "图文种草就展开写。统一:第一行标题(≤20字),空行,正文,最后一行 3-5 个#标签(≤1000字封顶)。")
     parts.append("只输出成稿文本,不要解释、不要读文件。")
     return "\n".join(parts)
 
