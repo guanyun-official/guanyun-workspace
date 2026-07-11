@@ -288,5 +288,28 @@ class ContentAddressing(unittest.TestCase):
             self.assertEqual(draft.select_materials(["上身图"], content="没有的场景"), [])         # 无匹配→空
 
 
+class FieldValueHelpers(unittest.TestCase):
+    """codify 反复踩的 link/url 字段格式坑:link→record_id列表、url→{link,text}dict。"""
+
+    def test_link_value_wraps_to_list(self):
+        from orchestrator import bitable
+        self.assertEqual(bitable.link_value("recX"), ["recX"])
+        self.assertEqual(bitable.link_value(["recA", "recB"]), ["recA", "recB"])
+        self.assertEqual(bitable.link_value(""), [])
+        self.assertEqual(bitable.link_value(None), [])
+
+    def test_url_value_wraps_to_dict(self):
+        from orchestrator import bitable
+        self.assertEqual(bitable.url_value("https://x", "描述"), {"link": "https://x", "text": "描述"})
+        self.assertEqual(bitable.url_value("https://x"), {"link": "https://x", "text": "https://x"})
+
+    def test_known_link_url_fields_documented(self):
+        from orchestrator import bitable
+        self.assertIn("转化为笔记", bitable.LINK_FIELDS)   # 实测炸过的
+        self.assertIn("关联关键词", bitable.LINK_FIELDS)
+        self.assertIn("发布链接", bitable.URL_FIELDS)
+        self.assertIn("链接", bitable.URL_FIELDS)          # 灵感库.链接/素材.链接
+
+
 if __name__ == "__main__":
     unittest.main()

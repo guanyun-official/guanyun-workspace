@@ -121,6 +121,24 @@ def declared_field_names(fieldset: type) -> list[str]:
             if k.isupper() and k not in _META_ATTRS and isinstance(v, str)]
 
 
+# 写库字段格式坑(实测反复踩,codify 防复发):link 字段收 record_id 列表、url 字段收 {link,text} dict,
+# 写字符串一律炸(FeishuIOError 5次重试未成功)。写这些字段前用下面 link_value/url_value 包一下。
+LINK_FIELDS = frozenset({"账号", "内容类型", "关联素材", "适用账号", "转化为笔记", "关联关键词", "关联笔记"})
+URL_FIELDS = frozenset({"发布链接", "链接"})
+
+
+def link_value(record_ids) -> list:
+    """link 字段值:record_id(单个 str 或列表)→ record_id 列表(飞书 link 字段只收列表)。"""
+    if isinstance(record_ids, str):
+        return [record_ids] if record_ids else []
+    return list(record_ids or [])
+
+
+def url_value(url: str, text: str = "") -> dict:
+    """url 字段值:URL → {link, text} dict(url 字段写纯字符串会炸)。"""
+    return {"link": url, "text": text or url}
+
+
 def text(v) -> str:
     """任意字段值 → 文本。list[dict]→逗号连;dict→text/link;标量→str。"""
     if isinstance(v, list):
