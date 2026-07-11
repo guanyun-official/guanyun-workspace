@@ -6,4 +6,4 @@
 - **开发 loop**(改系统):`/loop 继续完善 guanyun-workspace…`,目标=`check_p*.sh` 全绿 + `ar_check` SCORE=100 + 开发 issue 清零,盯 测试红/schema 漂移/成熟度回归 三个 monitor。
 - **运营 loop**(跑内容工厂=上线):`bash scripts/install_cron.sh --install` 在运营库 `ZhzJbf`(当前 .env 即对,`TEST_MODE=1` 本身就是上线态)。**"上线"≠切生产库 `N9IVbi`(焊死不碰)**,就是在测试库挂 cron。
 
-架构与方法论:`docs/架构与方法论.md`;领域词汇:`CONTEXT.md`。
+架构与方法论:`docs/架构与方法论.md`;**一页看懂架构**:`docs/架构一图流.md`;领域词汇:`CONTEXT.md`。
