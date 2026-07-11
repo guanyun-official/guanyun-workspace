@@ -158,5 +158,26 @@ class SelectAndAttachMaterials(unittest.TestCase):
         self.assertNotIn(NF.LINKED_MATERIALS, cap["fields"])  # 无候选不挂,不炸
 
 
+class IngestToSelectRoundtrip(unittest.TestCase):
+    """摄入→选 端到端契约:ingest.register 登记的素材(类型+适用账号+已拍)能被 draft.select_materials 选到。"""
+
+    def test_registered_material_is_selectable(self):
+        from unittest import mock
+        from orchestrator import feishu_io
+        import scripts.ingest as ing
+        captured = {}
+        with mock.patch.object(feishu_io, "create_record", lambda t, f: captured.update(f) or "recNEW"):
+            ing.register("SC-测试", "上身视频", "/x/v.mp4", accounts=["recOOTD"])
+        self.assertEqual(captured["类型"], "上身视频")       # register 写的选素材 key
+        self.assertEqual(captured["拍摄状态"], "已拍")        # 摄入即已拍→可选
+        self.assertEqual(captured["适用账号"], ["recOOTD"])   # 赛道投影,不挂衣服
+        self.assertNotIn("关联衣服", captured)                # §4:素材不挂衣服
+        # 这条素材喂给 select_materials 应被 ootd号 选中
+        mat_rec = {"record_id": "recNEW", "fields": captured}
+        with mock.patch.object(feishu_io, "list_records", lambda t: [mat_rec]):
+            ids = draft.select_materials(["上身视频"], account_rec_id="recOOTD")
+        self.assertEqual(ids, ["recNEW"])
+
+
 if __name__ == "__main__":
     unittest.main()
