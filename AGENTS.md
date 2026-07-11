@@ -10,7 +10,7 @@
 | 账本(唯一真相源) | 飞书 Bitable 生产 Base(见下) | 一条内容一行,状态列是唯一真值;不当队列、不当媒体库 |
 | 大脑(能力) | git 技能仓库(qiaohe-skill、video-engine),经 `skills.lock.json` 安装 | 只装"怎么做";实例配置一律外置注入 |
 | 手(执行壳) | Claude Code 主力,Codex 备用 | 易耗品,双入口,换壳成本趋近零 |
-| 推进器(loop) | 本仓库 `orchestrator/`(cron + webhook + heartbeat,P4) | 自身零 LLM(纯确定性路由);单实例串行 |
+| 推进器(loop) | 大刀阔斧后=薄执行器 `orchestrator/draft.py`(按需/手动跑;数据备份+周复盘走 cron,内容 cron 待轻调度器见 #8) | 只推到草稿待发,绝不自动发布 |
 | 脸(员工界面) | 飞书原生:表单/看板/仪表盘/审批卡片 | 员工永不直接碰 agent |
 | 人 | 拍素材、审内容、点发布(勾 AI 声明) | 两个人审硬门不可自动化 |
 
@@ -84,22 +84,24 @@ guanyun-workspace/
 ├── schema/              # Bitable 字段契约(prod/ + test/ + snapshots/)
 ├── skills.lock.json     # 技能安装清单(锁 repo+sha+skills)
 ├── skills/              # install_skills.sh 产出的 symlink(不入库)
-├── scripts/             # dump_schema.py / install_skills.sh / check_p1.sh
-├── orchestrator/        # 推进器(P4,未建)
+├── scripts/             # draft_one.py(薄执行器CLI)/ ingest.py / dump_schema.py / install_skills.sh / check_p*.sh
+├── orchestrator/        # 薄执行器 draft.py + 已验证原语(accounts/llm/guard/feishu_io/bitable/config/metrics/alerts/skills_lock)
 ├── lib/                 # seams:feishu_workbench/xhs_fetch/apify_xhs/brand_kb/skill_gate/skill_io
-├── brands/              # 品牌静态资产(自 AI-marketing 迁入)
-└── docs/                # PLAN.md 等
+├── local-skills/        # 号/模式特化 skill(writing-{amateur-ootd,ootd-caption,brand-newpiece};compose 通用+真实帖 few-shot)
+├── brands/              # 账号声明·画像 + knowledge_base 内容 know-how(衣服考据)
+└── docs/                # 交接文档.md(权威)/ 架构与方法论.md / PLAN.md 等
 ```
 
 ## 开发 or 运营?（先读 docs/运行模式.md）
 - **运营环境 = 测试库 `ZhzJbf…`**(当前 .env + TEST_MODE=1 即上线态);生产库 `N9IVbi…` 焊死不碰。**"上线"= 在测试库挂 cron,不是切生产库。**
 - 改系统 → 开发 loop(check_p* 全绿 + ar_check 100 + issue 清零);跑内容 → 运营 loop(`install_cron.sh --install`)。
 
-## 架构现状（2026-07-09，内容工厂全链闭合）
+## 架构现状（2026-07-11，大刀阔斧后·薄执行器骨架）
 
-领域词汇见 `CONTEXT.md`,素材视图层设计与评审见 `docs/架构演进-素材视图与方法论.md`。要点:
-- **Playbook(方法论)** = 账号 strategy `playbooks[]`,一号可多套;每套 = 配方(切面/权重/material_needs/公式) + `gen_skill`(产这套笔记的技能) + `view`(素材视图键)。`orchestrator/accounts.playbooks_of/resolve_playbook/gen_skill_of`;显式优先,否则从 content_mix 合成。
-- **素材视图层(盘上,非 Bitable)** = `lib/material_view`:每 playbook 一套软链 bin;子素材 **Clip**,`clip_id=哈希(素材编号,span)` 稳定(文件搬家 `relink` 不断链);**usage 账本 `_usage.jsonl` = usage 唯一真值**;linked%/used% 使用率;`trace_note` 回溯。`ingest select/view/summary/trace` 是 agent 编入/查看/回溯的 CLI。
-- **闭环**:planner **view-驱动「今日发」**(SKU 可选,`scripts/planner.py`) → daily 经 `materialize_day` 用稳定业务键幂等创建 Note；只有原料、仍需「AI剪」的候选进入 `orchestrator/media_processing.py` 的盘上 MediaTask，停在 `待生成剪单/剪单待人确认/成片待验收` 等人审门，只有 `可建 Note` 的最终 Material 才回到 Note 状态机 → 按 playbook 配方+gen_skill 生成(`orchestrator/llm.gen_copy`) → 发布回填 usage(engine `MARK_PUBLISHED` 读「关联子素材」clip_ids) → `COLLECT_METRICS` 经 **xhs-extract-master 非登录采集**(`orchestrator/metrics`,默认 stub 零成本)写回 点赞/收藏/评论/转发 → `aggregate_by_playbook` 反馈进排产。
-- **测试库已加字段(生产库未动)**:运行日志表 `成本_元`(number)、笔记表 `方法论`+`关联子素材`(text)。**加测试库字段流程**:`lark-cli base +field-create`(读回自证)→ `dump_schema.py --base test` → 登记 `bitable.py` 字段常量 + `scripts/schema_diff.py` 的 `P2_EXPECTED`(反漂移白名单)。
-- **反漂移契约锁三层**(名字/取值/类型,`tests/test_field_contract.py`)+ 状态漂移告警。硬门:6 个 `check_p*.sh` + `ar_check`=100 + 单测全绿。加能力必带测试。
+领域词汇见 `CONTEXT.md`;方法论见 `docs/架构与方法论.md`;权威依据 `docs/交接文档.md`。
+重引擎(engine/planner/推进器)、素材视图层(material_view/Clip/usage)、契约锁三层、审计工具(account_kernel/base_workbench)已删(净删~4000行,git history 可查)。要点:
+- **薄执行器 `orchestrator/draft.py`**(CLI `scripts/draft_one.py`)= 体系核心:读账号声明 → 取该号 playbook 的 gen_skill → `load_gen_skill` 加载其 `SKILL.md` 真实帖 few-shot → 组稿(画像+few-shot+配方)→ 过 base 红线闸 → 写笔记表「草稿待发」。stub 默认零成本,`--llm real` 走 `llm.run_prompt` 预算帽。**只推到草稿待发,绝不代勾 AI 声明、绝不自动发布**;发布与 AI 声明是人手。第一目标 A 已真跑通(ootd号 真出可发草稿,4 号泛化验证过)。
+- **已验证原语**(§5 移植保留):`feishu_io`(lark-cli api 底座)、`guard`(红线闸:只写测试库/AI声明门/控量)、`accounts`(声明加载)、`llm.run_prompt`(real 生成)、`bitable`(字段词汇+Record)、`metrics`(extract 采集 xhs-extract-master 非登录,默认 stub)、`alerts`(hermes 薄网关)、`ingest`(scan/link/register 素材摄入)。
+- **playbook 指向 gen_skill,gen_skill 是 skill**(特化住 `local-skills/`、通用在 qiaohe-skill remote);`skills.lock.json` 按 source(remote/local)统一管。加发法=写 playbook 声明 + 建 gen_skill,**不改 schema**。
+- **加测试库字段流程**:`lark-cli base +field-create`(读回自证)→ `dump_schema.py --base test` → 登记 `bitable.py` 字段常量。漂移检测用 `dump_schema + git diff schema/test`(git 兜底)。
+- **keep 门**:6 个 `check_p*.sh`(p2 测试库健康 / p4 薄执行器 A 验收 等)+ `ar_check`(12 项精简痛点:A可跑 / few-shot 真进 prompt / 唯一源 / 红线…)=100 + 单测全绿。加能力必带测试。

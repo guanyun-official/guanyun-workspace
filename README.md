@@ -1,5 +1,5 @@
 # guanyun-workspace
-观云内容运营 Workspace:环境事实+推进器+契约——飞书当脸,CLI agent 当手,Bitable 当账本,git skills 当大脑
+观云内容运营 Workspace:环境事实+薄执行器+契约——飞书当脸,CLI agent 当手,Bitable 当账本,git skills 当大脑
 
 进门先读 `AGENTS.md`(环境事实);搭建计划在 `docs/PLAN.md`;P1 验收 `bash scripts/check_p1.sh`。
 
@@ -13,5 +13,5 @@
 ## 技能安装
 
 ```bash
-bash scripts/install_skills.sh   # 按 skills.lock.json symlink 17 个技能进 skills/(不入库,幂等)
+bash scripts/install_skills.sh   # 按 skills.lock.json symlink 技能进 skills/(remote qiaohe-skill/video-engine + local 特化;不入库,幂等)
 ```
