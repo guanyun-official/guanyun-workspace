@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import sys
 from datetime import datetime, timedelta
 
 from . import bitable, config
@@ -51,7 +52,7 @@ def collect(url: str, mode: str = "stub") -> dict:
     try:
         d = _extract_note(url)
     except Exception as e:  # noqa: BLE001  取数失败不拦主流程,下轮重试
-        print(f"[效果采集降级] {e}")
+        print(f"[效果采集降级] {e}", file=sys.stderr)  # 诊断走 stderr,不污染 stdout(否则骗过测试监控 tail)
         return {}
     ii = d.get("interactInfo") or {}
     out = {}
