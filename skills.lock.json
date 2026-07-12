@@ -39,7 +39,8 @@
    "skills": [
     "writing-amateur-ootd",
     "writing-brand-newpiece",
-    "writing-ootd-caption"
+    "writing-ootd-caption",
+    "tagging-material"
    ],
    "install": "symlink"
   }
