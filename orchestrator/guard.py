@@ -1,8 +1,16 @@
-"""硬闸(纯函数,零 IO):Base 守卫 / AI 声明门 / 控量门。闸不过 = 抛 GuardError,不静默。"""
+"""硬闸(纯函数,零 IO):Base 守卫 / AI 声明门 / 控量门 / 防搬运门。闸不过 = 抛 GuardError,不静默。"""
 from __future__ import annotations
+
+import re
 
 from . import config
 from .bitable import NoteFields as NF
+
+
+def _norm(s: str) -> str:
+    """归一化:去所有空白/标点/下划线,只留实义字符(中文/字母/数字)。
+    防搬运比对的前置——插空格、改标点、换全半角标点都归到同一串,搬运者绕不过。"""
+    return re.sub(r"[\s\W_]+", "", s or "", flags=re.UNICODE)
 
 
 class GuardError(RuntimeError):
@@ -36,12 +44,14 @@ def assert_publish_quota(published_today_for_account: int) -> None:
 
 
 def assert_no_source_leak(source_text: str, payload: str, n: int = 10) -> None:
-    """防搬运出口闸(红线):产出 payload 不得逐字搬对标/灵感源 source_text 的 ≥n 连续字符片段。
-    爆款只当情报——出稿不得含对标原帖/原标题的连续片段。source 空/过短放行。"""
-    src = (source_text or "").strip()
-    if len(src) < n or not payload:
+    """防搬运出口闸(红线):产出 payload 不得逐字搬对标/灵感源 source_text 的 ≥n 连续实义字符片段。
+    爆款只当情报——出稿不得含对标原帖/原标题的连续片段。**先归一化去空白/标点再比对**,
+    加空格/改标点也绕不过(这是该红线的唯一实现,原 lib/skill_gate 那份已退役并入此处)。
+    source 归一化后过短 / payload 空 → 放行(短源不产生保护也不误伤,设计取舍)。"""
+    src, pay = _norm(source_text), _norm(payload)
+    if len(src) < n or not pay:
         return
     for i in range(len(src) - n + 1):
         frag = src[i:i + n]
-        if frag in payload:
+        if frag in pay:
             raise GuardError(f"防搬运门:产出含对标源 {n} 字连续片段「{frag}」,拒绝(爆款只当情报,不搬原文)")

@@ -350,6 +350,14 @@ class NoSourceLeakGate(unittest.TestCase):
         guard.assert_no_source_leak("原来500年前我们就有polo衫了", "夏色入衿，风过成凉")  # 无重叠→放行
         guard.assert_no_source_leak("短句", "任何输出")                                    # source过短→放行
 
+    def test_guard_whitespace_punctuation_cannot_evade(self):
+        """红线 robust:加空格/改标点/换全半角不能绕过防搬运(归一化后仍是原文)。
+        反回归:曾用裸子串滑窗,搬运者插一个空格即漏——现归一化后再比对。"""
+        from orchestrator import guard
+        src = "原来500年前我们就有polo衫了"
+        with self.assertRaises(guard.GuardError):   # 复制原文但加空格改标点,裸子串会漏、归一化必拦
+            guard.assert_no_source_leak(src, "抄袭： 原来 500 年前，我们 就有 polo 衫了 ！！")
+
     def test_draft_real_blocks_leaking_output(self):
         from unittest import mock
         from orchestrator import llm, guard
