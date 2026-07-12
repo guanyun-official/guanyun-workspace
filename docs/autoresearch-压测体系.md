@@ -72,6 +72,9 @@
 ## 收官(19轮 · autoresearch 收敛)
 **代码 gap 挖尽**。修了 11 个真 gap(自动排产消费/开启语义/防搬运闸/状态机推进×2/唯一源双向/催拍/回流闭环/复盘聚合/验收paused-aware×2),全带回归锁、keep门全程绿、效果闭环真跑自证。最近几轮只落进两类既知桶(运营阶段待接线 / 声明未消费数据),非新bug=收敛信号。要再推进须**换 frontier**:启用运营阶段(发布/告警/dedicated-agent+进群)或决策预留数据。
 
+| 20 | "iter9状态机推进真库验过吗" | 只单测过 | 真跑:注入待出文案→stub出稿→推进同行草稿待发+挂素材+无重复,清理 | (真跑自证) | ✅ |
+| 21 | **"pipeline 记运行日志吗"** | log_run 定义但**全库零调用**→运行日志表不更新→周复盘读它=空、成本追踪没数据 | log_run 接进 draft_one/daily_dispatch/collect_metrics 的 run 边界;真跑验(9→10条含出稿) | (真跑自证) | ✅ |
+
 ## 待提 issue(休眠闸/config 缺口)
 - assert_publish_quota(控量门)+ assert_ai_declared(AI声明门)生产零调用——发布/状态推进步(人/dedicated-agent)建时必接。
 - 灵感库无 trend_imitate 号消费;官号缺形象图素材(押后)。

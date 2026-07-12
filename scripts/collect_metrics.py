@@ -23,6 +23,8 @@ def main() -> int:
     mode = "real" if a.real else "stub"
     print(f"env={config.ENV_NAME} test_mode={config.TEST_MODE} mode={mode}")
     s = collect.collect_and_writeback(mode=mode, limit=a.limit)
+    if a.real:
+        feishu_io.log_run(summary=f"回流 采集{s['采集']}写回{s['写回']}", action="回流")   # 记运行日志(复盘据此)
     print("采集写回:", json.dumps(s, ensure_ascii=False))
     # 复盘:按 playbook 聚合已发 note 效果(哪套方法论有效),喂周复盘/调权重
     fields = [r["fields"] for r in feishu_io.list_records(NF.TABLE)]
