@@ -21,26 +21,34 @@ def _link(v) -> str:
     return bitable.text(v).strip()
 
 
-def published_notes() -> list[dict]:
-    """笔记表里 状态=已发 且有 发布链接 的 note(record dict)。"""
+def harvestable_notes() -> list[dict]:
+    """可回流的 note:状态=已发(首采)或 已回流(每周刷新热度),且有发布链接。"""
     out = []
     for r in feishu_io.list_records(NF.TABLE):
         f = r["fields"]
-        if bitable.text(f.get(NF.STATUS)) == NS.PUBLISHED and _link(f.get(NF.PUBLISH_LINK)):
+        if bitable.text(f.get(NF.STATUS)) in (NS.PUBLISHED, NS.LOOPED_BACK) and _link(f.get(NF.PUBLISH_LINK)):
             out.append(r)
     return out
 
 
+def published_notes() -> list[dict]:
+    """(兼容旧名)仅状态=已发 且有发布链接的 note。回流实际用 harvestable_notes(含已回流刷新)。"""
+    return [r for r in harvestable_notes() if bitable.text(r["fields"].get(NF.STATUS)) == NS.PUBLISHED]
+
+
 def collect_and_writeback(mode: str = "stub", limit: int = 50) -> dict:
-    """对每条已发 note 采集互动数据并写回。返回 {采集, 写回}。
-    stub 默认返 {} 不写(零成本);--real 走非登录采集。采集失败/空不阻断(下轮重试)。"""
+    """对每条可回流 note 采集互动数据并写回;**已发采集成功后推进→已回流**(状态机闭环,复盘据此有数据)。
+    stub 默认返 {} 不写(零成本);--real 走非登录采集。采集失败/空不阻断、不推进(下轮重试)。返回 {采集, 写回}。"""
     guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)  # 红线:只写测试库
-    notes = published_notes()[:limit]
+    notes = harvestable_notes()[:limit]
     updated = 0
     for r in notes:
         url = _link(r["fields"].get(NF.PUBLISH_LINK))   # 取真链接(dict.link),不是 text
         vals = metrics.collect(url, mode=mode)   # {NF.LIKED: n, NF.COLLECTED: n, ...};stub→{}
-        if vals:
-            feishu_io.update_record(NF.TABLE, r["record_id"], vals)
-            updated += 1
+        if not vals:
+            continue                              # 采集失败/空:不写、不推进,下轮重试
+        if bitable.text(r["fields"].get(NF.STATUS)) == NS.PUBLISHED:
+            vals = {**vals, NF.STATUS: NS.LOOPED_BACK}   # 已发→已回流(采到数据才推进状态机)
+        feishu_io.update_record(NF.TABLE, r["record_id"], vals)
+        updated += 1
     return {"采集": len(notes), "写回": updated}

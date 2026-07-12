@@ -24,15 +24,26 @@ class PublishedNotesFilter(unittest.TestCase):
 
 
 class CollectWriteback(unittest.TestCase):
-    def test_writes_back_collected_metrics(self):
-        notes = [{"record_id": "rP", "fields": {NS.FIELD: NS.PUBLISHED, NF.PUBLISH_LINK: "http://x"}}]
+    def test_writes_back_and_advances_published_to_loopedback(self):
+        """已发采集成功→写点赞/收藏 + **推进状态机 已发→已回流**(否则已回流是死状态、复盘无数据)。"""
+        notes = [{"record_id": "rP", "fields": {NF.STATUS: NS.PUBLISHED, NF.PUBLISH_LINK: "http://x"}}]
         updates = []
         with mock.patch.object(feishu_io, "list_records", lambda t: notes), \
                 mock.patch.object(metrics, "collect", lambda url, mode: {NF.LIKED: 100, NF.COLLECTED: 20}), \
                 mock.patch.object(feishu_io, "update_record", lambda t, rid, f: updates.append((rid, f))):
             s = collect.collect_and_writeback(mode="real")
-        self.assertEqual(updates, [("rP", {NF.LIKED: 100, NF.COLLECTED: 20})])
+        self.assertEqual(updates, [("rP", {NF.LIKED: 100, NF.COLLECTED: 20, NF.STATUS: NS.LOOPED_BACK})])
         self.assertEqual(s["写回"], 1)
+
+    def test_loopedback_refreshed_without_status_change(self):
+        """已回流 note 每周刷新热度但状态不变(不倒退、不重复推进)。"""
+        notes = [{"record_id": "rL", "fields": {NF.STATUS: NS.LOOPED_BACK, NF.PUBLISH_LINK: "http://x"}}]
+        updates = []
+        with mock.patch.object(feishu_io, "list_records", lambda t: notes), \
+                mock.patch.object(metrics, "collect", lambda url, mode: {NF.LIKED: 150}), \
+                mock.patch.object(feishu_io, "update_record", lambda t, rid, f: updates.append((rid, f))):
+            collect.collect_and_writeback(mode="real")
+        self.assertEqual(updates, [("rL", {NF.LIKED: 150})])   # 只刷新热度,状态保持已回流
 
     def test_stub_writes_nothing(self):
         """stub 采集返 {} → 不写回(零成本,不造假数据)。"""
