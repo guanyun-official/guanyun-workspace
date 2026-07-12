@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from orchestrator import metrics  # noqa: E402
-from orchestrator.bitable import NoteFields as NF  # noqa: E402
+from orchestrator.bitable import NoteFields as NF, NoteStatus as NS  # noqa: E402
 
 
 class TestCollect(unittest.TestCase):
@@ -50,14 +50,16 @@ class TestCollect(unittest.TestCase):
 
 class TestAggregateByPlaybook(unittest.TestCase):
     def test_aggregates_and_averages(self):
+        P = NS.PUBLISHED
         notes = [
-            {NF.PLAYBOOK: "考据", NF.LIKED: 100, NF.COLLECTED: 20, NF.COMMENTS: 3},
-            {NF.PLAYBOOK: "考据", NF.LIKED: 200, NF.COLLECTED: 40, NF.COMMENTS: 7},
-            {NF.PLAYBOOK: "ootd", NF.LIKED: 50, NF.COLLECTED: 5, NF.COMMENTS: 1},
-            {NF.LIKED: 9},  # 无 playbook → 跳过
+            {NF.STATUS: P, NF.PLAYBOOK: "考据", NF.LIKED: 100, NF.COLLECTED: 20, NF.COMMENTS: 3},
+            {NF.STATUS: P, NF.PLAYBOOK: "考据", NF.LIKED: 200, NF.COLLECTED: 40, NF.COMMENTS: 7},
+            {NF.STATUS: P, NF.PLAYBOOK: "ootd", NF.LIKED: 50, NF.COLLECTED: 5, NF.COMMENTS: 1},
+            {NF.STATUS: P, NF.LIKED: 9},  # 无 playbook → 跳过
+            {NF.STATUS: NS.DRAFT_PENDING, NF.PLAYBOOK: "考据", NF.LIKED: 0},  # 草稿→不进聚合(不稀释均赞)
         ]
         agg = metrics.aggregate_by_playbook(notes)
-        self.assertEqual(agg["考据"]["条数"], 2)
+        self.assertEqual(agg["考据"]["条数"], 2)  # 只 2 条已发,草稿不计
         self.assertEqual(agg["考据"]["总赞"], 300)
         self.assertEqual(agg["考据"]["均赞"], 150.0, "反馈信号:考据均赞 150")
         self.assertEqual(agg["ootd"]["总藏"], 5)
@@ -69,11 +71,12 @@ class TestAggregateByPlaybook(unittest.TestCase):
         def ms(days_ago: int) -> int:
             return int((now - timedelta(days=days_ago)).timestamp() * 1000)
 
+        P = NS.PUBLISHED
         notes = [
-            {NF.PLAYBOOK: "考据", NF.LIKED: 300, NF.PUBLISHED_AT: ms(1)},
-            {NF.PLAYBOOK: "考据", NF.LIKED: 100, NF.PUBLISHED_AT: ms(8)},
-            {NF.PLAYBOOK: "考据", NF.LIKED: 50, NF.PUBLISHED_AT: ms(40)},
-            {NF.PLAYBOOK: "ootd", NF.LIKED: 80, NF.PUBLISHED_AT: ms(3)},
+            {NF.STATUS: P, NF.PLAYBOOK: "考据", NF.LIKED: 300, NF.PUBLISHED_AT: ms(1)},
+            {NF.STATUS: P, NF.PLAYBOOK: "考据", NF.LIKED: 100, NF.PUBLISHED_AT: ms(8)},
+            {NF.STATUS: P, NF.PLAYBOOK: "考据", NF.LIKED: 50, NF.PUBLISHED_AT: ms(40)},
+            {NF.STATUS: P, NF.PLAYBOOK: "ootd", NF.LIKED: 80, NF.PUBLISHED_AT: ms(3)},
         ]
 
         agg = metrics.aggregate_by_playbook(notes, now=now)
@@ -98,8 +101,8 @@ class TestNumRobust(unittest.TestCase):
 
     def test_aggregate_reads_string_liked(self):
         """已发 note 的 点赞='130'(字符串)也能被 aggregate 正确均赞。"""
-        notes = [{NF.PLAYBOOK: "素人", NF.LIKED: "130", NF.COLLECTED: "10"},
-                 {NF.PLAYBOOK: "素人", NF.LIKED: "160", NF.COLLECTED: "20"}]
+        notes = [{NF.STATUS: NS.PUBLISHED, NF.PLAYBOOK: "素人", NF.LIKED: "130", NF.COLLECTED: "10"},
+                 {NF.STATUS: NS.PUBLISHED, NF.PLAYBOOK: "素人", NF.LIKED: "160", NF.COLLECTED: "20"}]
         agg = metrics.aggregate_by_playbook(notes)
         self.assertEqual(agg["素人"]["均赞"], 145.0)
 

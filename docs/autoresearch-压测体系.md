@@ -54,8 +54,12 @@
 | 13 | "回流/切片/坏md韧性" | 都 sound(回流失败不阻断、切片CLI齐、坏md隔离不炸) | 无 gap | — | ✅ |
 | 14 | **"回流后状态机走到已回流吗"** | **「已回流」死状态**:回流写点赞/收藏但不推进 已发→已回流→复盘读不到数据 | 回流采到数据→推进已发→已回流;已回流每周刷新;**真跑自证**(注入真URL→采到点赞49/状态已回流→清理) | test_writes_back_and_advances/loopedback_refreshed | ✅ |
 
+| 15 | **"复盘均赞被谁算进去了"** | aggregate_by_playbook 不按状态过滤→草稿待发(有playbook、0赞)也计入→**复盘均赞被未发布草稿稀释** | aggregate 只聚合 已发/已回流(有真发布数据) | test_metrics(草稿不计) | ✅ |
+
 ## 待提 issue(休眠闸/config 缺口)
 - assert_publish_quota(控量门)+ assert_ai_declared(AI声明门)生产零调用——发布/状态推进步(人/dedicated-agent)建时必接。
 - 灵感库无 trend_imitate 号消费;官号缺形象图素材(押后)。
+
+- ar_check 部分痛点走网络→偶发抖动(13↔14/14),重跑即复;非确定但非 bug。
 
 (下面持续追加)

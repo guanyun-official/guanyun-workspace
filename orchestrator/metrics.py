@@ -13,7 +13,7 @@ import sys
 from datetime import datetime, timedelta
 
 from . import bitable, config
-from .bitable import NoteFields as NF
+from .bitable import NoteFields as NF, NoteStatus as NS
 
 # xhs-extract-master note 原子的 interactInfo.* → 笔记表数值字段(热度分是 formula,Bitable 自算,不写)
 _METRIC_MAP = {"likedCount": NF.LIKED, "collectedCount": NF.COLLECTED,
@@ -93,6 +93,8 @@ def aggregate_by_playbook(notes: list[dict], now: datetime | None = None) -> dic
         pb = bitable.text(f.get(NF.PLAYBOOK)).strip()
         if not pb:
             continue
+        if bitable.text(f.get(NF.STATUS)) not in (NS.PUBLISHED, NS.LOOPED_BACK):
+            continue          # 只聚合已发/已回流(有真发布数据);草稿待发/待出文案 0 赞不得稀释复盘均赞
         liked = _num(f.get(NF.LIKED))
         d = agg.setdefault(pb, {"条数": 0, "总赞": 0, "总藏": 0, "总评": 0,
                                 "近30天": _window(), "本周": _window(), "上周": _window()})
