@@ -7,6 +7,21 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PY="$(command -v python3)"
 ACTION="print"
+
+# cron 环境 PATH 精简,脚本按名调用 lark-cli/hermes/claude/BaiduPCS-Go 会 FileNotFoundError(logs/cron.log 实测)。
+# 装机时(非交互 bash,无 alias 干扰)解析各工具真实目录 → 拼进 cron 块 PATH。只取绝对路径(排除 alias/function)。
+_cron_dirs=""
+for _t in python3 lark-cli hermes claude BaiduPCS-Go; do
+  _p="$(command -v "$_t" 2>/dev/null || true)"
+  case "$_p" in
+    /*) _d="$(dirname "$_p")" ;;
+    *)  _d="" ;;
+  esac
+  if [ -n "$_d" ] && [ -d "$_d" ]; then
+    case ":$_cron_dirs:" in *":$_d:"*) ;; *) _cron_dirs="${_cron_dirs:+$_cron_dirs:}$_d" ;; esac
+  fi
+done
+CRON_PATH="${_cron_dirs:+$_cron_dirs:}/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 MARK_BEGIN="# BEGIN guanyun-orchestrator"
 MARK_END="# END guanyun-orchestrator"
 
@@ -33,6 +48,8 @@ while [ "$#" -gt 0 ]; do
 done
 
 BLOCK="$MARK_BEGIN
+# cron PATH:装机时解析的工具目录(否则 lark-cli/hermes/claude/BaiduPCS-Go 按名找不到,子进程 FileNotFoundError)
+PATH=$CRON_PATH
 # 每日 08:00 轻调度器派活(#8):每号每模式落一条『待出文案』待人/系统出稿,已在途去重。绝不自动发布、绝不代勾AI声明。
 0 8 * * * cd $ROOT && $PY -m scripts.daily_dispatch --write >> logs/cron.log 2>&1
 # 每周一08:30 真跑综合验收(反'设计到位真跑没到位':verify_usable 逐条过全流程全模式全红线,非0退出=未完全可用记日志)
