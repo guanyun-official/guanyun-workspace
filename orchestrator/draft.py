@@ -57,11 +57,12 @@ def pick_playbook(acc, content_type: str = "") -> dict:
 def load_keywords(brand: str = "观云", limit: int = 18) -> list[str]:
     """关键词库里启用的关键词(选题/SEO 池;曾是哑数据没喂回生成)。启用状态≠禁用 且有词。"""
     from . import bitable, feishu_io
+    from .bitable import KeywordFields as KF
     out = []
-    for r in feishu_io.list_records("关键词库"):
+    for r in feishu_io.list_records(KF.TABLE):
         f = r["fields"]
-        kw = bitable.text(f.get("关键词")).strip()
-        if kw and bitable.text(f.get("启用状态")).strip() != "禁用":
+        kw = bitable.text(f.get(KF.KEYWORD)).strip()
+        if kw and bitable.text(f.get(KF.ENABLED)).strip() != KF.DISABLED:
             out.append(kw)
     return out[:limit]
 

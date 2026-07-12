@@ -11,7 +11,7 @@ sourcing 决定这活『素材怎么来』(不冲突,只是第一步不同,下�
 from __future__ import annotations
 
 from . import accounts, bitable, config, feishu_io, guard
-from .bitable import NoteFields as NF, NoteStatus as NS, AccountFields as AF, AutoSched
+from .bitable import NoteFields as NF, NoteStatus as NS, AccountFields as AF, AutoSched, InspirationFields as IF
 
 # sourcing → 备料动作提示(trend_imitate 复用已装的爆款拆解技能,不另造)
 SOURCING_HINT = {
@@ -63,16 +63,16 @@ def pending_ideas(brand: str = "观云") -> list[dict]:
     """灵感库里『还没转化为笔记』的爆款灵感(=爆款模仿 trend_imitate 的原料):标题+可借鉴优点+爆款源链接。
     连上需求/灵感→出稿的前置一环:员工采集的爆款进灵感库,这里捞出未转化的待出稿(出稿用 --title-seed 承接)。"""
     out = []
-    for r in feishu_io.list_records("灵感库"):
+    for r in feishu_io.list_records(IF.TABLE):
         f = r["fields"]
-        if bitable.text(f.get("转化为笔记")).strip():
+        if bitable.text(f.get(IF.CONVERTED)).strip():
             continue                                          # 已转化→跳过
-        title = bitable.text(f.get("标题")).strip()
+        title = bitable.text(f.get(IF.TITLE)).strip()
         if not title or title == "（无标题）":
             continue                                          # 无效灵感跳过
         out.append({"record_id": r["record_id"], "标题": title,
-                    "可借鉴": bitable.text(f.get("优点")).strip(),
-                    "爆款源": bitable.text(f.get("链接")).strip()})
+                    "可借鉴": bitable.text(f.get(IF.MERITS)).strip(),
+                    "爆款源": bitable.text(f.get(IF.LINK)).strip()})
     return out
 
 
@@ -80,7 +80,7 @@ def mark_idea_converted(idea_id: str, note_id: str) -> None:
     """灵感转化为笔记后回填灵感库,闭合 trend_imitate 环(灵感→出稿→回填)。
     『转化为笔记』是 **link 字段**,写 record_id 列表不是字符串——实测真跑才暴露的坑,codify 防复发。"""
     guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)  # 红线:只写测试库
-    feishu_io.update_record("灵感库", idea_id, {"转化为笔记": [note_id]})
+    feishu_io.update_record(IF.TABLE, idea_id, {IF.CONVERTED: [note_id]})
 
 
 def runway_alerts(brand: str = "观云") -> list[dict]:

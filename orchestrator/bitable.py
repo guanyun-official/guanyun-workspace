@@ -103,6 +103,23 @@ class ContentTypeFields:
     ACCOUNT_LINK = "所属账号"
 
 
+class InspirationFields:
+    """灵感库字段词汇(爆款灵感=trend_imitate 出稿原料;此前散在 dispatch 用裸中文串,飞书改名会漏改)。"""
+    TABLE = "灵感库"
+    TITLE = "标题"
+    MERITS = "优点"           # 可借鉴优点
+    LINK = "链接"             # 爆款源链接
+    CONVERTED = "转化为笔记"   # link 字段(写 record_id 列表);非空=已转化,跳过
+
+
+class KeywordFields:
+    """关键词库字段词汇(选题/SEO 池;此前散在 draft.load_keywords 用裸中文串)。"""
+    TABLE = "关键词库"
+    KEYWORD = "关键词"
+    ENABLED = "启用状态"      # 取值≠"禁用"(下方 DISABLED)即视为启用
+    DISABLED = "禁用"         # 「启用状态」的禁用取值(select 值,非字段名)
+
+
 class NoteStatus:
     """笔记状态机取值(状态列 select 枚举;写回只能用声明过的值,否则飞书拒写/静默落空)。
     状态机: 想法储备→待拍素材→待出文案→草稿待发(=待审)→已批准→待发布→已发→已回流;暂缓归档旁路。"""
