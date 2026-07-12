@@ -131,11 +131,22 @@ def load_all(brand: str = "观云") -> dict[str, Account]:
 
 
 def problems(brand: str = "观云") -> dict[str, str]:
-    """{账号名: 错误} for 所有 frontmatter 解析失败的账号(空=全部健康)。
+    """{账号名: 错误} for 声明有问题的账号(空=全部健康)。两类坏声明都'有声':
+      ① frontmatter JSON 解析失败(acc.error);
+      ② 显式 playbooks 声明不健壮(validate_playbooks:缺 id / view 冲突 / 权重未归一)。
 
-    供验收/监控消费:坏声明必须'有声'——ar_check 断言此为空,防坏 {号}.md 静默少排号。
+    供验收/监控消费:ar_check 断言此为空——防坏 {号}.md 静默少排号 / 坏 playbook 配比失真无人知
+    (呼应 ADR-0003『声明了但代码没消费』的哑控制一类;此前 validate_playbooks 写了却没接 gate)。
     """
-    return {a.name: a.error for a in load_all(brand).values() if a.error}
+    out: dict[str, str] = {}
+    for a in load_all(brand).values():
+        if a.error:
+            out[a.name] = a.error
+            continue                                  # 解析都失败,不再校验 playbook 内容
+        errs = validate_playbooks(a.strategy)
+        if errs:
+            out[a.name] = "; ".join(errs)
+    return out
 
 
 def _parse(stem: str, raw: str) -> Account | None:

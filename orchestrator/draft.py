@@ -40,17 +40,17 @@ def load_clothes(clothes_code: str, brand: str = "观云") -> str:
 
 
 def pick_playbook(acc, content_type: str = "") -> dict:
-    """取该号 playbook:content_type 给定→按内容类型选(**一号多模式**);否则第一套。
-    无 playbook / 指定内容类型不存在 → 报错(坏声明/选错模式不静默漏)。"""
+    """取该号 playbook:content_type 给定→**复用 accounts.resolve_playbook**(id 优先、同类取最高权重,
+    统一选择语义,不再第二套 first-match);否则第一套。无 playbook / 指定内容类型不存在 → 报错(不静默漏)。"""
     pbs = acc.playbooks()
     if not pbs:
         raise ValueError(f"账号「{acc.name}」无 playbook 声明,无法生成")
     if content_type:
-        for pb in pbs:
-            if (pb.get("content_type") or pb.get("id") or "") == content_type:
-                return pb
-        raise ValueError(f"账号「{acc.name}」无内容类型「{content_type}」的 playbook(现有:"
-                         f"{[pb.get('content_type') or pb.get('id') for pb in pbs]})")
+        pb = accounts.resolve_playbook(acc.strategy, playbook_id=content_type, content_type=content_type)
+        if pb is None:
+            raise ValueError(f"账号「{acc.name}」无内容类型「{content_type}」的 playbook(现有:"
+                             f"{[pb.get('content_type') or pb.get('id') for pb in pbs]})")
+        return pb
     return pbs[0]
 
 

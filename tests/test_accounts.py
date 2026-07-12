@@ -44,6 +44,17 @@ class TestAccounts(unittest.TestCase):
         self.assertIsNone(accounts.load("甲号", "B").error)
         self.assertEqual(accounts.problems("B"), {})
 
+    def test_problems_surfaces_bad_playbook_declaration(self):
+        """validate_playbooks 已接进 problems():坏 playbook 声明(权重未归一)不再静默,验收报红。
+        反回归:此前 validate 写了却没接 gate(哑控制),权重失真无人知(评审 finding#5 / ADR-0003 一类)。"""
+        (self.d / "brands" / "B" / "accounts" / "配比号.md").write_text(
+            '---\n{"account":"配比号","playbooks":[{"id":"甲","content_type":"甲","weight":1.0,"view":"甲"},'
+            '{"id":"乙","content_type":"乙","weight":0.5,"view":"乙"}]}\n---\n\n# 画像', encoding="utf-8")
+        probs = accounts.problems("B")
+        self.assertIn("配比号", probs, "权重未归一(∑=1.5)的坏声明应被 problems() 揪出")
+        self.assertIn("权重未归一", probs["配比号"])
+        self.assertNotIn("甲号", probs, "合成 playbook 的好账号不误报")
+
 
 class TestPlaybooks(unittest.TestCase):
     """G4 多方法论:playbooks_of 显式优先、否则从 content_mix/material_needs 向后兼容合成。"""
