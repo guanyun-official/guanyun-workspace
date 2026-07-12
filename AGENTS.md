@@ -104,7 +104,7 @@ guanyun-workspace/
 领域词汇见 `CONTEXT.md`;方法论见 `docs/架构与方法论.md`;权威依据 `docs/交接文档.md`。
 重引擎(engine/planner/推进器)、素材视图层(material_view/Clip/usage)、契约锁三层、审计工具(account_kernel/base_workbench)已删(净删~4000行,git history 可查)。要点:
 - **薄执行器 `orchestrator/draft.py`**(CLI `scripts/draft_one.py`)= 体系核心:读账号声明 → 取该号 playbook 的 gen_skill → `load_gen_skill` 加载其 `SKILL.md` 真实帖 few-shot → 组稿(画像+few-shot+配方)→ 过 base 红线闸 → 写笔记表「草稿待发」。stub 默认零成本,`--llm real` 走 `llm.run_prompt` 预算帽。**只推到草稿待发,绝不代勾 AI 声明、绝不自动发布**;发布与 AI 声明是人手。第一目标 A 已真跑通(ootd号 真出可发草稿,4 号泛化验证过)。
-- **已验证原语**(§5 移植保留):`feishu_io`(lark-cli api 底座)、`guard`(红线闸:只写测试库/AI声明门/控量)、`accounts`(声明加载)、`llm.run_prompt`(real 生成)、`bitable`(字段词汇+Record)、`metrics`(extract 采集 xhs-extract-master 非登录,默认 stub)、`alerts`(hermes 薄网关)、`ingest`(scan/link/register 素材摄入)。
+- **已验证原语**(§5 移植保留):`feishu_io`(lark-cli api 底座)、`guard`(红线闸:只写测试库/AI声明门/控量)、`accounts`(声明加载)、`llm.run_prompt`(real 生成)、`bitable`(字段词汇 + text/parse_ts/link_record_ids 多形态收窄函数)、`metrics`(extract 采集 xhs-extract-master 非登录,默认 stub)、`alerts`(hermes 薄网关)、`ingest`(scan/link/register 素材摄入)。
 - **playbook 指向 gen_skill,gen_skill 是 skill**(特化住 `local-skills/`、通用在 qiaohe-skill remote);`skills.lock.json` 按 source(remote/local)统一管。加发法=写 playbook 声明 + 建 gen_skill,**不改 schema**。
 - **加测试库字段流程**:`lark-cli base +field-create`(读回自证)→ `dump_schema.py --base test` → 登记 `bitable.py` 字段常量。漂移检测用 `dump_schema + git diff schema/test`(git 兜底)。
 - **keep 门**:6 个 `check_p*.sh`(p2 测试库健康 / p4 薄执行器 A 验收 等)+ `ar_check`(12 项精简痛点:A可跑 / few-shot 真进 prompt / 唯一源 / 红线…)=100 + 单测全绿。加能力必带测试。

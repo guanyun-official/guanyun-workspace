@@ -175,33 +175,12 @@ def parse_ts(v) -> datetime | None:
 
 
 def link_record_ids(v) -> list[str]:
-    """关联字段 → 目标 record_id 列表。"""
+    """关联字段 → 目标 record_id 列表(飞书 link 字段回读形态:list[{record_ids:[...]}])。
+    这几个自由函数 text/parse_ts/link_record_ids = 飞书多形态 record dict 的**唯一收窄 seam**,
+    调用点统一 `bitable.text(f.get(字段常量))`;字段名走 NoteFields/MaterialFields/… 词汇常量。"""
     out = []
     if isinstance(v, list):
         for x in v:
             if isinstance(x, dict):
                 out += x.get("record_ids", []) or []
     return out
-
-
-class Record:
-    """一条飞书记录的窄接口。包 raw(record dict 或其 fields)。"""
-
-    def __init__(self, raw: dict):
-        self.record_id = raw.get("record_id", "")
-        self.f = raw.get("fields", raw)
-
-    def text(self, field: str) -> str:
-        return text(self.f.get(field))
-
-    def ts(self, field: str) -> datetime | None:
-        return parse_ts(self.f.get(field))
-
-    def link_ids(self, field: str) -> list[str]:
-        return link_record_ids(self.f.get(field))
-
-    def bool(self, field: str) -> bool:
-        return bool(self.f.get(field))
-
-    def raw(self, field: str):
-        return self.f.get(field)

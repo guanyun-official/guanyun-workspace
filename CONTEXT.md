@@ -15,7 +15,7 @@
 - **知识库 know-how** — `brands/观云/knowledge_base/衣服/{衣服编号}.md`：从 Base 衣服总表迁出的**内容 know-how**（卖点内核/形制·设计理念/文物出处·文化依据/纹样），写考据文案用。§4：衣服/工艺/文物出处是内容 know-how，归 workspace，不进 Base 商品目录。
 - **Material（素材）** — 一个图/视频**整文件**，软链上墙（原件不动）+ 登记「素材表」。`scripts/ingest.py` 的 scan/link/register/orphans 是安全摄入原语。（薄执行器 A 当前只产文案、尚未接素材选择，见 issue #32。）
 - **SKU / 衣服** — 一件衣服。Base「衣服总表」已瘦身为身份/关系字段（衣服编号/款式名称/启用账号/工艺·面料 link/生命周期状态），内容 know-how 迁 workspace 知识库。
-- **Record（记录适配器）** — `orchestrator/bitable.Record`：飞书多形态 record dict 的 seam。窄接口 `text/ts/link_ids/bool`，字段名走 `NoteFields/MaterialFields/AccountFields/ContentTypeFields` 词汇常量。所有字段访问收口于此。
+- **记录收窄函数** — `orchestrator/bitable` 的自由函数 `text/parse_ts/link_record_ids`：飞书多形态 record dict（标量/dict/list[dict]/lookup·公式形态）的收窄 seam。调用点统一 `bitable.text(f.get(字段常量))`，字段名走 `NoteFields/MaterialFields/AccountFields/ContentTypeFields` 词汇常量。（旧 `Record` 类是套在这三个函数外、全仓仅一处用的浅壳，已删——自由函数才是真收口。）
 
 ## 架构词汇（见 /codebase-design）
 

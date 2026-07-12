@@ -4,7 +4,6 @@ from datetime import datetime
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from orchestrator import bitable
-from orchestrator.bitable import Record, NoteFields as NF
 
 MS = lambda d: int(d.timestamp()*1000)
 
@@ -25,15 +24,14 @@ class TestTs(unittest.TestCase):
         self.assertIsNone(bitable.parse_ts([]))
         self.assertIsNone(bitable.parse_ts(None))
 
-class TestRecord(unittest.TestCase):
-    def test_wraps_fields_or_record(self):
-        r1=Record({"fields":{"状态":"已发"},"record_id":"r1"})
-        self.assertEqual(r1.text(NF.STATUS),"已发"); self.assertEqual(r1.record_id,"r1")
-        r2=Record({"状态":"待发布"})                       # 直接给 fields
-        self.assertEqual(r2.text(NF.STATUS),"待发布")
-    def test_link_ids_and_bool(self):
-        r=Record({"关联素材":[{"record_ids":["rec1","rec2"]}],"AI声明":True})
-        self.assertEqual(r.link_ids(NF.LINKED_MATERIALS),["rec1","rec2"])
-        self.assertTrue(r.bool(NF.AI_DECLARED))
+class TestLink(unittest.TestCase):
+    """link_record_ids:飞书关联字段回读形态 list[{record_ids:[...]}] → record_id 列表。
+    (原经 Record.link_ids 间接测;Record 浅壳已删,自由函数才是唯一收口,直测之。)"""
+    def test_shapes(self):
+        self.assertEqual(bitable.link_record_ids([{"record_ids":["rec1","rec2"]}]),["rec1","rec2"])
+        self.assertEqual(bitable.link_record_ids([{"record_ids":["a"]},{"record_ids":["b"]}]),["a","b"])
+        self.assertEqual(bitable.link_record_ids([]),[])         # 空
+        self.assertEqual(bitable.link_record_ids(None),[])       # 非 list(未挂关联)
+        self.assertEqual(bitable.link_record_ids("rec"),[])      # 标量不误判
 
 if __name__=="__main__": unittest.main()

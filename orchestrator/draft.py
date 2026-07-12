@@ -198,7 +198,7 @@ def select_materials(material_needs: list[str], account_rec_id: str = "", limit:
             continue
         if bitable.text(f.get(MF.SHOT_STATUS)) != MS.SHOT:
             continue
-        accs = bitable.Record(m).link_ids(MF.ACCOUNTS)
+        accs = bitable.link_record_ids(f.get(MF.ACCOUNTS))
         if account_rec_id and accs and account_rec_id not in accs:
             continue                       # 显式标了别号=排除;没标=可用
         if clothes and clothes not in (bitable.text(f.get(MF.CODE)) + "|" + bitable.text(f.get(MF.NOTE))):
