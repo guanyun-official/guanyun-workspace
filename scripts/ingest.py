@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -36,6 +37,36 @@ def _as_pointer(link_path: str) -> str:
     if "://" in link_path or link_path.startswith(netpan.POINTER_SCHEME):
         return link_path
     return f"file://{link_path}"
+
+
+def _resolve_link(link_path: str) -> str:
+    """素材『链接』**存能点开的值**:网盘指针(real 模式)→ mint 永久分享链接(投手一点直达该图/视频);
+    本地/stub → 退化成指针/file://。失败兜底存指针(不丢)。"""
+    if link_path.startswith(netpan.POINTER_SCHEME) and netpan.MODE == "real":
+        try:
+            return netpan.share_link(netpan.pointer_path(link_path))   # 永久分享(share set --period 0)
+        except netpan.NetpanError:
+            return link_path
+    return _as_pointer(link_path)
+
+
+_TYPE_PREFIX = {"上身图": "ST", "上身视频": "SV", "形象图": "XX"}
+
+
+def _batch_date(name: str) -> str:
+    """从文件名抽拍摄批次日期 YYMMDD(如 '2026-07-02 175646.heic'→'260702');抽不到用 000000。"""
+    m = re.search(r"(20\d{2})[-_.]?(\d{2})[-_.]?(\d{2})", name)
+    return f"{m.group(1)[2:]}{m.group(2)}{m.group(3)}" if m else "000000"
+
+
+def gen_code(mtype: str, name: str, existing: set) -> str:
+    """系统化素材编号 <类型>-<批次日期>-<序号>(如 ST-260702-001)。科学、可排序、不混。
+    existing=已用编号集合,同(类型,批次)取最大序号+1;调用方每登记一个把返回值加进 existing。"""
+    pre = _TYPE_PREFIX.get(mtype, "XX")
+    date = _batch_date(name)
+    stem = f"{pre}-{date}-"
+    nums = [int(m.group(1)) for c in existing if (m := re.match(rf"^{pre}-{date}-(\d+)$", c))]
+    return f"{stem}{(max(nums) + 1 if nums else 1):03d}"
 
 
 def segment_note(parent_code: str, in_ts: str, out_ts: str, extra: str = "") -> str:
@@ -84,7 +115,7 @@ def register(code: str, mtype: str, link_path: str, note: str = "",
     fields = {
         MF.CODE: code,
         MF.TYPE: mtype,
-        MF.LINK: {"link": _as_pointer(link_path), "text": Path(netpan.pointer_path(link_path)).name},
+        MF.LINK: {"link": _resolve_link(link_path), "text": Path(netpan.pointer_path(link_path)).name},
         MF.SHOT_STATUS: MS.SHOT,
         MF.SOURCE: source,
         MF.NOTE: note,

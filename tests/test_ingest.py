@@ -33,3 +33,12 @@ class TestIngest(unittest.TestCase):
         self.assertTrue(ptr.startswith("baidupan:") and ptr.endswith("03-成片/成片-拼接.mp4"))
         self.assertEqual(created["来源"], "实拍")                    # 纯剪辑→实拍(免声明)
         self.assertEqual(created["类型"], "上身视频")
+
+    def test_gen_code_systematic(self):
+        import scripts.ingest as ing
+        self.assertEqual(ing.gen_code("上身图", "2026-07-02 175609.heic", set()), "ST-260702-001")
+        # 同(类型,批次)序号递增
+        self.assertEqual(ing.gen_code("上身图", "2026-07-02 x.heic",
+                                      {"ST-260702-001", "ST-260702-003"}), "ST-260702-004")
+        self.assertEqual(ing.gen_code("上身视频", "2026-06-26 a.mp4", set()), "SV-260626-001")
+        self.assertEqual(ing.gen_code("形象图", "无日期.mp4", set()), "XX-000000-001")   # 抽不到日期

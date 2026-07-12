@@ -65,8 +65,10 @@ def run(folder: str, batch_size: int = 5, limit: int = 0, write: bool = False) -
     """自动打标一整个网盘文件夹:diff 去重 → 分批(拉+转码/抽帧 → claude 打标 → register)→ 清缓存。"""
     acc_id = {bitable.text(r["fields"].get(AF.NAME)).strip(): r["record_id"]
               for r in feishu_io.list_records(AF.TABLE)}
+    mats = feishu_io.list_records(MF.TABLE)
     # 去重:按已登记素材的网盘文件名(register 把文件名存进 链接.text)——手动标过的也认得,不重标
-    seen = {bitable.text(r["fields"].get(MF.LINK)).strip() for r in feishu_io.list_records(MF.TABLE)}
+    seen = {bitable.text(r["fields"].get(MF.LINK)).strip() for r in mats}
+    seen_codes = {bitable.text(r["fields"].get(MF.CODE)).strip() for r in mats}   # 供 gen_code 递增序号
     files = [e for e in netpan.list_dir(folder)
              if not e["is_dir"] and media.kind(e["name"]) in ("still", "video")
              and e["name"] not in seen]
@@ -82,19 +84,20 @@ def run(folder: str, batch_size: int = 5, limit: int = 0, write: bool = False) -
             view = media.to_jpg(local, str(netpan.CACHE)) if media.needs_jpg(local) else \
                 (_keyframe(local, netpan.CACHE) if kind == "video" else local)
             views.append(view)
-            metas.append({"code": Path(e["name"]).stem, "ptr": netpan.pointer(e["path"]),
-                          "kind": kind})
+            metas.append({"name": e["name"], "ptr": netpan.pointer(e["path"]), "kind": kind})
         tags = tag_batch(views)
         for meta, tag in zip(metas, tags):
             mtype = tag.get("类型") or ("上身视频" if meta["kind"] == "video" else "上身图")
             source = "AI生成" if (tag.get("来源") == "AI生成") else "实拍"
             accs = [acc_id[n] for n in (tag.get("适用账号") or []) if n in acc_id] or None
-            row = {"code": meta["code"], "type": mtype, "source": source,
+            code = ing.gen_code(mtype, meta["name"], seen_codes)   # 系统编码 <类型>-批次-序号
+            seen_codes.add(code)
+            row = {"code": code, "type": mtype, "source": source,
                    "note": tag.get("备注", ""), "accounts": accs}
             if write:
-                ing.register(meta["code"], mtype, meta["ptr"], tag.get("备注", ""), source, accs)
+                ing.register(code, mtype, meta["ptr"], tag.get("备注", ""), source, accs)
             out.append(row)
-            print(f"  {'✓登记' if write else '·试跑'} {meta['code']} [{mtype}/{source}/{'赛道' if accs else 'orphan'}] {tag.get('备注','')[:34]}")
+            print(f"  {'✓登记' if write else '·试跑'} {code} [{mtype}/{source}/{'赛道' if accs else 'orphan'}] {tag.get('备注','')[:32]}")
         netpan.clear_cache()   # 每批处理完清缓存(按需缓存不占地)
     return out
 
