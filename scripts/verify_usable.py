@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from orchestrator import (accounts, alerts, bitable, collect, config, dispatch, draft,  # noqa: E402
+from orchestrator import (accounts, alerts, bitable, cockpit, collect, config, dispatch, draft,  # noqa: E402
                           feishu_io, guard, metrics, publish, report, shotlist, trends)
 from orchestrator.bitable import AccountFields as AF, NoteFields as NF, NoteStatus as NS  # noqa: E402
 from orchestrator.bitable import MaterialSource as MSrc  # noqa: E402
@@ -122,6 +122,14 @@ def main() -> int:
        hasattr(report, "weekly_summary") and "复盘" in report.format_weekly(report.weekly_summary([])))
     ck("中·找热点→灵感库落库去重在位(trend_imitate 前置)",
        trends.harvest_trends([{"标题": "验收探针热点X"}], write=False)["新增"] == ["验收探针热点X"])
+
+    # 7) 顺手:一条命令看完今日头尾(替代挨个敲 run_day/publish_ready/shot_list)——防"绿≠可用"照不到人机可用性
+    print("⑦ 顺手·驾驶舱(一条命令看完今日)")
+    panel = cockpit.today_panel("观云")
+    ck("今日面板一条命令聚合 待审/待发/待回填链接/要补拍",
+       hasattr(cockpit, "today_panel") and {"待审", "待发", "待回填链接", "要补拍"} <= set(panel))
+    ck("待发条目带『用哪张素材+可开链接』(人发时知道用哪张)",
+       all(all("link" in m for m in n["materials"]) for n in panel["待发"]))
 
     print("══════", "✅ 体系完全可用(综合验收全绿)" if not FAIL else "❌ 有未达标项,未完全可用", "══════")
     if FAIL and args.alert:   # 红了发告警到飞书私聊(hermes home=p2p私聊,不进群)
