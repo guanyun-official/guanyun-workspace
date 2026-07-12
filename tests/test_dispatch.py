@@ -11,16 +11,31 @@ from orchestrator.guard import GuardError
 
 
 class DailyAssignments(unittest.TestCase):
+    # base 账号表全「跟随workspace」(不暂停)——覆盖测试不依赖真库排产态
+    ALL_FOLLOW = [{"record_id": f"r{i}", "fields": {"账号名": n, "自动排产": "跟随workspace"}}
+                  for i, n in enumerate(["ootd号", "图文号1", "图文号2", "官号@巧荷·东方美学"])]
+
     def test_covers_each_account_each_mode(self):
-        rows = dispatch.daily_assignments("观云")
+        with mock.patch.object(feishu_io, "list_records", lambda t: self.ALL_FOLLOW):
+            rows = dispatch.daily_assignments("观云")
         keys = {(r["account"], r["content_type"]) for r in rows}
         self.assertIn(("ootd号", "视频唯美OOTD"), keys)
         self.assertIn(("ootd号", "图文唯美OOTD"), keys)          # 一号多模式:两模式都派
-        self.assertIn(("官号@巧荷·东方美学", "品牌新作展示"), keys)
+        self.assertIn(("官号@巧荷·东方美学", "品牌新作展示"), keys)   # 未暂停→覆盖
         for r in rows:                                            # 每条活字段齐、sourcing 已知
             self.assertTrue(r["gen_skill"])
             self.assertIn(r["sourcing"], dispatch.SOURCING_HINT)
             self.assertTrue(r["sourcing_hint"])
+
+    def test_paused_account_skipped(self):
+        """base「自动排产=暂停」→ 该号停派活(base 是运营开关唯一真相,团队点/dedicated agent 都读得到);
+        未暂停的照派。反回归:曾经该列是摆设、dispatch 只看 md cadence。"""
+        recs = [{"record_id": "r1", "fields": {"账号名": "官号@巧荷·东方美学", "自动排产": "暂停"}},
+                {"record_id": "r2", "fields": {"账号名": "ootd号", "自动排产": "跟随workspace"}}]
+        with mock.patch.object(feishu_io, "list_records", lambda t: recs):
+            accts = {r["account"] for r in dispatch.daily_assignments("观云")}
+        self.assertNotIn("官号@巧荷·东方美学", accts)   # 暂停→跳过
+        self.assertIn("ootd号", accts)                  # 跟随workspace→照派
 
     def test_trend_imitate_hint_points_to_teardown_skills(self):
         """④ 爆款模仿 sourcing:提示指向已装的爆款拆解技能,不另造。"""
@@ -60,7 +75,9 @@ class DispatchRedline(unittest.TestCase):
         o = (config.BASE_TOKEN, config.TEST_MODE)
         try:
             config.BASE_TOKEN, config.TEST_MODE = config.PROD_BASE, True
-            with self.assertRaises(GuardError):
+            # mock 读(取「自动排产」/去重都不触网)→ 只验写闸:create_record 前抛 GuardError
+            with mock.patch.object(feishu_io, "list_records", lambda t: []), \
+                    self.assertRaises(GuardError):
                 dispatch.dispatch("观云", write=True)
         finally:
             config.BASE_TOKEN, config.TEST_MODE = o

@@ -52,7 +52,15 @@ class AccountFields:
     XHS_ID = "小红书号"
     HOMEPAGE = "主页链接"
     LAUNCH_STATUS = "上线状态"
+    AUTO_SCHED = "自动排产"          # 运营开关(base owner):暂停=跳过派活;跟随workspace=按 md 节奏
     CONTENT_TYPES_LOOKUP = "内容类型表-所属账号"
+
+
+class AutoSched:
+    """账号表「自动排产」select 取值:base 侧运营开关(暂停/跟随workspace 的唯一真相)。"""
+    FIELD = "自动排产"
+    PAUSED = "暂停"          # 该号停派活(base 里点,谁接手都读得到)
+    FOLLOW_WS = "跟随workspace"  # 按 workspace 账号 md 的 cadence 节奏派
 
 
 class MaterialStatus:

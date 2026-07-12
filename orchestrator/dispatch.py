@@ -11,7 +11,7 @@ sourcing 决定这活『素材怎么来』(不冲突,只是第一步不同,下�
 from __future__ import annotations
 
 from . import accounts, bitable, config, feishu_io, guard
-from .bitable import NoteFields as NF, NoteStatus as NS
+from .bitable import NoteFields as NF, NoteStatus as NS, AccountFields as AF, AutoSched
 
 # sourcing → 备料动作提示(trend_imitate 复用已装的爆款拆解技能,不另造)
 SOURCING_HINT = {
@@ -22,15 +22,23 @@ SOURCING_HINT = {
 
 
 def daily_assignments(brand: str = "观云") -> list[dict]:
-    """今天派活清单:每号(cadence.posts_per_day≥1)× 其每个模式 → 一条活。纯计算不写库。
-    返回 [{account, content_type, gen_skill, material_needs, sourcing, sourcing_hint}]。"""
+    """今天派活清单:每号(base「自动排产」≠暂停 且 cadence.posts_per_day≥1)× 其每个模式 → 一条活。
+    读 base 账号表「自动排产」运营开关(不写库)。返回 [{account, content_type, gen_skill, material_needs, sourcing, sourcing_hint}]。"""
+    # base 侧运营开关(唯一真相):「暂停」的号跳过——团队在 base 点,谁接手(dedicated agent)都读得到
+    paused = {
+        bitable.text(r["fields"].get(AF.NAME)).strip()
+        for r in feishu_io.list_records(AF.TABLE)
+        if bitable.text(r["fields"].get(AutoSched.FIELD)).strip() == AutoSched.PAUSED
+    }
     out: list[dict] = []
     for name, acc in sorted(accounts.load_all(brand).items()):
         if acc.error:
             continue
+        if name in paused:
+            continue                                  # base「自动排产=暂停」→ 停派活
         cad = acc.strategy.get("cadence") or {}
         if cad.get("posts_per_day", 1) < 1:
-            continue                                  # 暂停/不发的号跳过
+            continue                                  # md cadence 兜底(posts_per_day<1 也停)
         sourcing = acc.strategy.get("sourcing", "shoot_then_drip")
         for pb in acc.playbooks():
             out.append({
