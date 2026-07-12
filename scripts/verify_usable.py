@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from orchestrator import accounts, bitable, collect, config, dispatch, draft, feishu_io, metrics  # noqa: E402
+from orchestrator import accounts, alerts, bitable, collect, config, dispatch, draft, feishu_io, metrics  # noqa: E402
 from orchestrator.bitable import AccountFields as AF, NoteFields as NF, NoteStatus as NS  # noqa: E402
 from orchestrator.guard import GuardError  # noqa: E402
 
@@ -20,6 +20,7 @@ def _acc_id(name: str) -> str:
     return ""
 
 FAIL = 0
+FAILED_ITEMS: list[str] = []
 
 
 def ck(name: str, ok: bool, detail: str = "") -> None:
@@ -27,9 +28,14 @@ def ck(name: str, ok: bool, detail: str = "") -> None:
     print(f"  {'✓' if ok else '✗'} {name}{('  — ' + detail) if detail else ''}")
     if not ok:
         FAIL = 1
+        FAILED_ITEMS.append(name)
 
 
 def main() -> int:
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--alert", action="store_true", help="验收红了发告警到飞书私聊(cron 用;手动跑默认不扰)")
+    args = ap.parse_args()
     print("══════ 体系完全可用 · 综合验收(#37)══════")
 
     # 1) 全账号×全模式:每个组合都能出对味货对板完整包
@@ -101,6 +107,8 @@ def main() -> int:
     ck("一号多模式已实跑(声明式加模式不改代码)", bool(multi), f"多模式号={multi}")
 
     print("══════", "✅ 体系完全可用(综合验收全绿)" if not FAIL else "❌ 有未达标项,未完全可用", "══════")
+    if FAIL and args.alert:   # 红了发告警到飞书私聊(hermes home=p2p私聊,不进群)
+        alerts.send(f"综合验收未通过({len(FAILED_ITEMS)}项):{'、'.join(FAILED_ITEMS)}", title="观云周验收⚠️")
     return FAIL
 
 
