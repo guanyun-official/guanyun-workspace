@@ -52,18 +52,25 @@ try:
 except Exception as e:
     ck("声明健壮", "accounts 加载", False, str(e)[:100])
 
-# ── 精简唯一源:Base 账号表 每个号都有 workspace 声明(无双写孤儿号)──────
+# ── 唯一源(双向):Base ↔ workspace 账号 + 内容类型 都不漂移(加号/加模式无孤儿两侧)──
 try:
     from orchestrator import feishu_io, accounts, bitable
     from orchestrator.bitable import AccountFields as AF
+    accs = accounts.load_all("观云")
     base_names = {bitable.text(x["fields"].get(AF.NAME)).strip() for x in feishu_io.list_records("账号表")}
     base_names.discard("")
-    ws_names = set(accounts.load_all("观云").keys())
-    orphan = sorted(base_names - ws_names)  # Base 有行、workspace 无声明 = 双写孤儿
-    ck("唯一源", "Base 账号表每个号都有 workspace 声明(账号真相不双写)",
-       not orphan, f"base={len(base_names)} ws={len(ws_names)} 孤儿={orphan or '无'}")
+    ws_names = set(accs.keys())
+    acc_drift = sorted((base_names - ws_names) | (ws_names - base_names))  # 任一方向漂移=孤儿
+    base_cts = {bitable.text(x["fields"].get("内容类型名")).strip() for x in feishu_io.list_records("内容类型表")}
+    base_cts.discard("")
+    ws_cts = {(pb.get("content_type") or pb.get("id") or "").strip()
+              for a in accs.values() for pb in a.playbooks()}
+    ws_cts.discard("")
+    ct_drift = sorted((base_cts - ws_cts) | (ws_cts - base_cts))
+    ck("唯一源", "账号+内容类型 Base↔workspace 双向一致(加号/加模式无漂移孤儿)",
+       not acc_drift and not ct_drift, f"账号漂移={acc_drift or '无'} 内容类型漂移={ct_drift or '无'}")
 except Exception as e:
-    ck("唯一源", "账号 Base↔workspace 对齐", False, str(e)[:100])
+    ck("唯一源", "Base↔workspace 双向对齐", False, str(e)[:100])
 
 # ── 素材摄入:乱素材→软链归类→登记素材表(原件不动)────────────────
 try:
