@@ -18,3 +18,18 @@ class TestIngest(unittest.TestCase):
         import scripts.ingest as ing
         files=ing.scan(str(d))
         self.assertEqual(len(files),1)              # 跳过隐藏文件
+
+    def test_store_produced_uploads_and_registers(self):
+        # #40①:成片回传网盘 03-成片 + 登记(来源随像素出处)。mock 掉真上传/写库。
+        from unittest import mock
+        import scripts.ingest as ing
+        from orchestrator import netpan, feishu_io
+        created = {}
+        with mock.patch.object(netpan, "upload", lambda lp, rd: f"{rd}/{Path(lp).name}"), \
+                mock.patch.object(feishu_io, "create_record", lambda t, f: created.update(f) or "recX"):
+            rid, ptr = ing.store_produced("/tmp/成片-拼接.mp4", "上身视频", source="实拍",
+                                          note="A[0:3]+B后3s 合成", accounts=["recAcc"])
+        self.assertEqual(rid, "recX")
+        self.assertTrue(ptr.startswith("baidupan:") and ptr.endswith("03-成片/成片-拼接.mp4"))
+        self.assertEqual(created["来源"], "实拍")                    # 纯剪辑→实拍(免声明)
+        self.assertEqual(created["类型"], "上身视频")

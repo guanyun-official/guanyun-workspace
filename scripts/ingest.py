@@ -94,6 +94,18 @@ def register(code: str, mtype: str, link_path: str, note: str = "",
     return feishu_io.create_record("素材表", fields)
 
 
+def store_produced(local_path: str, mtype: str, source: str = MSrc.AI, note: str = "",
+                   accounts: list | None = None, remote_dir: str | None = None) -> tuple[str, str]:
+    """AI/剪辑产出的成片**回传网盘 03-成片** + 登记素材(#40 ①,ADR-0004)。
+    **来源随像素出处**:纯剪辑实拍=`实拍`(免声明)、含AI合成=`AI生成`(需声明)——调用方按事实传 source。
+    需 netpan real+STOKEN(写)。返回 (record_id, 网盘耐久指针)。"""
+    remote = remote_dir or f"{netpan.ROOT}/03-成片"
+    remote_path = netpan.upload(local_path, remote)   # 真上传(写,需 STOKEN)
+    ptr = netpan.pointer(remote_path)
+    rid = register(Path(local_path).stem, mtype, ptr, note, source, accounts)
+    return rid, ptr
+
+
 def orphans() -> list[dict]:
     """列出未归赛道素材(无适用账号),供 agent 补挂赛道(§4:素材按赛道不挂衣服)。"""
     from orchestrator import bitable
