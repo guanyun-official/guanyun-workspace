@@ -29,10 +29,22 @@ def assert_base_allowed(base_token: str, test_mode: bool) -> None:
         raise GuardError(f"Base 守卫:TEST_MODE=0 仅允许已知生产 Base,当前 {base_token[:8]}…被拒")
 
 
-def assert_ai_declared(fields: dict) -> None:
-    """已批准 → 待发布 前:AI 声明必须已置位(法规红线,发布包完整性门)。"""
+def ai_declaration_required(material_sources) -> bool:
+    """AI 声明是否**必须**(法规规则,纯函数吃素材来源列表):
+    挂的素材任一『来源=AI生成』(真合成了新内容)→ 必须勾;全『实拍』(哪怕 AI 剪辑但没往里合成新画面)→ 无需勾。
+    判定依据是**素材来源事实**,不是人工拍脑袋——这样实拍内容不必每条手动确认,AI 合成内容一条都跑不掉。"""
+    from .bitable import MaterialSource as MSrc
+    return any((s or "").strip() == MSrc.AI for s in (material_sources or []))
+
+
+def assert_ai_declared(fields: dict, *, ai_required: bool = True) -> None:
+    """已批准 → 待发布 前的 AI 声明门。
+    ai_required=False(素材全实拍)→ 法规无需 AI 标识,放行(免除人工勾);
+    ai_required=True(含 AI 合成素材,默认)→ AI 声明必须已勾(**人勾,机器绝不代勾**),否则抛。"""
+    if not ai_required:
+        return
     if not fields.get(NF.AI_DECLARED):
-        raise GuardError(f"AI声明门:「{fields.get(NF.CODE, '?')}」未置 AI声明,拒绝进入待发布")
+        raise GuardError(f"AI声明门:「{fields.get(NF.CODE, '?')}」含 AI 合成素材但未勾 AI声明,拒绝进入待发布")
 
 
 def assert_publish_quota(published_today_for_account: int) -> None:
