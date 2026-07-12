@@ -58,7 +58,7 @@ def compose_prompt(acc, pb: dict, skill_text: str, title_seed: str = "", clothes
     """把账号画像 + 该模式配方 + gen_skill few-shot + (可选)真实衣服 know-how 拼成生成 prompt。
     clothes_text 给定=写真实产品的事实源(防编造);没给=禁止编造具体产品/朝代/工艺。"""
     profile = (acc.profile_text or "")[:1200]
-    fewshot = (skill_text or "")[:1500]
+    fewshot = (skill_text or "")[:4000]  # 放宽:整份 gen_skill 配方(标题+逐字稿等)进 prompt,不截尾
     ctype = pb.get("content_type") or pb.get("id") or ""
     recipe = ";".join(
         f"{label}={pb[k]}"
@@ -83,8 +83,9 @@ def compose_prompt(acc, pb: dict, skill_text: str, title_seed: str = "", clothes
     else:
         parts.append("【未绑定具体衣服】**严禁编造**不存在的具体产品名/朝代/形制/工艺(如凭空说'宋制褙子'、"
                      "展开讲某面料是几经绞/哪道非遗工序)——没有事实来源就别写具体产品/朝代断言,只写该号通用调性、留白。")
-    parts.append("篇幅与格式**按上面 gen_skill 的调性来**:视频配文就短(一句到几句意境,别凑字/别写科普段落),"
-                 "图文种草就展开写。统一:第一行标题(≤20字),空行,正文,最后一行 3-5 个#标签(≤1000字封顶)。")
+    parts.append("篇幅与结构**严格以上面 gen_skill 的规定为准**(标题多长、要不要正文/逐字稿、多少字或多少秒,"
+                 "一律 gen_skill 说了算,别自作主张压短或拉长)。小红书统一外壳:第一行标题(≤20字),空行,"
+                 "正文/逐字稿,最后一行 3-5 个 #标签(全文≤1000字)。")
     parts.append("只输出成稿文本,不要解释、不要读文件。")
     return "\n".join(parts)
 

@@ -6,11 +6,10 @@
    "repo": "https://github.com/guanyun-official/qiaohe-skill.git",
    "local": "~/Githubs/qiaohe-skill",
    "ref": "main",
-   "sha": "f897c7dbf6ded03affd0f1d3fddb68189dba3ccf",
+   "sha": "73e393e00ec1b8e0ed1030e7e7d32cffa1b23449",
    "skills": [
     "content-writing",
     "feishu-requirement-manager",
-    "guanyun-OOTD-text",
     "issue-tracker",
     "qiaohe-amateur-miner",
     "qiaohe-video-script",

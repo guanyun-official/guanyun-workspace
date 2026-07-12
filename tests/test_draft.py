@@ -16,7 +16,8 @@ class LoadGenSkill(unittest.TestCase):
     def test_reads_local_skill_fewshot(self):
         """补缺口:gen_skill 不再只是标签——其 SKILL.md(含该号真实历史帖 few-shot)被真加载。"""
         text = draft.load_gen_skill("writing-ootd-caption")
-        self.assertIn("OOTD｜蓝罗裁夏", text)  # ootd号 真实帖 few-shot,证明确实读到了技能正文
+        self.assertIn("蓝罗裁夏", text)   # ootd号 真实帖 few-shot,证明确实读到了技能正文
+        self.assertIn("逐字稿", text)     # 合并后:技能含逐字稿配方(不只短标题)
 
     def test_missing_skill_returns_empty(self):
         self.assertEqual(draft.load_gen_skill("不存在的技能xyz"), "")
@@ -51,6 +52,25 @@ class GenerateDraft(unittest.TestCase):
     def test_unknown_account_raises(self):
         with self.assertRaises(ValueError):
             draft.generate_draft("不存在的号", llm_mode="stub")
+
+
+class ComposePromptDefersFormatToSkill(unittest.TestCase):
+    """回归锁(逐字稿丢失 bug):薄执行器不得硬编码『视频配文就短』这类模式格式假设——
+    篇幅/结构一律由 gen_skill 的 SKILL.md 说了算(ootd 视频要 25-30s 逐字稿,不是一句意境)。
+    引擎零模式假设,格式让位给技能。"""
+
+    def test_no_hardcoded_short_video_assumption(self):
+        p = draft.generate_draft("ootd号", llm_mode="stub")["prompt"]  # 视频唯美OOTD
+        self.assertNotIn("视频配文就短", p)      # 元凶短语不得再出现
+        self.assertNotIn("一句到几句意境", p)
+        self.assertIn("gen_skill 的规定为准", p)  # 明确让位给技能
+        self.assertIn("逐字稿", p)               # 技能的逐字稿要求(few-shot段)确实进了 prompt
+
+    def test_full_skill_recipe_in_prompt(self):
+        """截断放宽:gen_skill 末段(交出什么/边界)也进 prompt,逐字稿配方不被截尾。"""
+        p = draft.generate_draft("ootd号", llm_mode="stub")["prompt"]
+        self.assertIn("25-30s", p)     # 逐字稿时长约束进了 prompt
+        self.assertIn("交出什么", p)    # 技能末段也在,证明没被截断
 
 
 class CreateDraftNoteRedline(unittest.TestCase):
@@ -309,6 +329,7 @@ class FieldValueHelpers(unittest.TestCase):
         self.assertIn("关联关键词", bitable.LINK_FIELDS)
         self.assertIn("发布链接", bitable.URL_FIELDS)
         self.assertIn("链接", bitable.URL_FIELDS)          # 灵感库.链接/素材.链接
+        self.assertIn("主页链接", bitable.URL_FIELDS)      # 账号表.主页链接=URL(实测URLFieldConvFail)
 
 
 if __name__ == "__main__":
