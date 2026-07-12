@@ -123,6 +123,7 @@ def generate_draft(account_name: str, brand: str = "观云", llm_mode: str = "st
     prompt = compose_prompt(acc, pb, skill_text, title_seed, clothes_text)
     if llm_mode == "real":
         draft_text, cost = llm.run_prompt(prompt)
+        guard.assert_no_source_leak(title_seed, draft_text)   # 防搬运出口闸(红线):出稿不得逐字搬对标seed
     else:
         draft_text, cost = _stub_draft(acc, pb, gen_skill, bool(skill_text), title_seed), 0.0
     ctype = pb.get("content_type") or pb.get("id") or ""

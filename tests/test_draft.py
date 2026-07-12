@@ -308,6 +308,28 @@ class ContentAddressing(unittest.TestCase):
             self.assertEqual(draft.select_materials(["上身图"], content="没有的场景"), [])         # 无匹配→空
 
 
+class NoSourceLeakGate(unittest.TestCase):
+    """防搬运出口闸(红线):出稿不得逐字搬对标/灵感 seed。反回归:曾经出稿路径零调用 skill_gate/no_source_leak。"""
+
+    def test_guard_blocks_verbatim_leak(self):
+        from orchestrator import guard
+        with self.assertRaises(guard.GuardError):
+            guard.assert_no_source_leak("原来500年前我们就有polo衫了", "抄:原来500年前我们就有polo衫了！")
+        guard.assert_no_source_leak("原来500年前我们就有polo衫了", "夏色入衿，风过成凉")  # 无重叠→放行
+        guard.assert_no_source_leak("短句", "任何输出")                                    # source过短→放行
+
+    def test_draft_real_blocks_leaking_output(self):
+        from unittest import mock
+        from orchestrator import llm, guard
+        seed = "对标爆款原文这是一句很长的对标原句不该被逐字搬运进我方产出"
+        with mock.patch.object(llm, "run_prompt", lambda p: (f"我的稿承接{seed}", 0.0)):
+            with self.assertRaises(guard.GuardError):
+                draft.generate_draft("ootd号", llm_mode="real", title_seed=seed)   # 逐字搬→拦
+        with mock.patch.object(llm, "run_prompt", lambda p: ("OOTD｜夏色入衿，风过成凉\n原创短文", 0.0)):
+            r = draft.generate_draft("ootd号", llm_mode="real", title_seed=seed)     # 原创→放行
+            self.assertTrue(r["draft_text"].strip())
+
+
 class FieldValueHelpers(unittest.TestCase):
     """codify 反复踩的 link/url 字段格式坑:link→record_id列表、url→{link,text}dict。"""
 
