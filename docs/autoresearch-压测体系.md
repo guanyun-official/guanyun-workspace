@@ -49,6 +49,8 @@
 | 10 | "红线完整性+唯一源双向+备份" | AI声明红线完整(无代码代写);base↔md账号双向一致;backup可跑 | 无 gap(红线扎实) | — | ✅ |
 | 11 | **meta:"为什么没早发现"→硬化验收** | ar_check 唯一源只查 base⊆md 单向、不含内容类型 | 唯一源检查改**双向+覆盖内容类型**,加号/加模式漂移进keep门 | ar_check唯一源 | ✅ |
 
+| 12 | **"设了 runway_alert_days 却没催拍"**(审计gap) | 该字段哑——planner/dispatch 零引用 | dispatch.runway_alerts:可用素材÷日发量<阈值→催拍;接进 daily_dispatch | test_runway_alert_when_materials_low | ✅ |
+
 ## 待提 issue(休眠闸/config 缺口)
 - assert_publish_quota(控量门)+ assert_ai_declared(AI声明门)生产零调用——发布/状态推进步(人/dedicated-agent)建时必接。
 - 灵感库无 trend_imitate 号消费;官号缺形象图素材(押后)。

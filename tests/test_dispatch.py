@@ -46,6 +46,15 @@ class DailyAssignments(unittest.TestCase):
         self.assertFalse(dispatch._should_dispatch(AutoSched.FOLLOW_WS, 0))  # 跟随+md<1→停
         self.assertTrue(dispatch._should_dispatch("", 1))                     # 空=默认按md
 
+    def test_runway_alert_when_materials_low(self):
+        """iter12:runway_alert_days 曾是哑字段(设了没催拍)。素材可用≈0 < 阈值 → 催拍该号。"""
+        from unittest import mock
+        from orchestrator import feishu_io
+        fake = {"账号表": [{"record_id": "recA", "fields": {"账号名": "ootd号"}}], "素材表": []}  # 0可用素材
+        with mock.patch.object(feishu_io, "list_records", lambda t: fake.get(t, [])):
+            alerts = dispatch.runway_alerts("观云")
+        self.assertIn("ootd号", {a["account"] for a in alerts})   # 0素材<runway_alert_days→催拍
+
     def test_trend_imitate_hint_points_to_teardown_skills(self):
         """④ 爆款模仿 sourcing:提示指向已装的爆款拆解技能,不另造。"""
         self.assertIn("爆款雷达", dispatch.SOURCING_HINT["trend_imitate"])

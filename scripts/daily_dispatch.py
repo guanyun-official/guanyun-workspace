@@ -33,6 +33,12 @@ def main() -> int:
         for it in ideas[:8]:
             print(f"  · {it['标题']}  可借鉴:{it['可借鉴'] or '—'}")
         print("  出稿:draft_one --account <trend_imitate号> --title-seed \"<灵感标题/可借鉴>\";出后回填灵感库『转化为笔记』。")
+    # 素材余量催拍(消费账号 md 的 runway_alert_days,曾是哑字段)
+    alerts = dispatch.runway_alerts(a.brand)
+    if alerts:
+        print(f"\n⚠️ 素材催拍({len(alerts)} 号余量不足,快补拍):")
+        for al in alerts:
+            print(f"  · {al['account']}:可用素材 {al['avail']} 条 ≈ {al['runway_days']} 天 < 阈值 {al['threshold']} 天")
     print("\n红线:调度器只派活到『待出文案』,绝不出稿即发、绝不代勾 AI 声明——出稿走 draft_one,发布/声明人手。")
     return 0
 

@@ -83,6 +83,27 @@ def mark_idea_converted(idea_id: str, note_id: str) -> None:
     feishu_io.update_record("灵感库", idea_id, {"转化为笔记": [note_id]})
 
 
+def runway_alerts(brand: str = "观云") -> list[dict]:
+    """素材余量催拍(消费账号 md 的 runway_alert_days):可用素材 ÷ 日发量 ≈ 剩余天数;
+    < 阈值 → 催拍该号补拍。可用素材走 draft.select_materials(赛道过滤)。粗估提醒用,非精确排产。"""
+    from .draft import select_materials, _resolve_link
+    out = []
+    for name, acc in sorted(accounts.load_all(brand).items()):
+        if acc.error:
+            continue
+        thr = acc.strategy.get("runway_alert_days")
+        if not thr:
+            continue
+        ppd = max(1, (acc.strategy.get("cadence") or {}).get("posts_per_day", 1))
+        needs = sorted({t for pb in acc.playbooks() for t in (pb.get("material_needs") or [])})
+        acc_ids = _resolve_link(AF.TABLE, AF.NAME, name)
+        avail = len(select_materials(needs, acc_ids[0] if acc_ids else "", limit=9999))
+        runway = round(avail / ppd, 1)
+        if runway < thr:
+            out.append({"account": name, "avail": avail, "runway_days": runway, "threshold": thr})
+    return out
+
+
 def _open_slots() -> set:
     """已有『待出文案/草稿待发』在途的 (账号, 内容类型),用于去重不重复派活。"""
     open_status = {NS.NEED_COPY, NS.DRAFT_PENDING}
