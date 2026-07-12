@@ -87,6 +87,12 @@ class TestStubRedline(unittest.TestCase):
         self.assertEqual(netpan.share_link("/观云素材/a.jpg"),
                          netpan.pointer("/观云素材/a.jpg"))
 
+    def test_take_link_pointer_vs_local(self):
+        # 网盘指针 → 用时 mint(stub 退化成同指针,不损坏);本地 file:// 原样(不被当网盘路径污染)
+        ptr = netpan.pointer("/观云素材/03-成片/x.mp4")
+        self.assertEqual(netpan.take_link(ptr), ptr)
+        self.assertEqual(netpan.take_link("file:///Users/x/a.jpg"), "file:///Users/x/a.jpg")
+
 
 if __name__ == "__main__":
     unittest.main()

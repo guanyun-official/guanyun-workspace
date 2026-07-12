@@ -10,19 +10,31 @@
 """
 from __future__ import annotations
 
-from . import bitable, config, feishu_io, guard
+from . import bitable, config, feishu_io, guard, netpan
 from .bitable import NoteFields as NF, NoteStatus as NS, MaterialFields as MF
 
 
-def _material_source_map() -> dict:
-    """素材 record_id → 来源(实拍/AI生成)。一次读全,避免逐笔记重复拉素材表。"""
-    return {r["record_id"]: bitable.text(r["fields"].get(MF.SOURCE))
+def _material_index() -> dict:
+    """素材 record_id → {来源, 编号, 类型, 链接(耐久指针)}。一次读全,避免逐笔记重复拉素材表。"""
+    return {r["record_id"]: {"source": bitable.text(r["fields"].get(MF.SOURCE)),
+                             "code": bitable.text(r["fields"].get(MF.CODE)),
+                             "type": bitable.text(r["fields"].get(MF.TYPE)),
+                             "note": bitable.text(r["fields"].get(MF.NOTE)),
+                             "link": bitable.text(r["fields"].get(MF.LINK))}
             for r in feishu_io.list_records(MF.TABLE)}
 
 
-def note_material_sources(note_fields: dict, src_map: dict) -> list[str]:
-    """一条笔记挂的素材『来源』列表(顺着关联素材 link 查素材表)。"""
-    return [src_map.get(rid, "") for rid in bitable.link_record_ids(note_fields.get(NF.LINKED_MATERIALS))]
+def note_materials(note_fields: dict, idx: dict) -> list[dict]:
+    """一条笔记『用哪些素材』的取用清单(答"待发布不知道用哪张"):
+    每条给 编号/类型/来源/段备注 + **可开链接**(网盘指针→用时 mint 分享链接,本地原样)。"""
+    out = []
+    for rid in bitable.link_record_ids(note_fields.get(NF.LINKED_MATERIALS)):
+        m = idx.get(rid)
+        if not m:
+            continue
+        out.append({"code": m["code"], "type": m["type"], "source": m["source"],
+                    "note": m["note"], "取用链接": netpan.take_link(m["link"]) if m["link"] else ""})
+    return out
 
 
 def review_approved(brand: str = "观云", write: bool = False) -> list[dict]:
@@ -30,17 +42,18 @@ def review_approved(brand: str = "观云", write: bool = False) -> list[dict]:
     返回 [{note_id, title, ai_required, declared, verdict, advanced}]。write 前过 base 红线闸(只写测试库)。"""
     if write:
         guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)  # 红线:只写测试库
-    src_map = _material_source_map()
+    idx = _material_index()
     out: list[dict] = []
     for r in feishu_io.list_records(NF.TABLE):
         f = r["fields"]
         if bitable.text(f.get(NF.STATUS)) != NS.APPROVED:
             continue
-        sources = note_material_sources(f, src_map)
+        mats = note_materials(f, idx)                                # 取素材清单(编号/来源/可开链接)
+        sources = [m["source"] for m in mats]
         ai_req = guard.ai_declaration_required(sources)
         declared = bool(f.get(NF.AI_DECLARED))
         entry = {"note_id": r["record_id"], "title": bitable.text(f.get(NF.TITLE)),
-                 "ai_required": ai_req, "declared": declared, "advanced": False}
+                 "ai_required": ai_req, "declared": declared, "advanced": False, "materials": mats}
         try:
             guard.assert_ai_declared(f, ai_required=ai_req)   # 实拍免勾 / 含AI未勾→抛
             entry["verdict"] = "可发·无需AI声明(全实拍)" if not ai_req else "可发·已勾AI声明"

@@ -8,8 +8,13 @@
 """
 from __future__ import annotations
 
-from . import accounts, bitable, draft, feishu_io
+from . import accounts, bitable, draft, feishu_io, netpan
 from .bitable import AccountFields as AF, MaterialFields as MF
+
+
+def _deliver_to(name: str, mtype: str) -> str:
+    """人拍完/生成后往哪丢(答"人拍完怎么给到"):单一扁平投递箱,文件名带号·类型更好认(不带也行,打标技能会自动归类=容错)。"""
+    return f"传网盘 {netpan.INBOX}/(文件名带『{name}·{mtype}』更好认;不带也行,系统会看图自动归类)"
 
 
 def _brief(name: str, acc, mtype: str, gen_skill: str) -> str:
@@ -41,5 +46,6 @@ def shot_needs(brand: str = "观云") -> list[dict]:
                 continue                                                        # 库存够→不提
             out.append({"account": name, "类型": mtype, "缺": target - avail, "已有": avail,
                         "目标": target, "拍摄要求": _brief(name, acc, mtype, gen_skill),
+                        "投递去向": _deliver_to(name, mtype),
                         "参考": f"local-skills/{gen_skill}/SKILL.md 真实帖 + brands/{brand}/accounts/{name}.md 画像"})
     return out

@@ -33,6 +33,7 @@ class TestShotNeeds(unittest.TestCase):
         self.assertGreaterEqual(e[0]["缺"], 1)
         self.assertTrue(e[0]["拍摄要求"] and e[0]["参考"], "要带拍摄要求 brief + 参考")
         self.assertIn("writing-ootd-caption", e[0]["参考"])   # 参考指向该模式风格技能
+        self.assertIn("待入库", e[0]["投递去向"])              # 答"人拍完怎么给到":指向网盘投递箱
 
     def test_enough_inventory_not_flagged(self):
         # 图文号1 上身图 备足 5 条(目标 3)→ 不进单

@@ -32,8 +32,9 @@ class TestReviewApproved(unittest.TestCase):
         return {
             NF.TABLE: [{"record_id": "n1", "fields": note_fields}],
             MF.TABLE: [
-                {"record_id": "mReal", "fields": {MF.SOURCE: MSrc.REAL}},
-                {"record_id": "mAI", "fields": {MF.SOURCE: MSrc.AI}},
+                {"record_id": "mReal", "fields": {MF.SOURCE: MSrc.REAL, MF.CODE: "M-1", MF.TYPE: "上身视频",
+                                                  MF.LINK: {"link": "baidupan:/观云素材/03-成片/a.mp4", "text": "a.mp4"}}},
+                {"record_id": "mAI", "fields": {MF.SOURCE: MSrc.AI, MF.CODE: "M-2", MF.TYPE: "封面"}},
             ],
         }
 
@@ -77,6 +78,17 @@ class TestReviewApproved(unittest.TestCase):
         rows, updates = self._run(note, write=False)
         self.assertFalse(rows[0]["advanced"])
         self.assertEqual(updates, [], "只报告不写库")
+
+    def test_surfaces_material_take_list(self):
+        # 答"待发布不知道用哪张":每条带 编号/来源 + 可开链接(网盘指针→用时mint,stub退化为指针)
+        note = {NF.STATUS: NS.APPROVED, NF.TITLE: "实拍视频",
+                NF.LINKED_MATERIALS: [{"record_ids": ["mReal"]}]}
+        rows, _ = self._run(note, write=False)
+        mats = rows[0]["materials"]
+        self.assertEqual(len(mats), 1)
+        self.assertEqual(mats[0]["code"], "M-1")
+        self.assertEqual(mats[0]["source"], MSrc.REAL)
+        self.assertTrue(mats[0]["取用链接"], "待发布要能看到可开的素材链接")
 
 
 if __name__ == "__main__":

@@ -18,6 +18,7 @@ from . import config
 MODE = os.environ.get("GY_NETPAN_MODE", "stub")            # stub 零真操作 / real 走 BaiduPCS-Go
 BIN = os.environ.get("GY_NETPAN_BIN", "BaiduPCS-Go")        # CLI 可执行名/路径
 ROOT = os.environ.get("GY_NETPAN_ROOT", "/观云素材")        # 网盘素材根(投递+归档)
+INBOX = f"{ROOT}/待入库"   # 人拍完/AI生成后统一往这丢的单一扁平投递箱(别人好弄+容错;归类交打标技能事后做)
 CACHE = Path(os.environ.get("GY_NETPAN_CACHE", str(config.WORKSPACE / ".netpan_cache")))
 POINTER_SCHEME = "baidupan:"   # 素材记录『链接』存的耐久指针(网盘路径,不过期);分享链接用时再 mint
 
@@ -128,3 +129,11 @@ def share_link(remote_path: str) -> str:
     if MODE != "real":
         return pointer(remote_path)
     return _parse_share(_run(["share", "set", remote_path])) or pointer(remote_path)
+
+
+def take_link(link: str) -> str:
+    """人取素材的可开链接(发布态用):网盘耐久指针 → 用时 mint 分享链接;本地 file://、其它 URL → 原样。
+    这样 待发布 时人拿到的是能点开的素材地址,而库里存的是不过期的指针(ADR-0004:分享链接不入库)。"""
+    if link.startswith(POINTER_SCHEME):
+        return share_link(pointer_path(link))
+    return link

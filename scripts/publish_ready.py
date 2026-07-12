@@ -26,6 +26,9 @@ def main() -> int:
     for r in rows:
         adv = "  →已推进待发布" if r["advanced"] else ""
         print(f"  {r['verdict']:26} 素材含AI={r['ai_required']} 已勾={r['declared']} 「{r['title']}」{adv}")
+        for m in r.get("materials", []):                         # 待发布用哪张:编号+来源+可开链接
+            seg = f" · {m['note']}" if m.get("note") else ""
+            print(f"      取素材 {m['code']}({m['type']}/{m['source']}){seg}  → {m['取用链接'] or '(无链接)'}")
     if a.write:
         n = sum(1 for r in rows if r["advanced"])
         feishu_io.log_run(summary=f"发布就绪 推进{n}条待发布(AI声明自动判定)", action="发布就绪")

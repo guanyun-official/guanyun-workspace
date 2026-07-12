@@ -26,6 +26,7 @@ def main() -> int:
     for n in needs:
         lines.append(f"  · {n['account']}｜{n['类型']}：缺 {n['缺']} 条（已有 {n['已有']}/目标 {n['目标']}）")
         lines.append(f"      拍摄要求：{n['拍摄要求']}")
+        lines.append(f"      拍完丢哪：{n['投递去向']}")
         lines.append(f"      参考：{n['参考']}")
     report = "\n".join(lines)
     print("\n" + report)
