@@ -129,6 +129,25 @@ def upload(local_path: str, remote_dir: str) -> str:
     return f"{remote_dir.rstrip('/')}/{Path(local_path).name}"
 
 
+def cache_usage_mb(cache: Path | None = None) -> float:
+    """当前本地缓存占用(MB)。ADR-0004:本地是按需临时缓存,应保持很小。"""
+    d = cache or CACHE
+    if not d.exists():
+        return 0.0
+    total = sum(p.stat().st_size for p in d.rglob("*") if p.is_file())
+    return round(total / 1024 / 1024, 2)
+
+
+def clear_cache(cache: Path | None = None) -> float:
+    """清空本地缓存(处理完一批就清——原件在网盘,本地 copy 用完即删,不占地)。返回释放的 MB。"""
+    import shutil
+    d = cache or CACHE
+    freed = cache_usage_mb(d)
+    if d.exists():
+        shutil.rmtree(d, ignore_errors=True)
+    return freed
+
+
 def share_link(remote_path: str) -> str:
     """给网盘文件 mint 分享链接(发布态给人取素材;用时 mint 不入库,避免过期)。
     stub 退化成耐久指针串(离线可用、语义不误导)。"""

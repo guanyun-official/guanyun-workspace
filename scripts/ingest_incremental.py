@@ -76,10 +76,15 @@ def plan(items: list[dict], seen: set[str]) -> list[dict]:
 
 
 def process(source, item: dict, cache: Path) -> dict:
-    """一份素材的机械拆解:拉→转码→形态。返回待打标条目(不含内容标签,那交打标 agent)。"""
+    """一份素材的机械拆解:拉→转码→形态。返回待打标条目(不含内容标签,那交打标 agent)。
+    ADR-0004 按需缓存:转码后**删掉缓存里的原件**(如网盘拉的 heic),只留 jpg 给打标;本地源文件不动。"""
     local = source.fetch(item, cache)
+    src = local
     if media.needs_jpg(local):
         local = media.to_jpg(local, out_dir=str(cache))
+        # 只删缓存内的临时 copy(网盘拉来的);LocalSource 的源文件在别处,不误删
+        if src != local and str(Path(src).resolve()).startswith(str(Path(cache).resolve())):
+            Path(src).unlink(missing_ok=True)
     return {"素材编号": Path(item["name"]).stem, "形态": media.kind(local),
             "链接指针": source.pointer(item), "本地": local, "待打标": True}
 

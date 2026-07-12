@@ -107,5 +107,20 @@ class TestStubRedline(unittest.TestCase):
         self.assertEqual(netpan.take_link("file:///Users/x/a.jpg"), "file:///Users/x/a.jpg")
 
 
+class TestCache(unittest.TestCase):
+    """按需缓存:占用可查、可清空(ADR-0004 本地不镜像,用完删)。"""
+
+    def test_usage_and_clear(self):
+        import tempfile
+        d = Path(tempfile.mkdtemp()) / "cache"
+        d.mkdir()
+        (d / "a.jpg").write_bytes(b"x" * (2 * 1024 * 1024))   # 2MB
+        self.assertGreaterEqual(netpan.cache_usage_mb(d), 1.9)
+        freed = netpan.clear_cache(d)
+        self.assertGreaterEqual(freed, 1.9)
+        self.assertFalse(d.exists())                          # 清空后目录没了
+        self.assertEqual(netpan.cache_usage_mb(d), 0.0)       # 不存在=0,不炸
+
+
 if __name__ == "__main__":
     unittest.main()
