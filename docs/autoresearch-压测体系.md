@@ -56,6 +56,9 @@
 
 | 15 | **"复盘均赞被谁算进去了"** | aggregate_by_playbook 不按状态过滤→草稿待发(有playbook、0赞)也计入→**复盘均赞被未发布草稿稀释** | aggregate 只聚合 已发/已回流(有真发布数据) | test_metrics(草稿不计) | ✅ |
 
+| 16 | **"暂停号后综合验收还准吗"** | verify_usable 断言派活==全组合,自动排产暂停号被跳→暂停即假报未可用 | ④改子集(暂停跳过是功能);真跑证复原 | verify_usable | ✅ |
+| 17 | **verify_usable 跑出真数据缺口** | 6素材全ootd独占,图文号1/2/官号 0可用→综合验收红(打脸文档"全绿");上身图 mis-tag违画像"共用同批" | 上身图对齐画像→共用(图文号1/2各3条);verify_usable ①也paused-aware | — | 🔶 官号仍红(缺形象图+衣服KB,押后) |
+
 ## 待提 issue(休眠闸/config 缺口)
 - assert_publish_quota(控量门)+ assert_ai_declared(AI声明门)生产零调用——发布/状态推进步(人/dedicated-agent)建时必接。
 - 灵感库无 trend_imitate 号消费;官号缺形象图素材(押后)。

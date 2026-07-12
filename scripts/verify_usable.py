@@ -34,8 +34,15 @@ def main() -> int:
 
     # 1) 全账号×全模式:每个组合都能出对味货对板完整包
     print("① 全账号×全模式(对味 few-shot + 完整包素材 + 官号货对板)")
+    # base「自动排产=暂停」的号不纳入"完全可用"要求(押后是运营开关,不是缺陷;同 ④)
+    from orchestrator.bitable import AutoSched
+    paused = {bitable.text(r["fields"].get(AF.NAME)).strip()
+              for r in feishu_io.list_records(AF.TABLE)
+              if bitable.text(r["fields"].get(AutoSched.FIELD)).strip() == AutoSched.PAUSED}
     combos = []
     for name, acc in sorted(accounts.load_all("观云").items()):
+        if name in paused:
+            continue
         for pb in acc.playbooks():
             ct = pb.get("content_type") or pb.get("id") or ""
             combos.append((name, ct))
