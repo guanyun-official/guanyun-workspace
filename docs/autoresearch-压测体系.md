@@ -59,6 +59,14 @@
 | 16 | **"暂停号后综合验收还准吗"** | verify_usable 断言派活==全组合,自动排产暂停号被跳→暂停即假报未可用 | ④改子集(暂停跳过是功能);真跑证复原 | verify_usable | ✅ |
 | 17 | **verify_usable 跑出真数据缺口** | 6素材全ootd独占,图文号1/2/官号 0可用→综合验收红(打脸文档"全绿");上身图 mis-tag违画像"共用同批" | 上身图对齐画像→共用(图文号1/2各3条);verify_usable ①也paused-aware | — | 🔶 官号仍红(缺形象图+衣服KB,押后) |
 
+| 18 | **"出事(cron挂/verify红/登录过期)会告警吗"** | alerts.send 只在check_p5自检调,失败路径**零调用**;交接说"进程挂推群"是空头支票 | 归类**运营阶段待接**(同休眠发布闸;且"先不进群"下不宜现接live告警) | — | ⏸运营阶段 |
+
+## 收敛观察(18轮后)
+可修的**代码** gap 基本挖尽,keep门全程绿。剩两类,都非现在代码bug:
+- **运营阶段待接线**(等 dedicated-agent + 进群启用):发布闸 assert_publish_quota/assert_ai_declared、失败告警 alerts.send、投手路由。
+- **数据/config**(需用户/运营决策):官号缺形象图+真衣服KB(押后)、灵感库需配 trend_imitate 号、cadence.pattern/生成参数等特性预留。
+> 治本已落:①用户视角探测法(base/md声明 vs 代码实读)②验收硬化(唯一源双向、verify/ar paused-aware)③状态机闭环(待出文案→草稿待发→已发→已回流全推进,真跑自证)。
+
 ## 待提 issue(休眠闸/config 缺口)
 - assert_publish_quota(控量门)+ assert_ai_declared(AI声明门)生产零调用——发布/状态推进步(人/dedicated-agent)建时必接。
 - 灵感库无 trend_imitate 号消费;官号缺形象图素材(押后)。
