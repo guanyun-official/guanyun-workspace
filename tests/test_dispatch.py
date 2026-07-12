@@ -87,6 +87,43 @@ class DailyAssignments(unittest.TestCase):
         self.assertEqual(cap["fields"]["转化为笔记"], ["recNote"])  # link=列表非字符串
 
 
+class RunDay(unittest.TestCase):
+    """跑一天『中间一条龙』:排期→出文案→挂素材→草稿待发,一条命令产出'今天每号要发什么'。
+    人只管头尾:头=拍素材,尾=在 base 审发。红线:止于草稿待发、绝不代勾 AI 声明。"""
+    BASE = {
+        "账号表": [{"record_id": f"r{i}", "fields": {"账号名": n, "自动排产": "跟随workspace"}}
+                  for i, n in enumerate(["ootd号", "图文号1", "图文号2", "官号@巧荷·东方美学"])],
+        "内容类型表": [{"record_id": f"c{i}", "fields": {"内容类型名": ct}} for i, ct in enumerate(
+            ["视频唯美OOTD", "图文唯美OOTD", "素人图文种草", "品牌新作展示"])],
+        "素材表": [], "笔记表": [],
+    }
+
+    def test_dry_run_lists_todays_activities_no_write(self):
+        created = []
+        with mock.patch.object(feishu_io, "list_records", lambda t: self.BASE.get(t, [])), \
+                mock.patch.object(feishu_io, "create_record", lambda t, f: created.append(f) or "x"):
+            rows = dispatch.run_day("观云", write=False)
+        self.assertTrue(rows and all(r["status"] == "(干跑)" for r in rows))
+        self.assertEqual(created, [], "干跑不写库")
+
+    def test_write_lands_drafts_for_each_account_mode(self):
+        created = []
+        with mock.patch.object(feishu_io, "list_records", lambda t: self.BASE.get(t, [])), \
+                mock.patch.object(feishu_io, "create_record",
+                                  lambda t, f: created.append(f) or f"recN{len(created)}"), \
+                mock.patch.object(feishu_io, "update_record", lambda t, r, f: None):
+            rows = dispatch.run_day("观云", llm_mode="stub", write=True)
+        landed = [r for r in rows if r.get("status") == NS.DRAFT_PENDING]
+        keys = {(r["account"], r["content_type"]) for r in landed}
+        self.assertIn(("ootd号", "视频唯美OOTD"), keys)
+        self.assertIn(("ootd号", "图文唯美OOTD"), keys)          # 一号多模式两条都出
+        self.assertIn(("图文号1", "素人图文种草"), keys)
+        self.assertTrue(all(r.get("note_id") and r.get("title") for r in landed))
+        for f in created:                                         # 红线:一律草稿待发、绝不代勾 AI 声明
+            self.assertEqual(f[NF.STATUS], NS.DRAFT_PENDING)
+            self.assertNotIn(NF.AI_DECLARED, f)
+
+
 class DispatchRedline(unittest.TestCase):
     def test_write_blocks_prod_base(self):
         """红线:派活写库前过 base 闸,生产库拒(闸先抛,触不到网络)。"""

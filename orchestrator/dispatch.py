@@ -76,6 +76,33 @@ def pending_ideas(brand: str = "观云") -> list[dict]:
     return out
 
 
+def run_day(brand: str = "观云", llm_mode: str = "stub", write: bool = False) -> list[dict]:
+    """跑一天(人只管头尾的『中间』一条龙):排期(daily_assignments,尊重 base 自动排产)
+    → 每条活 出文案(generate_draft)+ 挂素材(create_draft_note 内含 select_materials)→ 推进『草稿待发』。
+    **一条命令产出"今天每号要发什么(草稿+素材,待人审)"**,人打开 base 就能审。
+    - write=False 干跑:只算今天的活,不写库;write=True 落『草稿待发』。
+    - llm_mode=real 出真文案(≈2元/条,走 llm.run_prompt=画像+skill few-shot+配方);stub 零成本占位验证接线。
+    红线不变:只推到『草稿待发』,**绝不自动发布、绝不代勾 AI 声明**。"""
+    from . import draft
+    out: list[dict] = []
+    for a in daily_assignments(brand):
+        entry = {"account": a["account"], "content_type": a["content_type"],
+                 "gen_skill": a["gen_skill"], "material_needs": a["material_needs"]}
+        if not write:
+            entry["status"] = "(干跑)"
+            out.append(entry)
+            continue
+        try:
+            r = draft.generate_draft(a["account"], brand, llm_mode=llm_mode,
+                                     content_type=a["content_type"])
+            rid = draft.create_draft_note(r)   # upsert 待出文案→草稿待发 + 挂货对板素材
+            entry.update(note_id=rid, title=r["title"], status=NS.DRAFT_PENDING)
+        except Exception as e:  # noqa: BLE001  单号失败不拖垮整天,记下继续
+            entry.update(status="✗失败", error=str(e)[:120])
+        out.append(entry)
+    return out
+
+
 def mark_idea_converted(idea_id: str, note_id: str) -> None:
     """灵感转化为笔记后回填灵感库,闭合 trend_imitate 环(灵感→出稿→回填)。
     『转化为笔记』是 **link 字段**,写 record_id 列表不是字符串——实测真跑才暴露的坑,codify 防复发。"""
