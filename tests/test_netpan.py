@@ -57,6 +57,19 @@ class TestParseShare(unittest.TestCase):
         self.assertEqual(netpan._parse_share("失败:未登录\n"), "")
 
 
+class TestWhoParse(unittest.TestCase):
+    """真跑揪出的坑:未登录 who 输出也含 'uid'/'用户名' 字样,只能按 uid≠0 判。"""
+
+    def test_not_logged_in_uid_zero(self):
+        self.assertFalse(netpan._who_logged_in("当前帐号 uid: 0, 用户名: , 性别: , 年龄: 0.0"))
+
+    def test_logged_in_real_uid(self):
+        self.assertTrue(netpan._who_logged_in("当前帐号 uid: 3821092, 用户名: 观云小助手, 性别: 女, 年龄: 2.0"))
+
+    def test_garbage(self):
+        self.assertFalse(netpan._who_logged_in("未登录"))
+
+
 class TestStubRedline(unittest.TestCase):
     """默认 stub:任何真操作都被挡,离线安全。"""
 

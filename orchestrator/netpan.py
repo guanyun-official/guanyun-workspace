@@ -90,15 +90,21 @@ def _run(args: list[str]) -> str:
     return r.stdout
 
 
+def _who_logged_in(out: str) -> bool:
+    """解析 BaiduPCS-Go `who` 输出判是否已登录(纯函数,真跑实测校准):
+    未登录 → 『当前帐号 uid: 0, 用户名: ,…』;已登录 → uid 非 0 + 有用户名。**uid:0 = 未登录**(不能只匹配"uid"字样)。"""
+    m = re.search(r"uid:\s*(\d+)", out)
+    return bool(m) and m.group(1) != "0"
+
+
 def logged_in() -> bool:
     """BDUSS 是否有效(增量入库前置)。stub 恒 False(无真登录);过期→cron 该告警重登(凭证人工)。"""
     if MODE != "real":
         return False
     try:
-        out = _run(["who"])
+        return _who_logged_in(_run(["who"]))
     except NetpanError:
         return False
-    return bool(re.search(r"uid|用户名|用户ID", out))
 
 
 def list_dir(remote_path: str = "") -> list[dict]:
