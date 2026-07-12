@@ -308,6 +308,38 @@ class ContentAddressing(unittest.TestCase):
             self.assertEqual(draft.select_materials(["上身图"], content="没有的场景"), [])         # 无匹配→空
 
 
+class DraftAdvancesInflightNote(unittest.TestCase):
+    """iter9:出稿推进派活的『待出文案』为『草稿待发』(状态机一条内容一行),不新建重复行;
+    反回归:曾经 create_draft_note 永远 create_record → 派活占位成孤儿、一条内容变两行。"""
+
+    def test_advances_need_copy_instead_of_new(self):
+        from unittest import mock
+        from orchestrator import feishu_io
+        r = draft.generate_draft("ootd号", llm_mode="stub")   # 视频唯美OOTD
+        base = {"账号表": [{"record_id": "recACC", "fields": {"账号名": "ootd号"}}],
+                "内容类型表": [{"record_id": "recCT", "fields": {"内容类型名": "视频唯美OOTD"}}],
+                "笔记表": [{"record_id": "recPH", "fields": {NF.STATUS: NS.NEED_COPY,
+                          NF.ACCOUNT: "ootd号", NF.CONTENT_TYPE: "视频唯美OOTD"}}]}   # 派活占位在途
+        upd, created = {}, []
+        with mock.patch.object(feishu_io, "list_records", lambda t: base.get(t, [])), \
+                mock.patch.object(feishu_io, "update_record", lambda table, rid, f: upd.update(rid=rid, fields=f)), \
+                mock.patch.object(feishu_io, "create_record", lambda table, f: created.append(f) or "recNEW"):
+            rid = draft.create_draft_note(r)
+        self.assertEqual(rid, "recPH")                       # 推进那一行,不新建
+        self.assertEqual(upd["fields"][NF.STATUS], NS.DRAFT_PENDING)  # 待出文案→草稿待发
+        self.assertEqual(created, [])                        # 无重复新建
+
+    def test_new_when_no_inflight(self):
+        from unittest import mock
+        from orchestrator import feishu_io
+        r = draft.generate_draft("ootd号", llm_mode="stub")
+        base = {"账号表": [{"record_id": "recACC", "fields": {"账号名": "ootd号"}}],
+                "内容类型表": [{"record_id": "recCT", "fields": {"内容类型名": "视频唯美OOTD"}}]}  # 笔记表空
+        with mock.patch.object(feishu_io, "list_records", lambda t: base.get(t, [])), \
+                mock.patch.object(feishu_io, "create_record", lambda table, f: "recNEW"):
+            self.assertEqual(draft.create_draft_note(r), "recNEW")   # 无在途→新建
+
+
 class NoSourceLeakGate(unittest.TestCase):
     """防搬运出口闸(红线):出稿不得逐字搬对标/灵感 seed。反回归:曾经出稿路径零调用 skill_gate/no_source_leak。"""
 

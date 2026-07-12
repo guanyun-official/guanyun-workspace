@@ -206,14 +206,32 @@ def _cited_count(v) -> int:
         return 0
 
 
+def _find_inflight_note(account_name: str, content_type_name: str) -> str:
+    """找该 (账号, 内容类型) 在途的 Note(待出文案/草稿待发)record_id;无则空。
+    出稿据此**推进**派活的『待出文案』为『草稿待发』(状态机一条内容一行),不新建重复行。"""
+    from . import feishu_io, bitable
+    open_status = {NS.NEED_COPY, NS.DRAFT_PENDING}
+    for r in feishu_io.list_records(NF.TABLE):
+        f = r["fields"]
+        if bitable.text(f.get(NF.STATUS)) not in open_status:
+            continue
+        if (bitable.text(f.get(NF.ACCOUNT)) == account_name
+                and bitable.text(f.get(NF.CONTENT_TYPE)) == content_type_name):
+            return r["record_id"]
+    return ""
+
+
 def create_draft_note(result: dict) -> str:
-    """把生成结果写成笔记表一行(状态=草稿待发)。先过 base 红线闸(只许测试库);返回 record_id。
-    账号/内容类型是 link 字段:名字→record_id 后再写;挂不上就不写该 link(不因孤儿名炸写)。
-    #32:按 material_needs 选素材,挂进「关联素材」——从「半个包(纯文案)」升到「完整可发包(文案+素材)」。"""
+    """把生成结果写成笔记表『草稿待发』一行,返回 record_id。先过 base 红线闸(只许测试库)。
+    **状态机推进/去重**:该号×模式已有在途 Note(派活占位『待出文案』或旧『草稿待发』)→ 推进/刷新那一行
+    (一条内容一行,不新建重复);无则新建。账号/内容类型 link 名字→record_id;挂不上不写该 link(不炸)。
+    #32:按 material_needs 选素材挂『关联素材』(文案+素材=完整可发包)。"""
     from . import feishu_io
     from .bitable import AccountFields as AF, ContentTypeFields as CTF
     guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)  # 红线:TEST_MODE 下只许写测试 Base
     fields = dict(result["note_fields"])
+    account_name = fields.get(NF.ACCOUNT, "")           # 解析成 record_id 前先留名字(用于查在途)
+    content_type_name = fields.get(NF.CONTENT_TYPE, "")
     acc_ids = _resolve_link(AF.TABLE, AF.NAME, fields.get(NF.ACCOUNT, ""))
     if acc_ids:
         fields[NF.ACCOUNT] = acc_ids
@@ -228,4 +246,8 @@ def create_draft_note(result: dict) -> str:
                                clothes=result.get("clothes", ""))  # #36 品牌新作按衣服选素材,货对板
     if mat_ids:
         fields[NF.LINKED_MATERIALS] = mat_ids   # #32 完整包:选定素材挂关联素材
+    existing = _find_inflight_note(account_name, content_type_name)
+    if existing:
+        feishu_io.update_record(NF.TABLE, existing, fields)  # 推进:待出文案→草稿待发 / 刷新旧草稿(不新建重复)
+        return existing
     return feishu_io.create_record(NF.TABLE, fields)

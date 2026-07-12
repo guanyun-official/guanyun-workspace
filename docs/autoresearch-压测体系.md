@@ -37,4 +37,17 @@
 ## 观察
 - base 数据实时驱动已验证:官号「自动排产」被改成跟随workspace 后,dispatch 立即开始派它(控制线真通了)。
 
+## 迭代日志(续 · 动态用户场景)
+| # | 场景/探测 | 发现 | 修法 | 回归锁 | keep门 |
+|---|---|---|---|---|:--:|
+| 5 | "加模式=改md不改schema 真吗" | 现4模式 content_type 全在 base 内容类型表;真Note内容类型/账号/3素材 link 全齐 | 无 gap(次要:加"全新"content_type 需 base 加行) | — | ✅ |
+| 6 | "AI声明门真enforce吗" | assert_ai_declared 生产**零调用**(同控量门,休眠发布闸) | 发布/状态推进步是人/dedicated-agent→ issue待接 | — | — |
+| 7 | "灵感→出稿链路" | 灵感库2条待转化,但**无 trend_imitate 号**消费→灵感孤儿 | config 缺口(需配 trend_imitate 号) | — | — |
+| 8 | "素材池/官号货对板/回流鲁棒" | 官号要的**形象图 0 条**(官号押后,minor);clothes绑定✓;回流对0已发no-op | 无 code gap | — | ✅ |
+| 9 | **"派活→出稿,一条内容一行吗"** | **create_draft_note 永远新建**→派活『待出文案』成孤儿、变两行;手动重复出稿堆重复 | 出稿找在途 Note→**推进**(待出文案→草稿待发)/刷新,无则新建 | DraftAdvancesInflightNote | ✅ |
+
+## 待提 issue(休眠闸/config 缺口)
+- assert_publish_quota(控量门)+ assert_ai_declared(AI声明门)生产零调用——发布/状态推进步(人/dedicated-agent)建时必接。
+- 灵感库无 trend_imitate 号消费;官号缺形象图素材(押后)。
+
 (下面持续追加)
