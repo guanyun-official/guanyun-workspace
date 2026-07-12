@@ -80,6 +80,8 @@
 
 | 25 | **补齐"误删可恢复"的 restore 半边** | 备份只dump无restore工具 | 建 scripts/restore_tables.py:读备份→link按名重解析(修主字段坑)→dry-run默认/--write只测试库/写失败降级丢link保底;round-trip真跑自证(造→备份→删→恢复→找回→清理)+3单测 | test_restore | ✅ |
 
+| 26 | **接告警(用户:发关联bot私聊)** | alerts.send失败路径零调用(iter18flag);home核实=p2p私聊 | verify_usable加--alert红了发私聊;collect登录过期告警;cron同步;真发自检成功 | (真发自证) | ✅ |
+
 ## 待提 issue(休眠闸/config 缺口)
 - assert_publish_quota(控量门)+ assert_ai_declared(AI声明门)生产零调用——发布/状态推进步(人/dedicated-agent)建时必接。
 - 灵感库无 trend_imitate 号消费;官号缺形象图素材(押后)。
