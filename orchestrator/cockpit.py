@@ -8,12 +8,21 @@
 """
 from __future__ import annotations
 
-from . import bitable, feishu_io, publish, shotlist
+from . import bitable, config, feishu_io, publish, shotlist
 from .bitable import NoteFields as NF, NoteStatus as NS
 
 
+def _note_link(record_id: str) -> str:
+    """这条笔记在 base 里的深链(飞书聊天里一点直达该行去审/改)——『引导到 base 操作』。"""
+    try:
+        return config.record_url(NF.TABLE, record_id)
+    except Exception:  # noqa: BLE001  schema 缺表名等 → 不给链接也不炸
+        return ""
+
+
 def today_panel(brand: str = "观云") -> dict:
-    """今日面板:一次读全笔记表+素材,分出 待审/待发/待回填链接/要补拍。纯读。"""
+    """今日面板:一次读全笔记表+素材,分出 待审/待发/待回填链接/要补拍。纯读。
+    每条笔记带 base 深链(飞书里一点直达该行操作)——面向『聊天优先、引导到 base』。"""
     idx = publish._material_index()
     pend_review: list[dict] = []
     to_publish: list[dict] = []
@@ -23,13 +32,14 @@ def today_panel(brand: str = "观云") -> dict:
         st = bitable.text(f.get(NF.STATUS)).strip()
         title = bitable.text(f.get(NF.TITLE))
         acc = bitable.text(f.get(NF.ACCOUNT))
+        link = _note_link(r["record_id"])
         if st == NS.DRAFT_PENDING:
-            pend_review.append({"title": title, "account": acc})
+            pend_review.append({"title": title, "account": acc, "open": link})
         elif st == NS.TO_PUBLISH:
             mats = publish.note_materials(f, idx)
-            to_publish.append({"title": title, "account": acc,
+            to_publish.append({"title": title, "account": acc, "open": link,
                                "materials": [{"code": m["code"], "link": m["取用链接"]} for m in mats]})
         elif st == NS.PUBLISHED and not bitable.text(f.get(NF.PUBLISH_LINK)).strip():
-            need_link.append({"title": title, "account": acc})
+            need_link.append({"title": title, "account": acc, "open": link})
     return {"待审": pend_review, "待发": to_publish,
             "待回填链接": need_link, "要补拍": shotlist.shot_needs(brand)}

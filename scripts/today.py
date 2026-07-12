@@ -16,16 +16,16 @@ def _fmt(p: dict) -> str:
     L = [f"📮 观云 · 今日面板（{config.ENV_NAME}）"]
     L.append(f"\n📋 待你审 {len(p['待审'])} 条：")
     for n in p["待审"]:
-        L.append(f"   · 「{n['title']}」 {n['account']}")
+        L.append(f"   · 「{n['title']}」 {n['account']}" + (f"  → 打开审批 {n['open']}" if n.get("open") else ""))
     L.append(f"\n📤 待你发 {len(p['待发'])} 条（发完回填链接）：")
     for n in p["待发"]:
-        L.append(f"   · 「{n['title']}」 {n['account']}")
+        L.append(f"   · 「{n['title']}」 {n['account']}" + (f"  → 打开 {n['open']}" if n.get("open") else ""))
         for m in n["materials"]:
             L.append(f"       取素材 {m['code']} → {m['link'] or '(无链接)'}")
     if p["待回填链接"]:
         L.append(f"\n🔗 已发待回填链接 {len(p['待回填链接'])} 条（不填回流没数据）：")
         for n in p["待回填链接"]:
-            L.append(f"   · 「{n['title']}」 {n['account']}")
+            L.append(f"   · 「{n['title']}」 {n['account']}" + (f"  → 打开回填 {n['open']}" if n.get("open") else ""))
     L.append(f"\n📷 要补拍 {len(p['要补拍'])} 项：")
     for s in p["要补拍"]:
         L.append(f"   · {s['account']}｜{s['类型']}：缺 {s['缺']} 条 → {s['投递去向']}")

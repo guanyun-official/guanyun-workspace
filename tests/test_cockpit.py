@@ -29,6 +29,7 @@ class TestTodayPanel(unittest.TestCase):
                                                MF.LINK: {"link": "baidupan:/x/a.jpg", "text": "a.jpg"}}}]
         p = self._run(notes, mats)
         self.assertEqual([n["title"] for n in p["待审"]], ["待审稿"])
+        self.assertIn("open", p["待审"][0])                              # 带 base 深链(引导到base操作)
         self.assertEqual([n["title"] for n in p["待发"]], ["待发稿"])
         self.assertEqual(p["待发"][0]["materials"][0]["code"], "M-1")
         self.assertTrue(p["待发"][0]["materials"][0]["link"])            # 带可开链接
