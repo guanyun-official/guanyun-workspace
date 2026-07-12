@@ -59,8 +59,9 @@ class AccountFields:
 class AutoSched:
     """账号表「自动排产」select 取值:base 侧运营开关(暂停/跟随workspace 的唯一真相)。"""
     FIELD = "自动排产"
-    PAUSED = "暂停"          # 该号停派活(base 里点,谁接手都读得到)
-    FOLLOW_WS = "跟随workspace"  # 按 workspace 账号 md 的 cadence 节奏派
+    PAUSED = "暂停"          # base 强制停(覆盖 md,谁接手都读得到)
+    FORCE_ON = "开启"        # base 强制派(覆盖 md,即使 md posts_per_day<1 也派)
+    FOLLOW_WS = "跟随workspace"  # 按 workspace 账号 md 的 cadence 节奏派(默认)
 
 
 class MaterialStatus:

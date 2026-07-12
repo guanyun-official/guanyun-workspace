@@ -22,6 +22,19 @@
 | # | 场景/探测(用户视角) | 发现的 gap | 修法 | 回归锁 | keep门 | ADR/issue |
 |---|---|---|---|---|:--:|---|
 | 1 | "我想暂停一个号"(base 点自动排产=暂停) | 「自动排产」列没被消费,dispatch 只看 md cadence | dispatch 读 base 自动排产,暂停跳过 | test_paused_account_skipped | ✅ | — |
-| 2 | "自动排产 3 选项开启/暂停/跟随workspace" | 「开启」≡跟随workspace,未区分(3选项只1个真起作用) | 待定:接开启=强制发 or 断舍离砍成2态 | — | — | ADR? |
+| 2 | "自动排产 3 选项开启/暂停/跟随workspace" | 「开启」≡跟随workspace,未区分 | 三态语义定清+接「开启=强制派覆盖md」;抽纯函数 _should_dispatch | test_sched_decision_three_states | ✅ | ADR-0003 |
+| 3 | "红线:防搬运出口闸真拦吗"(信红线) | no_source_leak/skill_gate 出稿路径**零调用**,红线是摆设 | guard.assert_no_source_leak 接进 draft real 路径 | NoSourceLeakGate | ✅ | — |
+| 4 | "红线:控量≤3篇/天真 enforce 吗" | assert_publish_quota 全库**零调用** | 发布时约束、系统不自动发→暂缓,待 dedicated-agent 发布步接 | — | — | issue(待建) |
+
+## 静态审计 backlog(子agent 全库扫,13 个"声明未消费";Note 状态机 9 态 100% 有消费无断点)
+按用户可见度排:
+- [ ] **runway_alert_days**(账号md):设了**没催拍告警**——planner/dispatch 零引用。用户可见 gap,待接催拍。
+- [ ] **投手**(笔记表+账号表):没路由到发布(发布步/dedicated-agent 才用)。
+- [ ] **生成参数 / 拍摄人 / 拍摄要求**(素材表):特性预留未实现(TARGET_ARCHITECTURE_INVENTORY 已追踪)。
+- [ ] **cadence.pattern**(账号md):未分支(drip 等只是标签)。
+> 结论印证:单测照不到"base/md 声明了但代码没消费"这类哑控制——只有对照用户可设 vs 代码实读才现形。审计脚本建议进 check_p*.sh。
+
+## 观察
+- base 数据实时驱动已验证:官号「自动排产」被改成跟随workspace 后,dispatch 立即开始派它(控制线真通了)。
 
 (下面持续追加)

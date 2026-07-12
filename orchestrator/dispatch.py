@@ -21,24 +21,31 @@ SOURCING_HINT = {
 }
 
 
+def _should_dispatch(sched: str, posts_per_day) -> bool:
+    """base「自动排产」+ md cadence 决定今天派不派:
+    暂停=停(覆盖md);开启=强制派(覆盖md,即使 md<1);跟随workspace/空=按 md(posts_per_day≥1)。"""
+    if sched == AutoSched.PAUSED:
+        return False
+    if sched == AutoSched.FORCE_ON:
+        return True
+    return (posts_per_day if posts_per_day is not None else 1) >= 1
+
+
 def daily_assignments(brand: str = "观云") -> list[dict]:
     """今天派活清单:每号(base「自动排产」≠暂停 且 cadence.posts_per_day≥1)× 其每个模式 → 一条活。
     读 base 账号表「自动排产」运营开关(不写库)。返回 [{account, content_type, gen_skill, material_needs, sourcing, sourcing_hint}]。"""
-    # base 侧运营开关(唯一真相):「暂停」的号跳过——团队在 base 点,谁接手(dedicated agent)都读得到
-    paused = {
-        bitable.text(r["fields"].get(AF.NAME)).strip()
+    # base 侧运营开关(唯一真相):读账号表「自动排产」——团队在 base 点,谁接手(dedicated agent)都读得到
+    sched = {
+        bitable.text(r["fields"].get(AF.NAME)).strip(): bitable.text(r["fields"].get(AutoSched.FIELD)).strip()
         for r in feishu_io.list_records(AF.TABLE)
-        if bitable.text(r["fields"].get(AutoSched.FIELD)).strip() == AutoSched.PAUSED
     }
     out: list[dict] = []
     for name, acc in sorted(accounts.load_all(brand).items()):
         if acc.error:
             continue
-        if name in paused:
-            continue                                  # base「自动排产=暂停」→ 停派活
         cad = acc.strategy.get("cadence") or {}
-        if cad.get("posts_per_day", 1) < 1:
-            continue                                  # md cadence 兜底(posts_per_day<1 也停)
+        if not _should_dispatch(sched.get(name, AutoSched.FOLLOW_WS), cad.get("posts_per_day", 1)):
+            continue                                  # 暂停=停 / 开启=强制派 / 跟随workspace=按 md cadence
         sourcing = acc.strategy.get("sourcing", "shoot_then_drip")
         for pb in acc.playbooks():
             out.append({

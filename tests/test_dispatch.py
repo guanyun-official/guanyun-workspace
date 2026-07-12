@@ -37,6 +37,15 @@ class DailyAssignments(unittest.TestCase):
         self.assertNotIn("官号@巧荷·东方美学", accts)   # 暂停→跳过
         self.assertIn("ootd号", accts)                  # 跟随workspace→照派
 
+    def test_sched_decision_three_states(self):
+        """自动排产 3 态各有明确语义(不再是开启≡跟随workspace):暂停=停、开启=强制派覆盖md、跟随=按md。"""
+        from orchestrator.bitable import AutoSched
+        self.assertFalse(dispatch._should_dispatch(AutoSched.PAUSED, 1))     # 暂停→停(覆盖md)
+        self.assertTrue(dispatch._should_dispatch(AutoSched.FORCE_ON, 0))    # 开启→强制派(覆盖md=0)
+        self.assertTrue(dispatch._should_dispatch(AutoSched.FOLLOW_WS, 1))   # 跟随+md≥1→派
+        self.assertFalse(dispatch._should_dispatch(AutoSched.FOLLOW_WS, 0))  # 跟随+md<1→停
+        self.assertTrue(dispatch._should_dispatch("", 1))                     # 空=默认按md
+
     def test_trend_imitate_hint_points_to_teardown_skills(self):
         """④ 爆款模仿 sourcing:提示指向已装的爆款拆解技能,不另造。"""
         self.assertIn("爆款雷达", dispatch.SOURCING_HINT["trend_imitate"])
