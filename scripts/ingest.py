@@ -22,12 +22,27 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from orchestrator import feishu_io  # noqa: E402
+from orchestrator import feishu_io, netpan  # noqa: E402
 from orchestrator.bitable import MaterialFields as MF  # noqa: E402
 from orchestrator.bitable import MaterialSource as MSrc  # noqa: E402
 from orchestrator.bitable import MaterialStatus as MS  # noqa: E402
 
 ASSET_ROOT = Path(os.environ.get("GY_ASSET_ROOT", str(Path.home() / "素材库")))
+
+
+def _as_pointer(link_path: str) -> str:
+    """素材『链接』值(ADR-0004):已是指针/URL(baidupan:/http(s)/file:)原样;裸本地路径→file://(向后兼容本地样片)。
+    网盘素材传 netpan.pointer(远端路径)=耐久指针;分享链接用时再 mint,不入库。"""
+    if "://" in link_path or link_path.startswith(netpan.POINTER_SCHEME):
+        return link_path
+    return f"file://{link_path}"
+
+
+def segment_note(parent_code: str, in_ts: str, out_ts: str, extra: str = "") -> str:
+    """段指针素材的『备注』(ADR-0004 §4:用某段不物化新文件,记原片+区间,来源继承原片)。
+    例:『段 00:12-00:27 源自 M-013』。人/agent 一看就知道用哪段。"""
+    seg = f"段 {in_ts}-{out_ts} 源自 {parent_code}"
+    return f"{seg};{extra}" if extra else seg
 
 
 def _manifest(batch: str) -> Path:
@@ -69,7 +84,7 @@ def register(code: str, mtype: str, link_path: str, note: str = "",
     fields = {
         MF.CODE: code,
         MF.TYPE: mtype,
-        MF.LINK: {"link": f"file://{link_path}", "text": Path(link_path).name},
+        MF.LINK: {"link": _as_pointer(link_path), "text": Path(netpan.pointer_path(link_path)).name},
         MF.SHOT_STATUS: MS.SHOT,
         MF.SOURCE: source,
         MF.NOTE: note,
