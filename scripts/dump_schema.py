@@ -47,8 +47,12 @@ def _lark(args: list[str]) -> dict:
 
 
 def _field_contract(f: dict) -> dict:
-    """从 field-list 一条字段里抽契约:field_name / type / select options(如有)。"""
-    c = {"field_name": f.get("name", ""), "type": f.get("type", "")}
+    """从 field-list 一条字段里抽契约:field_name / type / select options(如有)。
+    lark-cli 把 URL 字段归一成 type=text,靠 style.type=url 还原(否则 URL↔text 漂移检测有盲区,实测 URLFieldConvFail)。"""
+    t = f.get("type", "")
+    if t == "text" and (f.get("style") or {}).get("type") == "url":
+        t = "url"
+    c = {"field_name": f.get("name", ""), "type": t}
     opts = [o.get("name") for o in (f.get("options") or []) if isinstance(o, dict) and o.get("name")]
     if opts:
         c["options"] = opts

@@ -7,12 +7,28 @@
       "type": "text"
     },
     {
+      "field_name": "执行体",
+      "type": "text"
+    },
+    {
       "field_name": "技能",
+      "type": "text"
+    },
+    {
+      "field_name": "摘要",
       "type": "text"
     },
     {
       "field_name": "时间",
       "type": "datetime"
+    },
+    {
+      "field_name": "涉及表",
+      "type": "text"
+    },
+    {
+      "field_name": "涉及记录",
+      "type": "text"
     },
     {
       "field_name": "结果",
@@ -25,22 +41,6 @@
     },
     {
       "field_name": "详情",
-      "type": "text"
-    },
-    {
-      "field_name": "涉及表",
-      "type": "text"
-    },
-    {
-      "field_name": "执行体",
-      "type": "text"
-    },
-    {
-      "field_name": "摘要",
-      "type": "text"
-    },
-    {
-      "field_name": "涉及记录",
       "type": "text"
     }
   ]

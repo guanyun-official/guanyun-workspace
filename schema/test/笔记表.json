@@ -22,7 +22,7 @@
     },
     {
       "field_name": "发布链接",
-      "type": "text"
+      "type": "url"
     },
     {
       "field_name": "实际发布日",

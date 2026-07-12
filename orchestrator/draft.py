@@ -54,7 +54,20 @@ def pick_playbook(acc, content_type: str = "") -> dict:
     return pbs[0]
 
 
-def compose_prompt(acc, pb: dict, skill_text: str, title_seed: str = "", clothes_text: str = "") -> str:
+def load_keywords(brand: str = "观云", limit: int = 18) -> list[str]:
+    """关键词库里启用的关键词(选题/SEO 池;曾是哑数据没喂回生成)。启用状态≠禁用 且有词。"""
+    from . import bitable, feishu_io
+    out = []
+    for r in feishu_io.list_records("关键词库"):
+        f = r["fields"]
+        kw = bitable.text(f.get("关键词")).strip()
+        if kw and bitable.text(f.get("启用状态")).strip() != "禁用":
+            out.append(kw)
+    return out[:limit]
+
+
+def compose_prompt(acc, pb: dict, skill_text: str, title_seed: str = "", clothes_text: str = "",
+                   keywords: list | None = None) -> str:
     """把账号画像 + 该模式配方 + gen_skill few-shot + (可选)真实衣服 know-how 拼成生成 prompt。
     clothes_text 给定=写真实产品的事实源(防编造);没给=禁止编造具体产品/朝代/工艺。"""
     profile = (acc.profile_text or "")[:1200]
@@ -86,6 +99,9 @@ def compose_prompt(acc, pb: dict, skill_text: str, title_seed: str = "", clothes
     parts.append("篇幅与结构**严格以上面 gen_skill 的规定为准**(标题多长、要不要正文/逐字稿、多少字或多少秒,"
                  "一律 gen_skill 说了算,别自作主张压短或拉长)。小红书统一外壳:第一行标题(≤20字),空行,"
                  "正文/逐字稿,最后一行 3-5 个 #标签(全文≤1000字)。")
+    if keywords:
+        parts.append(f"【本品牌关键词池(选题/SEO 参考)】贴合本条内容就自然带一两个,"
+                     f"**别硬堆/别凑、调性优先**(唯美短稿不贴就别塞):{'、'.join(keywords)}")
     parts.append("只输出成稿文本,不要解释、不要读文件。")
     return "\n".join(parts)
 
@@ -120,7 +136,8 @@ def generate_draft(account_name: str, brand: str = "观云", llm_mode: str = "st
     gen_skill = accounts.gen_skill_of(pb)
     skill_text = load_gen_skill(gen_skill)
     clothes_text = load_clothes(clothes, brand)
-    prompt = compose_prompt(acc, pb, skill_text, title_seed, clothes_text)
+    keywords = load_keywords(brand) if llm_mode == "real" else []  # 关键词只在真跑注入(stub 保持离线不触网)
+    prompt = compose_prompt(acc, pb, skill_text, title_seed, clothes_text, keywords=keywords)
     if llm_mode == "real":
         draft_text, cost = llm.run_prompt(prompt)
         guard.assert_no_source_leak(title_seed, draft_text)   # 防搬运出口闸(红线):出稿不得逐字搬对标seed

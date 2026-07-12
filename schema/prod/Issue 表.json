@@ -3,27 +3,7 @@
   "table_name": "Issue 表",
   "fields": [
     {
-      "field_name": "通知状态",
-      "type": "select",
-      "options": [
-        "未通知",
-        "已通知"
-      ]
-    },
-    {
-      "field_name": "来源群聊",
-      "type": "text"
-    },
-    {
-      "field_name": "完成时间",
-      "type": "datetime"
-    },
-    {
       "field_name": "Issue 标题",
-      "type": "text"
-    },
-    {
-      "field_name": "需求描述",
       "type": "text"
     },
     {
@@ -36,11 +16,19 @@
       ]
     },
     {
-      "field_name": "提出人 Open ID",
+      "field_name": "关联技能",
       "type": "text"
     },
     {
-      "field_name": "解决方案",
+      "field_name": "完成时间",
+      "type": "datetime"
+    },
+    {
+      "field_name": "提出人",
+      "type": "text"
+    },
+    {
+      "field_name": "提出人 Open ID",
       "type": "text"
     },
     {
@@ -48,7 +36,7 @@
       "type": "datetime"
     },
     {
-      "field_name": "关联技能",
+      "field_name": "来源群聊",
       "type": "text"
     },
     {
@@ -63,7 +51,19 @@
       ]
     },
     {
-      "field_name": "提出人",
+      "field_name": "解决方案",
+      "type": "text"
+    },
+    {
+      "field_name": "通知状态",
+      "type": "select",
+      "options": [
+        "未通知",
+        "已通知"
+      ]
+    },
+    {
+      "field_name": "需求描述",
       "type": "text"
     }
   ]

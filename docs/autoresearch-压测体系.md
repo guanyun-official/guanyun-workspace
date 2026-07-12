@@ -82,6 +82,9 @@
 
 | 26 | **接告警(用户:发关联bot私聊)** | alerts.send失败路径零调用(iter18flag);home核实=p2p私聊 | verify_usable加--alert红了发私聊;collect登录过期告警;cron同步;真发自检成功 | (真发自证) | ✅ |
 
+| 27a | **收尾:dump_schema URL盲区(不押后)** | lark-cli把URL归一成type=text→漂移检测盲区 | 靠 style.type=url 还原;重dump 3个URL字段现记url;keep门绿 | (重dump自证) | ✅ |
+| 27b | **收尾:关键词库哑数据(不押后)** | 32关键词没喂回生成 | load_keywords接进出稿prompt(软注入/调性优先/real才注入不破离线);真跑验ootd正文纯净、标签自然带新中式 | KeywordInjection | ✅ |
+
 ## 待提 issue(休眠闸/config 缺口)
 - assert_publish_quota(控量门)+ assert_ai_declared(AI声明门)生产零调用——发布/状态推进步(人/dedicated-agent)建时必接。
 - 灵感库无 trend_imitate 号消费;官号缺形象图素材(押后)。

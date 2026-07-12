@@ -362,6 +362,32 @@ class NoSourceLeakGate(unittest.TestCase):
             self.assertTrue(r["draft_text"].strip())
 
 
+class KeywordInjection(unittest.TestCase):
+    """iter27:关键词库接进出稿(选题/SEO,曾是哑数据没喂回生成)。软注入、调性优先;real 才注入(stub 离线)。"""
+
+    def test_compose_prompt_includes_keyword_hint(self):
+        from orchestrator import accounts
+        acc = accounts.load("ootd号")
+        p = draft.compose_prompt(acc, acc.playbooks()[0], "skill", keywords=["新中式", "女性力量"])
+        self.assertIn("关键词池", p)
+        self.assertIn("新中式", p)
+        self.assertIn("别硬堆", p)          # 调性优先、不强制堆砌
+
+    def test_load_keywords_skips_disabled(self):
+        from unittest import mock
+        from orchestrator import feishu_io
+        kws = [{"fields": {"关键词": "新中式", "启用状态": "启用"}},
+               {"fields": {"关键词": "禁用词", "启用状态": "禁用"}},
+               {"fields": {"关键词": "女性力量"}}]        # 无状态=按启用
+        with mock.patch.object(feishu_io, "list_records", lambda t: kws):
+            out = draft.load_keywords("观云")
+        self.assertEqual(set(out), {"新中式", "女性力量"})   # 禁用跳过
+
+    def test_stub_stays_offline_no_keyword(self):
+        p = draft.generate_draft("ootd号", llm_mode="stub")["prompt"]
+        self.assertNotIn("关键词池", p)      # stub 不加载关键词(不触网),prompt 无关键词池
+
+
 class FieldValueHelpers(unittest.TestCase):
     """codify 反复踩的 link/url 字段格式坑:link→record_id列表、url→{link,text}dict。"""
 

@@ -16,7 +16,7 @@
     },
     {
       "field_name": "主页链接",
-      "type": "text"
+      "type": "url"
     },
     {
       "field_name": "内容类型表-所属账号",

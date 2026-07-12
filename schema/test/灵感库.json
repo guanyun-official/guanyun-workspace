@@ -68,7 +68,7 @@
     },
     {
       "field_name": "链接",
-      "type": "text"
+      "type": "url"
     },
     {
       "field_name": "镜头",

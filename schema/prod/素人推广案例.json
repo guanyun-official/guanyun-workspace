@@ -7,15 +7,19 @@
       "type": "text"
     },
     {
-      "field_name": "推广方式",
-      "type": "text"
-    },
-    {
-      "field_name": "笔记链接",
-      "type": "text"
-    },
-    {
       "field_name": "博主主页",
+      "type": "text"
+    },
+    {
+      "field_name": "博主名字",
+      "type": "text"
+    },
+    {
+      "field_name": "小红书号",
+      "type": "text"
+    },
+    {
+      "field_name": "推广方式",
       "type": "text"
     },
     {
@@ -23,15 +27,11 @@
       "type": "datetime"
     },
     {
-      "field_name": "博主名字",
+      "field_name": "笔记链接",
       "type": "text"
     },
     {
       "field_name": "补充说明",
-      "type": "text"
-    },
-    {
-      "field_name": "小红书号",
       "type": "text"
     }
   ]
