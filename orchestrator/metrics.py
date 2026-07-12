@@ -44,9 +44,23 @@ def _extract_note(url: str) -> dict:
     return json.loads(r.stdout[i:]) if i >= 0 else {}
 
 
+def _note_metrics(d: dict) -> dict:
+    """xhs-extract-master 的 note 原始 dict → {笔记表数值字段: 值} 契约 dict(**纯函数,可直测**)。
+    形态漂移集中一处:实测互动数据有 note.interactInfo(--url 返回)与顶层 interactInfo 两种壳,都吃;
+    skill 改输出结构只动这里(把'形态猜测'从 subprocess 里拆出来,不必 mock 就能锁形态)。"""
+    ii = (d.get("note") or {}).get("interactInfo") or d.get("interactInfo") or {}
+    out = {}
+    for k, field in _METRIC_MAP.items():
+        n = _cn_num(ii.get(k))
+        if n is not None:
+            out[field] = n
+    return out
+
+
 def collect(url: str, mode: str = "stub") -> dict:
     """取一条已发笔记的互动数据 → {笔记表数值字段: 值}。
-    mode=stub 返 {}(零成本占位);real 走 xhs-extract-master 非登录抓取。无 url / 取数失败 → {} 不阻断。"""
+    mode=stub 返 {}(零成本占位);real 走 xhs-extract-master 非登录抓取。无 url / 取数失败 → {} 不阻断。
+    IO(_extract_note subprocess)与形态归一(_note_metrics 纯函数)分离。"""
     if not url or mode != "real":
         return {}
     try:
@@ -54,13 +68,7 @@ def collect(url: str, mode: str = "stub") -> dict:
     except Exception as e:  # noqa: BLE001  取数失败不拦主流程,下轮重试
         print(f"[效果采集降级] {e}", file=sys.stderr)  # 诊断走 stderr,不污染 stdout(否则骗过测试监控 tail)
         return {}
-    ii = (d.get("note") or {}).get("interactInfo") or d.get("interactInfo") or {}  # 真实在 note.interactInfo(实测)
-    out = {}
-    for k, field in _METRIC_MAP.items():
-        n = _cn_num(ii.get(k))
-        if n is not None:
-            out[field] = n
-    return out
+    return _note_metrics(d)
 
 
 def _window() -> dict:

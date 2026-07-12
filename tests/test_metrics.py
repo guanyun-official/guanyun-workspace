@@ -1,4 +1,5 @@
-"""效果采集 + 反馈(G7)单测。采集默认 stub 零成本;real 走 xhs_fetch(mock,非登录零封号)。"""
+"""效果采集 + 反馈(G7)单测。采集默认 stub 零成本;real 走 xhs-extract-master 直连(非登录零封号)。
+形态归一 _note_metrics 是纯函数,两种 interactInfo 壳直测(零 mock);collect 只测 IO 边界/降级。"""
 import sys
 import unittest
 from datetime import datetime, timedelta
@@ -18,24 +19,30 @@ class TestCollect(unittest.TestCase):
     def test_no_url_returns_empty(self):
         self.assertEqual(metrics.collect("", mode="real"), {})
 
-    def test_real_maps_interactinfo_with_cn_numbers(self):
-        # xhs-extract-master note 原子返回 interactInfo,计数可为中文('8.5万')
+    def test_note_metrics_top_level_interactinfo_with_cn_numbers(self):
+        # 形态①:顶层 interactInfo,计数可为中文('8.5万')。纯函数直测,零 mock。
         payload = {"interactInfo": {"likedCount": "8.5万", "collectedCount": "5.8万",
                                     "commentCount": 815, "shareCount": 4386}}
-        with mock.patch.object(metrics, "_extract_note", return_value=payload):
-            got = metrics.collect("https://xiaohongshu.com/note/x", mode="real")
-        self.assertEqual(got, {NF.LIKED: 85000, NF.COLLECTED: 58000, NF.COMMENTS: 815, NF.SHARED: 4386})
+        self.assertEqual(metrics._note_metrics(payload),
+                         {NF.LIKED: 85000, NF.COLLECTED: 58000, NF.COMMENTS: 815, NF.SHARED: 4386})
 
-    def test_real_maps_nested_note_interactinfo(self):
-        """实测真上线暴露:xhs-extract-master --url 返回的 interactInfo 嵌在 note 下,不是顶层。
-        真链 6538dbf7 采到 liked=805/collected=470,零 key(tikhub/redfox 皆✗仍成)。"""
+    def test_note_metrics_nested_note_interactinfo(self):
+        """形态②(实测真上线暴露):xhs-extract-master --url 返回的 interactInfo 嵌在 note 下,不是顶层。
+        真链 6538dbf7 采到 liked=805/collected=470,零 key(tikhub/redfox 皆✗仍成)。纯函数直测。"""
         payload = {"note": {"interactInfo": {"likedCount": "805", "collectedCount": "470",
                                              "commentCount": "92", "shareCount": "104"}}}
-        with mock.patch.object(metrics, "_extract_note", return_value=payload):
-            got = metrics.collect("https://xiaohongshu.com/note/x", mode="real")
-        self.assertEqual(got, {NF.LIKED: 805, NF.COLLECTED: 470, NF.COMMENTS: 92, NF.SHARED: 104})
+        self.assertEqual(metrics._note_metrics(payload),
+                         {NF.LIKED: 805, NF.COLLECTED: 470, NF.COMMENTS: 92, NF.SHARED: 104})
 
-    def test_real_failure_degrades_not_crash(self):
+    def test_note_metrics_empty_shape_returns_empty(self):
+        self.assertEqual(metrics._note_metrics({}), {})                          # 空壳→空
+        self.assertEqual(metrics._note_metrics({"note": {}}), {})                # 有 note 无 interactInfo→空
+
+    def test_collect_wires_extract_to_normalizer(self):
+        """collect 只测 IO 边界:subprocess 结果喂给 _note_metrics;取数失败降级返空不炸。"""
+        payload = {"interactInfo": {"likedCount": "805"}}
+        with mock.patch.object(metrics, "_extract_note", return_value=payload):
+            self.assertEqual(metrics.collect("https://x", mode="real"), {NF.LIKED: 805})
         with mock.patch.object(metrics, "_extract_note", side_effect=RuntimeError("网络挂")):
             self.assertEqual(metrics.collect("https://x", mode="real"), {}, "取数失败返空不炸")
 
