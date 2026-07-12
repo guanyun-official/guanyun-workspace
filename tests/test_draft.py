@@ -190,6 +190,41 @@ class SelectAndAttachMaterials(unittest.TestCase):
             self.assertEqual(draft.select_materials(["上身图"], limit=2), ["recCold", "recHot"])
 
 
+class MaterialHitsPure(unittest.TestCase):
+    """#32 过滤谓词 `_material_hits` 直测:records 作参数注入,**零 mock**(IO 与选择已分离)。
+    真正会错的 6 条过滤 + 排序在纯函数里直接喂字面 records 断言,不必 patch list_records。"""
+
+    def test_type_shot_and_least_cited_order(self):
+        mats = [
+            {"record_id": "recHot", "fields": {"类型": "上身图", "拍摄状态": "已拍", "被引用次数": 5}},
+            {"record_id": "recCold", "fields": {"类型": "上身图", "拍摄状态": "已拍", "被引用次数": 0}},
+            {"record_id": "recTodo", "fields": {"类型": "上身图", "拍摄状态": "待拍"}},        # 未拍→排除
+            {"record_id": "recWrong", "fields": {"类型": "上身视频", "拍摄状态": "已拍"}},     # 类型不符→排除
+        ]
+        self.assertEqual(draft._material_hits(mats, ["上身图"]), ["recCold", "recHot"])   # 已拍+类型符,少用优先
+        self.assertEqual(draft._material_hits(mats, ["上身图"], limit=1), ["recCold"])
+        self.assertEqual(draft._material_hits([], ["上身图"]), [])                          # 无候选
+        self.assertEqual(draft._material_hits(mats, []), [])                                # 空 needs
+
+    def test_track_projection(self):
+        mats = [
+            {"record_id": "recOwn", "fields": {"类型": "上身图", "拍摄状态": "已拍", "适用账号": [{"record_ids": ["recOOTD"]}]}},
+            {"record_id": "recOther", "fields": {"类型": "上身图", "拍摄状态": "已拍", "适用账号": [{"record_ids": ["recX"]}]}},
+            {"record_id": "recUntagged", "fields": {"类型": "上身图", "拍摄状态": "已拍"}},
+        ]
+        ids = draft._material_hits(mats, ["上身图"], account_rec_id="recOOTD")
+        self.assertIn("recOwn", ids); self.assertIn("recUntagged", ids); self.assertNotIn("recOther", ids)
+
+    def test_clothes_matchboard_and_content_addressing(self):
+        mats = [   # 货对板/内容寻址匹配 素材编号 或 备注(与线上一致)
+            {"record_id": "recA", "fields": {"类型": "形象图", "拍摄状态": "已拍", "素材编号": "SC-GY-001-05", "备注": "月影蓝"}},
+            {"record_id": "recB", "fields": {"类型": "形象图", "拍摄状态": "已拍", "素材编号": "SC-紫藤-01", "备注": "逆光 GY-003"}},
+        ]
+        self.assertEqual(draft._material_hits(mats, ["形象图"], clothes="GY-001"), ["recA"])   # #36 只货对板(编号标)
+        self.assertEqual(draft._material_hits(mats, ["形象图"], clothes="GY-999"), [])          # 无匹配→0,不挂错
+        self.assertEqual(draft._material_hits(mats, ["形象图"], content="逆光"), ["recB"])       # #38 内容寻址(备注标)
+
+
 class IngestToSelectRoundtrip(unittest.TestCase):
     """摄入→选 端到端契约:ingest.register 登记的素材(类型+适用账号+已拍)能被 draft.select_materials 选到。"""
 

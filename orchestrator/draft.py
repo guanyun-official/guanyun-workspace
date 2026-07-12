@@ -179,20 +179,21 @@ def _resolve_link(table: str, name_field: str, name: str) -> list[str]:
             if bitable.text(r["fields"].get(name_field)).strip() == name]
 
 
-def select_materials(material_needs: list[str], account_rec_id: str = "", limit: int = 3,
-                     clothes: str = "", content: str = "") -> list[str]:
-    """#32 选素材:素材表里 类型 ∈ material_needs + 拍摄状态=已拍 +(适用账号空 或 含该号)的候选 record_id(≤limit)。
-    赛道投影:显式标了别号的素材排除,没标(未归赛道)的可用。空 material_needs / 无候选 → [](不炸)。
-
-    #36 clothes(衣服编号)给定=**品牌新作货对板闸**:只选『编号/备注里标了该衣服』的素材——
-    防官号文案绑某衣服、素材却是另一件的『货不对板=对读者等于编造』。标不上就宁可 0 条(不挂错图)。"""
-    from . import bitable, feishu_io
+def _material_hits(records: list[dict], material_needs: list[str], account_rec_id: str = "",
+                   limit: int = 3, clothes: str = "", content: str = "") -> list[str]:
+    """#32 选素材的**纯过滤谓词**(零 IO,records 由调用点注入)→ 命中 record_id(≤limit)。
+    这里是全仓分支最密、最易错的一段(6 条过滤 + 排序),抽成纯函数直测(不必 mock list_records):
+      ① 类型 ∈ material_needs ② 拍摄状态=已拍 ③ 赛道投影(显式标别号排除、未标可用)
+      ④ #36 货对板(clothes 给定:只选编号/备注标了该衣服的,否则宁可 0 条不挂错图)
+      ⑤ #38 内容寻址(content 给定:按备注内容标签如'逆光'选)⑥ #36 少用优先(被引次数升序,素材分散防撞图)。
+    空 material_needs / 无候选 → [](不炸)。"""
+    from . import bitable
     from .bitable import MaterialFields as MF, MaterialStatus as MS
     needs = set(material_needs or [])
     if not needs:
         return []
     cands: list[dict] = []
-    for m in feishu_io.list_records(MF.TABLE):
+    for m in records:
         f = m["fields"]
         if bitable.text(f.get(MF.TYPE)) not in needs:
             continue
@@ -209,6 +210,16 @@ def select_materials(material_needs: list[str], account_rec_id: str = "", limit:
     # #36 少用优先:按被引用次数升序(stable,同分保持原序)→ 素材天然分散,减少跨号/跨条撞图
     cands.sort(key=lambda m: _cited_count(m["fields"].get(MF.CITED)))
     return [m["record_id"] for m in cands[:limit]]
+
+
+def select_materials(material_needs: list[str], account_rec_id: str = "", limit: int = 3,
+                     clothes: str = "", content: str = "") -> list[str]:
+    """#32 选素材:从素材表读候选(**IO 边界**)→ 交纯过滤谓词 `_material_hits` 决策。
+    IO 与选择分离——真正会错的过滤逻辑在 `_material_hits` 里可直测,这里只负责取数。"""
+    from . import feishu_io
+    from .bitable import MaterialFields as MF
+    return _material_hits(feishu_io.list_records(MF.TABLE), material_needs,
+                          account_rec_id, limit, clothes, content)
 
 
 def _cited_count(v) -> int:
