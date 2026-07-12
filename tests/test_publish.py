@@ -91,5 +91,58 @@ class TestReviewApproved(unittest.TestCase):
         self.assertTrue(mats[0]["取用链接"], "待发布要能看到可开的素材链接")
 
 
+class TestActionFns(unittest.TestCase):
+    """聊天/卡片交互动作函数:approve(人点批准)、fill_publish_link(认领链接,多条命中返候选不瞎写)。"""
+
+    def _patch(self, notes):
+        updates = []
+        return updates, mock.patch.object(feishu_io, "list_records", lambda t: notes if t == NF.TABLE else []), \
+            mock.patch.object(feishu_io, "update_record", lambda t, r, f: updates.append((r, f)))
+
+    def test_approve_only_from_draft_pending(self):
+        notes = [{"record_id": "n1", "fields": {NF.STATUS: NS.DRAFT_PENDING, NF.TITLE: "稿"}}]
+        updates, m1, m2 = self._patch(notes)
+        with m1, m2:
+            r = publish.approve("n1", write=True)
+        self.assertTrue(r["ok"])
+        self.assertEqual(updates[0][1][NF.STATUS], NS.APPROVED)
+
+    def test_approve_rejects_wrong_state(self):
+        notes = [{"record_id": "n1", "fields": {NF.STATUS: NS.TO_PUBLISH, NF.TITLE: "稿"}}]
+        updates, m1, m2 = self._patch(notes)
+        with m1, m2:
+            r = publish.approve("n1", write=True)
+        self.assertFalse(r["ok"])
+        self.assertEqual(updates, [])                                   # 不是草稿待发→不动
+
+    def test_fill_link_unique_match_writes(self):
+        notes = [{"record_id": "n1", "fields": {NF.STATUS: NS.TO_PUBLISH, NF.TITLE: "浅云", NF.ACCOUNT: "ootd号"}}]
+        updates, m1, m2 = self._patch(notes)
+        with m1, m2:
+            r = publish.fill_publish_link("浅云", "https://xhs/abc", write=True)
+        self.assertTrue(r["ok"] and r["matched"] == 1)
+        self.assertEqual(updates[0][1][NF.STATUS], NS.PUBLISHED)
+        self.assertEqual(updates[0][1][NF.PUBLISH_LINK]["link"], "https://xhs/abc")
+
+    def test_fill_link_ambiguous_returns_candidates(self):
+        notes = [{"record_id": "n1", "fields": {NF.STATUS: NS.TO_PUBLISH, NF.TITLE: "OOTD 一", NF.ACCOUNT: "ootd号"}},
+                 {"record_id": "n2", "fields": {NF.STATUS: NS.TO_PUBLISH, NF.TITLE: "OOTD 二", NF.ACCOUNT: "ootd号"}}]
+        updates, m1, m2 = self._patch(notes)
+        with m1, m2:
+            r = publish.fill_publish_link("OOTD", "https://xhs/x", write=True)
+        self.assertFalse(r["ok"])
+        self.assertEqual(r["matched"], 2)
+        self.assertEqual(set(r["candidates"]), {"OOTD 一", "OOTD 二"})   # 多条命中→返候选,绝不瞎写
+        self.assertEqual(updates, [], "歧义不落库")
+
+    def test_fill_link_skips_already_filled(self):
+        notes = [{"record_id": "n1", "fields": {NF.STATUS: NS.PUBLISHED, NF.TITLE: "已填",
+                                                NF.PUBLISH_LINK: {"link": "https://old", "text": "x"}}}]
+        _, m1, m2 = self._patch(notes)
+        with m1, m2:
+            r = publish.fill_publish_link("已填", "https://new", write=True)
+        self.assertFalse(r["ok"])                                       # 已有链接的不再认领
+
+
 if __name__ == "__main__":
     unittest.main()

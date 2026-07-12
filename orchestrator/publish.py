@@ -64,3 +64,51 @@ def review_approved(brand: str = "观云", write: bool = False) -> list[dict]:
             entry["verdict"] = "⚠️需先勾AI声明(含AI合成素材)"
         out.append(entry)
     return out
+
+
+# ── 聊天/卡片交互的『动作函数』(ADR-0005):按钮点一下的、聊天填字的,都收口到这里 ──
+# 服务器 agent 的 webhook 只把"卡片按钮点击/聊天消息"接到这几个函数,不重写逻辑。人点=人审(红线不违)。
+
+def approve(note_id: str, write: bool = False) -> dict:
+    """人点『批准』(卡片按钮):草稿待发→已批准。人点=人审(机器绝不自审)。write 才落库。
+    返回 {ok, title?, reason?}。之后 review_approved 判 AI声明→待发布。"""
+    if write:
+        guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)   # 红线:只写测试库
+    for r in feishu_io.list_records(NF.TABLE):
+        if r["record_id"] != note_id:
+            continue
+        f = r["fields"]
+        st = bitable.text(f.get(NF.STATUS)).strip()
+        if st != NS.DRAFT_PENDING:
+            return {"ok": False, "reason": f"不是草稿待发(当前:{st or '空'}),不批准"}
+        if write:
+            feishu_io.update_record(NF.TABLE, note_id, {NF.STATUS: NS.APPROVED})
+        return {"ok": True, "title": bitable.text(f.get(NF.TITLE)), "advanced": write}
+    return {"ok": False, "reason": "没找到该笔记"}
+
+
+def fill_publish_link(note_key: str, url: str, write: bool = False) -> dict:
+    """认领发布链接(聊天里发链接/卡片):按 record_id 或标题/账号片段 匹配**一条**『待发布 或 已发缺链接』的笔记
+    → 写发布链接 + 标已发。**多条/零条命中→返候选让人指定,绝不瞎猜**(防写错笔记)。write 才落库。
+    返回 {ok, title?, url?, matched, candidates?}。这样回流采集才抓得到该帖数据。"""
+    if write:
+        guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)   # 红线:只写测试库
+    cands = []
+    for r in feishu_io.list_records(NF.TABLE):
+        f = r["fields"]
+        st = bitable.text(f.get(NF.STATUS)).strip()
+        if st not in (NS.TO_PUBLISH, NS.PUBLISHED):
+            continue
+        if st == NS.PUBLISHED and bitable.text(f.get(NF.PUBLISH_LINK)).strip():
+            continue                                                     # 已填链接的跳过
+        title = bitable.text(f.get(NF.TITLE))
+        acc = bitable.text(f.get(NF.ACCOUNT))
+        if note_key == r["record_id"] or (note_key and (note_key in title or note_key in acc)):
+            cands.append((r["record_id"], title))
+    if len(cands) != 1:
+        return {"ok": False, "matched": len(cands), "candidates": [t for _, t in cands]}
+    rid, title = cands[0]
+    if write:
+        feishu_io.update_record(NF.TABLE, rid,
+                                {NF.PUBLISH_LINK: bitable.url_value(url), NF.STATUS: NS.PUBLISHED})
+    return {"ok": True, "title": title, "url": url, "matched": 1, "done": write}
