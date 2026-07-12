@@ -67,6 +67,11 @@
 - **数据/config**(需用户/运营决策):官号缺形象图+真衣服KB(押后)、灵感库需配 trend_imitate 号、cadence.pattern/生成参数等特性预留。
 > 治本已落:①用户视角探测法(base/md声明 vs 代码实读)②验收硬化(唯一源双向、verify/ar paused-aware)③状态机闭环(待出文案→草稿待发→已发→已回流全推进,真跑自证)。
 
+| 19 | "关键词库/目标客户被消费吗" | 32关键词+17客户**无代码读=哑数据**(没喂回生成/选题);content-addressing #38 sound | 特性预留(可将来喂选题/SEO/targeting) | — | ⏸ |
+
+## 收官(19轮 · autoresearch 收敛)
+**代码 gap 挖尽**。修了 11 个真 gap(自动排产消费/开启语义/防搬运闸/状态机推进×2/唯一源双向/催拍/回流闭环/复盘聚合/验收paused-aware×2),全带回归锁、keep门全程绿、效果闭环真跑自证。最近几轮只落进两类既知桶(运营阶段待接线 / 声明未消费数据),非新bug=收敛信号。要再推进须**换 frontier**:启用运营阶段(发布/告警/dedicated-agent+进群)或决策预留数据。
+
 ## 待提 issue(休眠闸/config 缺口)
 - assert_publish_quota(控量门)+ assert_ai_declared(AI声明门)生产零调用——发布/状态推进步(人/dedicated-agent)建时必接。
 - 灵感库无 trend_imitate 号消费;官号缺形象图素材(押后)。
