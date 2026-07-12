@@ -1,8 +1,8 @@
 """效果采集 + 反馈(G7)。从已发笔记的公开页取互动数据写回笔记表,并按 playbook 聚合成
 "哪套方法论有效"的反馈信号,喂回排产(闭环学习的最后一环)。
 
-采集走 lib/xhs_fetch 统一取数口(内部链 xhs-extract-master 非登录 SSR / apify / redfox,
-**零封号不用我方账号**)。默认 stub 零成本;`mode="real"` 才真取(只读安全)。
+采集能力是可替换 skill:`_extract_note` 直接 subprocess 调 xhs-extract-master 非登录 SSR
+提取器(**零封号不用我方账号**),换源=换 skill 路径。默认 stub 零成本;`mode="real"` 才真取(只读安全)。
 """
 from __future__ import annotations
 

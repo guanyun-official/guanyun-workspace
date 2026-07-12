@@ -86,7 +86,10 @@ guanyun-workspace/
 ├── skills/              # install_skills.sh 产出的 symlink(不入库)
 ├── scripts/             # draft_one.py(薄执行器CLI)/ ingest.py / dump_schema.py / install_skills.sh / check_p*.sh
 ├── orchestrator/        # 薄执行器 draft.py + 已验证原语(accounts/llm/guard/feishu_io/bitable/config/metrics/alerts/skills_lock)
-├── lib/                 # seams:feishu_workbench/xhs_fetch/apify_xhs/brand_kb/skill_gate/skill_io
+├── lib/                 # ⚠️技能层共享运行库,非死码——qiaohe-skill 的 Python 技能(立号/爆款拆解/选题深化)
+│                        #   经三级路径定位(parents/…/lib)注入 sys.path 后 import:feishu_workbench 写库/
+│                        #   xhs_fetch 取数/skill_gate 校验+防搬运/skill_io I/O契约/brand_kb 品牌注入(apify_xhs 供 xhs_fetch)。
+│                        #   orchestrator 不 import 它(两个独立子系统,各有一套写库/取数/防搬运),但删了会断技能层(check_p3⑥ 会红)。
 ├── local-skills/        # 号/模式特化 skill(writing-{amateur-ootd,ootd-caption,brand-newpiece};compose 通用+真实帖 few-shot)
 ├── brands/              # 账号声明·画像 + knowledge_base 内容 know-how(衣服考据)
 └── docs/                # 交接文档.md(权威)/ 架构与方法论.md / PLAN.md 等
