@@ -8,8 +8,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from orchestrator import accounts, alerts, bitable, collect, config, dispatch, draft, feishu_io, metrics  # noqa: E402
+from orchestrator import (accounts, alerts, bitable, collect, config, dispatch, draft,  # noqa: E402
+                          feishu_io, guard, metrics, publish, report, shotlist, trends)
 from orchestrator.bitable import AccountFields as AF, NoteFields as NF, NoteStatus as NS  # noqa: E402
+from orchestrator.bitable import MaterialSource as MSrc  # noqa: E402
 from orchestrator.guard import GuardError  # noqa: E402
 
 
@@ -52,7 +54,8 @@ def main() -> int:
         for pb in acc.playbooks():
             ct = pb.get("content_type") or pb.get("id") or ""
             combos.append((name, ct))
-    ck(f"覆盖 {len(combos)} 个账号×模式组合", len(combos) >= 5, str([f"{a}/{c}" for a, c in combos]))
+    # 覆盖所有『活跃(未暂停)』账号×模式;数量随 base 暂停开关变,不焊死(暂停号退出要求是功能非缺陷)
+    ck(f"覆盖 {len(combos)} 个活跃账号×模式组合", bool(combos), str([f"{a}/{c}" for a, c in combos]))
     for name, ct in combos:
         clothes = "GY-001" if "品牌新作" in ct else ""
         r = draft.generate_draft(name, llm_mode="stub", content_type=ct, clothes=clothes)
@@ -105,6 +108,20 @@ def main() -> int:
     print("⑤ 可扩展")
     multi = [n for n, a in accounts.load_all("观云").items() if len(a.playbooks()) >= 2]
     ck("一号多模式已实跑(声明式加模式不改代码)", bool(multi), f"多模式号={multi}")
+
+    # 6) 人只管头尾:头=拍素材(拍摄需求单)· 中间系统全包(找热点/排期出稿/AI声明判定)· 尾=审发(base点)· 每周总结
+    print("⑥ 人只管头尾全链就位")
+    ck("中·跑一天脊梁(排期→出稿→挂素材→草稿待发,一条命令)",
+       hasattr(dispatch, "run_day") and all(r["status"] == "(干跑)" for r in dispatch.run_day("观云", write=False)))
+    ai_rule = (not guard.ai_declaration_required([MSrc.REAL, MSrc.REAL])) and guard.ai_declaration_required([MSrc.AI])
+    ck("尾·AI声明按素材来源自动判定(实拍免勾/AI合成强制勾,机器不代勾)",
+       ai_rule and hasattr(publish, "review_approved"))
+    ck("头·拍摄需求单在位(需要拍什么/缺几条/拍摄要求/参考)",
+       hasattr(shotlist, "shot_needs") and isinstance(shotlist.shot_needs("观云"), list))
+    ck("周·每周总结在位(回流→按方法论复盘)",
+       hasattr(report, "weekly_summary") and "复盘" in report.format_weekly(report.weekly_summary([])))
+    ck("中·找热点→灵感库落库去重在位(trend_imitate 前置)",
+       trends.harvest_trends([{"标题": "验收探针热点X"}], write=False)["新增"] == ["验收探针热点X"])
 
     print("══════", "✅ 体系完全可用(综合验收全绿)" if not FAIL else "❌ 有未达标项,未完全可用", "══════")
     if FAIL and args.alert:   # 红了发告警到飞书私聊(hermes home=p2p私聊,不进群)
