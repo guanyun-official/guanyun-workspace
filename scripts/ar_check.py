@@ -44,9 +44,9 @@ except Exception as e:
 # ── 账号声明:全部可解析 + ≥3 个号已声明模式 ────────────────────────
 try:
     from orchestrator import accounts
-    probs = accounts.problems("观云")
+    probs = accounts.problems("巧荷")
     ck("声明健壮", "账号 frontmatter 全部可解析(坏声明不静默漏号)", not probs, f"解析失败={probs or '无'}")
-    n_strat = sum(1 for a in accounts.load_all("观云").values() if a.strategy)
+    n_strat = sum(1 for a in accounts.load_all("巧荷").values() if a.strategy)
     ck("模式泛化", "加模式=写 strategy 声明(≥3 个号已声明模式,引擎通用解释)",
        n_strat >= 3, f"{n_strat} 个账号模式声明")
 except Exception as e:
@@ -56,7 +56,7 @@ except Exception as e:
 try:
     from orchestrator import feishu_io, accounts, bitable
     from orchestrator.bitable import AccountFields as AF
-    accs = accounts.load_all("观云")
+    accs = accounts.load_all("巧荷")
     base_names = {bitable.text(x["fields"].get(AF.NAME)).strip() for x in feishu_io.list_records("账号表")}
     base_names.discard("")
     ws_names = set(accs.keys())

@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+**命名事实**:**观云 = 母公司,巧荷 = 当前品牌**(账号皆"巧荷｜OOTD""巧荷·东方美学")。代码里 `brand` 维度、`brands/巧荷/`、人看到的显示 = **巧荷**;`guanyun-workspace` 仓库名(拼音)= 母公司 workspace,不改。将来若多品牌,再在观云下并列。
+
 先读 `AGENTS.md`(环境事实:Base/账号/红线/工具,Codex 与 Claude Code 通用)。
 
 **开发 or 运营?** 先读 `docs/运行模式.md` 分清两种 loop:

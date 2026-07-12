@@ -17,7 +17,7 @@ from orchestrator import config, feishu_io, trends
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--brand", default="观云")
+    ap.add_argument("--brand", default="巧荷")
     ap.add_argument("--file", required=True, help="热点灵感 JSON(list of {标题,可借鉴,源链接})")
     ap.add_argument("--write", action="store_true", help="落灵感库(默认干跑预览)")
     a = ap.parse_args()

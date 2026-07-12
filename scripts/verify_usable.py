@@ -48,7 +48,7 @@ def main() -> int:
               for r in feishu_io.list_records(AF.TABLE)
               if bitable.text(r["fields"].get(AutoSched.FIELD)).strip() == AutoSched.PAUSED}
     combos = []
-    for name, acc in sorted(accounts.load_all("观云").items()):
+    for name, acc in sorted(accounts.load_all("巧荷").items()):
         if name in paused:
             continue
         for pb in acc.playbooks():
@@ -71,7 +71,7 @@ def main() -> int:
         r = draft.generate_draft("ootd号", llm_mode="stub")
         for who, fn in [("draft写", lambda: draft.create_draft_note(r)),
                         ("collect写", lambda: collect.collect_and_writeback(mode="stub")),
-                        ("dispatch写", lambda: dispatch.dispatch("观云", write=True))]:
+                        ("dispatch写", lambda: dispatch.dispatch("巧荷", write=True))]:
             blocked = False
             try:
                 fn()
@@ -96,7 +96,7 @@ def main() -> int:
 
     # 4) 调度自动化 + 灵感前置
     print("④ 轻调度器 + 灵感前置")
-    asn = dispatch.daily_assignments("观云")
+    asn = dispatch.daily_assignments("巧荷")
     asn_combos = {(a["account"], a["content_type"]) for a in asn}
     # 派活是全组合的有效子集(base「自动排产=暂停」的号会被跳过——那正是功能,不是缺陷)
     ck(f"派活是全组合有效子集({len(asn)}条;暂停号已按 base 排产跳过)",
@@ -106,18 +106,18 @@ def main() -> int:
 
     # 5) 可扩展:加号/加模式=改声明不动代码(多模式已验证)
     print("⑤ 可扩展")
-    multi = [n for n, a in accounts.load_all("观云").items() if len(a.playbooks()) >= 2]
+    multi = [n for n, a in accounts.load_all("巧荷").items() if len(a.playbooks()) >= 2]
     ck("一号多模式已实跑(声明式加模式不改代码)", bool(multi), f"多模式号={multi}")
 
     # 6) 人只管头尾:头=拍素材(拍摄需求单)· 中间系统全包(找热点/排期出稿/AI声明判定)· 尾=审发(base点)· 每周总结
     print("⑥ 人只管头尾全链就位")
     ck("中·跑一天脊梁(排期→出稿→挂素材→草稿待发,一条命令)",
-       hasattr(dispatch, "run_day") and all(r["status"] == "(干跑)" for r in dispatch.run_day("观云", write=False)))
+       hasattr(dispatch, "run_day") and all(r["status"] == "(干跑)" for r in dispatch.run_day("巧荷", write=False)))
     ai_rule = (not guard.ai_declaration_required([MSrc.REAL, MSrc.REAL])) and guard.ai_declaration_required([MSrc.AI])
     ck("尾·AI声明按素材来源自动判定(实拍免勾/AI合成强制勾,机器不代勾)",
        ai_rule and hasattr(publish, "review_approved"))
     ck("头·拍摄需求单在位(需要拍什么/缺几条/拍摄要求/参考)",
-       hasattr(shotlist, "shot_needs") and isinstance(shotlist.shot_needs("观云"), list))
+       hasattr(shotlist, "shot_needs") and isinstance(shotlist.shot_needs("巧荷"), list))
     ck("周·每周总结在位(回流→按方法论复盘)",
        hasattr(report, "weekly_summary") and "复盘" in report.format_weekly(report.weekly_summary([])))
     ck("中·找热点→灵感库落库去重在位(trend_imitate 前置)",
@@ -125,7 +125,7 @@ def main() -> int:
 
     # 7) 顺手:一条命令看完今日头尾(替代挨个敲 run_day/publish_ready/shot_list)——防"绿≠可用"照不到人机可用性
     print("⑦ 顺手·驾驶舱(一条命令看完今日)")
-    panel = cockpit.today_panel("观云")
+    panel = cockpit.today_panel("巧荷")
     ck("今日面板一条命令聚合 待审/待发/待回填链接/要补拍",
        hasattr(cockpit, "today_panel") and {"待审", "待发", "待回填链接", "要补拍"} <= set(panel))
     ck("待发条目带『用哪张素材+可开链接』(人发时知道用哪张)",
@@ -133,7 +133,7 @@ def main() -> int:
 
     print("══════", "✅ 体系完全可用(综合验收全绿)" if not FAIL else "❌ 有未达标项,未完全可用", "══════")
     if FAIL and args.alert:   # 红了发告警到飞书私聊(hermes home=p2p私聊,不进群)
-        alerts.send(f"综合验收未通过({len(FAILED_ITEMS)}项):{'、'.join(FAILED_ITEMS)}", title="观云周验收⚠️")
+        alerts.send(f"综合验收未通过({len(FAILED_ITEMS)}项):{'、'.join(FAILED_ITEMS)}", title="巧荷周验收⚠️")
     return FAIL
 
 

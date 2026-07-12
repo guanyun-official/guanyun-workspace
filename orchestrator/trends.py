@@ -10,7 +10,7 @@ from . import bitable, config, feishu_io, guard
 from .bitable import InspirationFields as IF
 
 
-def harvest_trends(items: list[dict], brand: str = "观云", write: bool = False) -> dict:
+def harvest_trends(items: list[dict], brand: str = "巧荷", write: bool = False) -> dict:
     """把找到的热点/爆款灵感落灵感库。items=[{标题, 可借鉴?, 源链接?}]。
     按标题去重(已在库跳过);write=False 干跑预览、True 落库(过 base 红线闸)。返回 {新增, 去重跳过}。"""
     if write:

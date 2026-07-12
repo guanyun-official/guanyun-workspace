@@ -1,7 +1,7 @@
 {
   "version": "1.0",
-  "brand": "观云",
-  "description": "观云品牌小红书标题公式库。所有公式遵循'东方高级、当代克制、女性主体性'调性。",
+  "brand": "巧荷",
+  "description": "巧荷品牌小红书标题公式库。所有公式遵循'东方高级、当代克制、女性主体性'调性。",
   "tone_constraints": {
     "max_chars": 30,
     "exclamation_limit": 1,

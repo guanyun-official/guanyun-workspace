@@ -15,7 +15,7 @@ from orchestrator.bitable import NoteFields as NF
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--brand", default="观云")
+    ap.add_argument("--brand", default="巧荷")
     ap.add_argument("--alert", action="store_true", help="推飞书(hermes)")
     a = ap.parse_args()
     print(f"env={config.ENV_NAME} test_mode={config.TEST_MODE} brand={a.brand}")
@@ -26,7 +26,7 @@ def main() -> int:
     print("\n" + text)
     if a.alert:
         from orchestrator import alerts
-        alerts.send(text, title="观云·本周复盘")
+        alerts.send(text, title="巧荷·本周复盘")
         print("\n(已推飞书)")
     return 0
 

@@ -14,7 +14,7 @@ from orchestrator import config, dispatch
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--brand", default="观云")
+    ap.add_argument("--brand", default="巧荷")
     ap.add_argument("--write", action="store_true", help="落库为『待出文案』占位(默认干跑只打印)")
     a = ap.parse_args()
     print(f"env={config.ENV_NAME} test_mode={config.TEST_MODE} brand={a.brand}")

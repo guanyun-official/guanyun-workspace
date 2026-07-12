@@ -1,7 +1,7 @@
 {
   "version": "1.0",
-  "brand": "观云",
-  "description": "观云品牌小红书视觉公式库。封面图必须从这套公式里选，禁止自由发挥。",
+  "brand": "巧荷",
+  "description": "巧荷品牌小红书视觉公式库。封面图必须从这套公式里选，禁止自由发挥。",
   "color_palette": {
     "primary": ["墨黑 #1a1a1a", "暖象牙白 #f5f0e8", "琥珀金 #b8860b"],
     "secondary": ["天青色 #7fa8a0", "沉香褐 #6b4423"],
@@ -41,7 +41,7 @@
       "id": "V4",
       "name": "文字点缀",
       "structure": "[大字标题 60%] + [极简底图 30%] + [品牌色衬底]",
-      "prompt_template": "[极简海报风], 底色 = {brand_color}, 中心大字 = '{title_4_to_8_chars}', 字体 = 思源宋体 Bold, 字号大, 字距宽, 底部小字 = '观云 GUANYUN', 无其他元素, 高级杂志封面感, 8K",
+      "prompt_template": "[极简海报风], 底色 = {brand_color}, 中心大字 = '{title_4_to_8_chars}', 字体 = 思源宋体 Bold, 字号大, 字距宽, 底部小字 = '巧荷 GUANYUN', 无其他元素, 高级杂志封面感, 8K",
       "examples": ["底色琥珀金，大字'我有我的东方骨'", "底色天青色，大字'云无形 自有气度'"],
       "applicable_pipelines": ["A1", "A2", "A3"]
     }

@@ -6,7 +6,7 @@ import shutil
 import subprocess
 
 
-def send(text: str, *, title: str = "观云推进器") -> bool:
+def send(text: str, *, title: str = "巧荷推进器") -> bool:
     msg = f"【{title}】\n{text}"
     if os.environ.get("ALERT_DRY_RUN", "0") == "1" or not shutil.which("hermes"):
         print(f"[alert:dry] {msg}")

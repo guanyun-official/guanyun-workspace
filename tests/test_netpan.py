@@ -9,9 +9,9 @@ from orchestrator import netpan  # noqa: E402
 
 class TestPointer(unittest.TestCase):
     def test_pointer_roundtrip(self):
-        p = netpan.pointer("/观云素材/01-原始拍摄/a.jpg")
+        p = netpan.pointer("/巧荷素材/01-原始拍摄/a.jpg")
         self.assertTrue(p.startswith("baidupan:"))
-        self.assertEqual(netpan.pointer_path(p), "/观云素材/01-原始拍摄/a.jpg")
+        self.assertEqual(netpan.pointer_path(p), "/巧荷素材/01-原始拍摄/a.jpg")
 
     def test_pointer_path_passthrough(self):
         # 非本方案指针(file://、http)原样返回,不误伤
@@ -29,14 +29,14 @@ class TestParseLs(unittest.TestCase):
     )
 
     def test_parse_dir_and_files(self):
-        items = netpan._parse_ls("/观云素材", self.SAMPLE)
+        items = netpan._parse_ls("/巧荷素材", self.SAMPLE)
         names = [(i["name"], i["is_dir"]) for i in items]
         self.assertIn(("01-原始拍摄", True), names)
         self.assertIn(("逆光紫藤裙.jpg", False), names)
         self.assertIn(("走线视频.mov", False), names)
         self.assertEqual(len(items), 3)                      # 表头/统计行被过滤
         jpg = next(i for i in items if i["name"] == "逆光紫藤裙.jpg")
-        self.assertEqual(jpg["path"], "/观云素材/逆光紫藤裙.jpg")
+        self.assertEqual(jpg["path"], "/巧荷素材/逆光紫藤裙.jpg")
 
     def test_parse_empty_and_garbage(self):
         self.assertEqual(netpan._parse_ls("/x", ""), [])
@@ -64,7 +64,7 @@ class TestWhoParse(unittest.TestCase):
         self.assertFalse(netpan._who_logged_in("当前帐号 uid: 0, 用户名: , 性别: , 年龄: 0.0"))
 
     def test_logged_in_real_uid(self):
-        self.assertTrue(netpan._who_logged_in("当前帐号 uid: 3821092, 用户名: 观云小助手, 性别: 女, 年龄: 2.0"))
+        self.assertTrue(netpan._who_logged_in("当前帐号 uid: 3821092, 用户名: 巧荷小助手, 性别: 女, 年龄: 2.0"))
 
     def test_garbage(self):
         self.assertFalse(netpan._who_logged_in("未登录"))
@@ -85,24 +85,24 @@ class TestStubRedline(unittest.TestCase):
             netpan._run(["ls", "/"])
 
     def test_list_dir_empty(self):
-        self.assertEqual(netpan.list_dir("/观云素材"), [])
+        self.assertEqual(netpan.list_dir("/巧荷素材"), [])
 
     def test_logged_in_false(self):
         self.assertFalse(netpan.logged_in())
 
     def test_pull_upload_refused(self):
         with self.assertRaises(netpan.NetpanError):
-            netpan.pull("/观云素材/a.jpg")
+            netpan.pull("/巧荷素材/a.jpg")
         with self.assertRaises(netpan.NetpanError):
-            netpan.upload("/tmp/a.jpg", "/观云素材/03-成片")
+            netpan.upload("/tmp/a.jpg", "/巧荷素材/03-成片")
 
     def test_share_degrades_to_pointer(self):
-        self.assertEqual(netpan.share_link("/观云素材/a.jpg"),
-                         netpan.pointer("/观云素材/a.jpg"))
+        self.assertEqual(netpan.share_link("/巧荷素材/a.jpg"),
+                         netpan.pointer("/巧荷素材/a.jpg"))
 
     def test_take_link_pointer_vs_local(self):
         # 网盘指针 → 用时 mint(stub 退化成同指针,不损坏);本地 file:// 原样(不被当网盘路径污染)
-        ptr = netpan.pointer("/观云素材/03-成片/x.mp4")
+        ptr = netpan.pointer("/巧荷素材/03-成片/x.mp4")
         self.assertEqual(netpan.take_link(ptr), ptr)
         self.assertEqual(netpan.take_link("file:///Users/x/a.jpg"), "file:///Users/x/a.jpg")
 

@@ -31,7 +31,7 @@ def _should_dispatch(sched: str, posts_per_day) -> bool:
     return (posts_per_day if posts_per_day is not None else 1) >= 1
 
 
-def daily_assignments(brand: str = "观云") -> list[dict]:
+def daily_assignments(brand: str = "巧荷") -> list[dict]:
     """今天派活清单:每号(base「自动排产」≠暂停 且 cadence.posts_per_day≥1)× 其每个模式 → 一条活。
     读 base 账号表「自动排产」运营开关(不写库)。返回 [{account, content_type, gen_skill, material_needs, sourcing, sourcing_hint}]。"""
     # base 侧运营开关(唯一真相):读账号表「自动排产」——团队在 base 点,谁接手(dedicated agent)都读得到
@@ -59,7 +59,7 @@ def daily_assignments(brand: str = "观云") -> list[dict]:
     return out
 
 
-def pending_ideas(brand: str = "观云") -> list[dict]:
+def pending_ideas(brand: str = "巧荷") -> list[dict]:
     """灵感库里『还没转化为笔记』的爆款灵感(=爆款模仿 trend_imitate 的原料):标题+可借鉴优点+爆款源链接。
     连上需求/灵感→出稿的前置一环:员工采集的爆款进灵感库,这里捞出未转化的待出稿(出稿用 --title-seed 承接)。"""
     out = []
@@ -76,7 +76,7 @@ def pending_ideas(brand: str = "观云") -> list[dict]:
     return out
 
 
-def run_day(brand: str = "观云", llm_mode: str = "stub", write: bool = False) -> list[dict]:
+def run_day(brand: str = "巧荷", llm_mode: str = "stub", write: bool = False) -> list[dict]:
     """跑一天(人只管头尾的『中间』一条龙):排期(daily_assignments,尊重 base 自动排产)
     → 每条活 出文案(generate_draft)+ 挂素材(create_draft_note 内含 select_materials)→ 推进『草稿待发』。
     **一条命令产出"今天每号要发什么(草稿+素材,待人审)"**,人打开 base 就能审。
@@ -110,7 +110,7 @@ def mark_idea_converted(idea_id: str, note_id: str) -> None:
     feishu_io.update_record(IF.TABLE, idea_id, {IF.CONVERTED: [note_id]})
 
 
-def runway_alerts(brand: str = "观云") -> list[dict]:
+def runway_alerts(brand: str = "巧荷") -> list[dict]:
     """素材余量催拍(消费账号 md 的 runway_alert_days):可用素材 ÷ 日发量 ≈ 剩余天数;
     < 阈值 → 催拍该号补拍。可用素材走 draft.select_materials(赛道过滤)。粗估提醒用,非精确排产。"""
     from .draft import select_materials, _resolve_link
@@ -142,7 +142,7 @@ def _open_slots() -> set:
     return slots
 
 
-def dispatch(brand: str = "观云", write: bool = False) -> list[dict]:
+def dispatch(brand: str = "巧荷", write: bool = False) -> list[dict]:
     """派活:今天每号每模式的活落成『待出文案』占位(write=True 才写测试库)。
     已在途的号×模式跳过(去重)。绝不自动发布、绝不代勾 AI 声明。返回本次实际派的活(含 note_id/skipped)。"""
     assigns = daily_assignments(brand)

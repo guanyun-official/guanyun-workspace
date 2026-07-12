@@ -36,7 +36,7 @@ class TestArCheckSync(unittest.TestCase):
 
     def test_engine_sees_declarations(self):
         """数据前提:引擎从 {号}.md 至少解析出 3 个非空 strategy 声明。"""
-        declared = {n: a.strategy for n, a in accounts.load_all("观云").items() if a.strategy}
+        declared = {n: a.strategy for n, a in accounts.load_all("巧荷").items() if a.strategy}
         self.assertGreaterEqual(len(declared), 3,
                                 f"accounts.load_all 只解析出 {len(declared)} 个 strategy 声明,ar_check 需 >=3")
 

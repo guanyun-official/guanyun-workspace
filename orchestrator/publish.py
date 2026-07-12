@@ -37,7 +37,7 @@ def note_materials(note_fields: dict, idx: dict) -> list[dict]:
     return out
 
 
-def review_approved(brand: str = "观云", write: bool = False) -> list[dict]:
+def review_approved(brand: str = "巧荷", write: bool = False) -> list[dict]:
     """遍历『已批准』笔记,按素材来源判 AI 声明,给出处置(write=True 才推进『待发布』)。
     返回 [{note_id, title, ai_required, declared, verdict, advanced}]。write 前过 base 红线闸(只写测试库)。"""
     if write:

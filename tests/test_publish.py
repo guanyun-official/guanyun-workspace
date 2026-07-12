@@ -33,7 +33,7 @@ class TestReviewApproved(unittest.TestCase):
             NF.TABLE: [{"record_id": "n1", "fields": note_fields}],
             MF.TABLE: [
                 {"record_id": "mReal", "fields": {MF.SOURCE: MSrc.REAL, MF.CODE: "M-1", MF.TYPE: "上身视频",
-                                                  MF.LINK: {"link": "baidupan:/观云素材/03-成片/a.mp4", "text": "a.mp4"}}},
+                                                  MF.LINK: {"link": "baidupan:/巧荷素材/03-成片/a.mp4", "text": "a.mp4"}}},
                 {"record_id": "mAI", "fields": {MF.SOURCE: MSrc.AI, MF.CODE: "M-2", MF.TYPE: "封面"}},
             ],
         }
@@ -44,7 +44,7 @@ class TestReviewApproved(unittest.TestCase):
         with mock.patch.object(feishu_io, "list_records", lambda t: base.get(t, [])), \
                 mock.patch.object(feishu_io, "update_record",
                                   lambda t, r, f: updates.append((r, f))):
-            rows = publish.review_approved("观云", write=write)
+            rows = publish.review_approved("巧荷", write=write)
         return rows, updates
 
     def test_real_footage_advances_without_checkbox(self):

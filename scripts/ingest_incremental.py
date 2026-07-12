@@ -1,14 +1,14 @@
 """素材增量入库(投递箱→拆解→待打标队列)。ADR-0004 / EPIC #40。
 
 **源可换**——同一条拆解链,换个源就能真跑:
-- `--from netpan`  真网盘投递箱 `观云素材/待入库/`(需 `GY_NETPAN_MODE=real` + BDUSS)
+- `--from netpan`  真网盘投递箱 `巧荷素材/待入库/`(需 `GY_NETPAN_MODE=real` + BDUSS)
 - `--from local <目录>`  本地目录(本地样片真跑拆解链,**不需网盘**)
 
 **职责边界**(机械 vs 判断分离):
 - **本脚本(机械)**:列源 → diff 已入库(按 key 去重) → 按需拉 → 转码(livp/heic→jpg) → 产出**待打标清单**。视频不切文件(ADR-0004 §4 段指针优先)。
 - **agent + tagging-material 技能(判断)**:看清单里每份素材 → 打标(类型/来源/赛道/衣服/内容) → `ingest.register` 落素材表。**本脚本绝不替 agent 打标**(看不见内容不瞎标)。
 
-  python3 -m scripts.ingest_incremental --from local brands/观云/materials/拍摄批次-20260701-手机拍
+  python3 -m scripts.ingest_incremental --from local brands/巧荷/materials/拍摄批次-20260701-手机拍
   python3 -m scripts.ingest_incremental --from netpan
 """
 from __future__ import annotations

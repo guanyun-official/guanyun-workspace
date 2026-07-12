@@ -4,9 +4,9 @@
 
 ---
 
-观云内容工厂 · loop:每号每模式"继续发相似"对齐。**试水批 = ootd号 / 图文号1 / 图文号2 三个(模式固定);官号押后一批**(要真实衣服KB+货对板,复杂)。
+巧荷内容工厂 · loop:每号每模式"继续发相似"对齐。**试水批 = ootd号 / 图文号1 / 图文号2 三个(模式固定);官号押后一批**(要真实衣服KB+货对板,复杂)。
 
-**先读**:`docs/loop-每模式对齐.md`(本 loop 的 /goal + monitor + 轻量verify + 状态表)· `AGENTS.md`(环境/红线/工具)· `docs/架构一图流.md` · `brands/观云/accounts/README.md`(账号=data;**加号/加模式=表加一行+写 md,插拔式注册,不改代码不改 schema**)。
+**先读**:`docs/loop-每模式对齐.md`(本 loop 的 /goal + monitor + 轻量verify + 状态表)· `AGENTS.md`(环境/红线/工具)· `docs/架构一图流.md` · `brands/巧荷/accounts/README.md`(账号=data;**加号/加模式=表加一行+写 md,插拔式注册,不改代码不改 schema**)。
 
 **目标**:每 账号×模式 能持续产出"像它历史帖"的稿,且体系 scalable(插拔)。
 

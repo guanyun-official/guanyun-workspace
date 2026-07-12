@@ -16,7 +16,7 @@ from orchestrator import config, dispatch, feishu_io
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--brand", default="观云")
+    ap.add_argument("--brand", default="巧荷")
     ap.add_argument("--write", action="store_true", help="落库为『草稿待发』(默认干跑只列活)")
     ap.add_argument("--llm", choices=["stub", "real"], default="stub",
                     help="stub 零成本占位 / real 出真文案(≈2元/条)")

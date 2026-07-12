@@ -29,7 +29,7 @@ def load_gen_skill(name: str) -> str:
     return ""
 
 
-def load_clothes(clothes_code: str, brand: str = "观云") -> str:
+def load_clothes(clothes_code: str, brand: str = "巧荷") -> str:
     """加载知识库里某件真实衣服的 know-how(款式/面料/工艺/卖点/形制/文物出处/纹样)。
     官号品牌新作/需具体产品的模式按此写**真实产品**,不编造。knowledge_base/衣服/{编号}.md;无则空串。
     编号只认干净标识(含 / \\ .. 的一律拒,防路径穿越读到知识库外的文件)。"""
@@ -54,7 +54,7 @@ def pick_playbook(acc, content_type: str = "") -> dict:
     return pbs[0]
 
 
-def load_keywords(brand: str = "观云", limit: int = 18) -> list[str]:
+def load_keywords(brand: str = "巧荷", limit: int = 18) -> list[str]:
     """关键词库里启用的关键词(选题/SEO 池;曾是哑数据没喂回生成)。启用状态≠禁用 且有词。"""
     from . import bitable, feishu_io
     from .bitable import KeywordFields as KF
@@ -80,7 +80,7 @@ def compose_prompt(acc, pb: dict, skill_text: str, title_seed: str = "", clothes
         if pb.get(k)
     )
     parts = [
-        "为观云(传统文化服装品牌,非遗面料复原/改良传统服饰)写一篇小红书笔记文案。",
+        "为巧荷(传统文化服装品牌,非遗面料复原/改良传统服饰)写一篇小红书笔记文案。",
         f"账号:{acc.name} 内容类型:{ctype}",
     ]
     if title_seed:
@@ -123,7 +123,7 @@ def _split_title(draft_text: str, fallback: str) -> str:
     return fallback
 
 
-def generate_draft(account_name: str, brand: str = "观云", llm_mode: str = "stub",
+def generate_draft(account_name: str, brand: str = "巧荷", llm_mode: str = "stub",
                    title_seed: str = "", clothes: str = "", content_type: str = "") -> dict:
     """读声明 → 加载 gen_skill few-shot(+可选真实衣服 know-how)→ 组稿 → 生成 → 组一条待审笔记字段。
     clothes=知识库衣服编号(如 GY-001):绑定后按真实产品写、防编造(官号品牌新作应绑)。

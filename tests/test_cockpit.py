@@ -13,8 +13,8 @@ class TestTodayPanel(unittest.TestCase):
     def _run(self, notes, mats):
         base = {NF.TABLE: notes, MF.TABLE: mats}
         with mock.patch.object(feishu_io, "list_records", lambda t: base.get(t, [])), \
-                mock.patch.object(shotlist, "shot_needs", lambda b="观云": [{"account": "ootd号", "类型": "上身图", "缺": 1, "投递去向": "网盘待入库"}]):
-            return cockpit.today_panel("观云")
+                mock.patch.object(shotlist, "shot_needs", lambda b="巧荷": [{"account": "ootd号", "类型": "上身图", "缺": 1, "投递去向": "网盘待入库"}]):
+            return cockpit.today_panel("巧荷")
 
     def test_buckets_by_status(self):
         notes = [
@@ -41,6 +41,27 @@ class TestTodayPanel(unittest.TestCase):
         self.assertEqual(p["待审"], [])
         self.assertEqual(p["待发"], [])
         self.assertEqual(p["待回填链接"], [])
+
+
+class TestTodayCard(unittest.TestCase):
+    def test_card_structure_and_deeplink(self):
+        panel = {"待审": [{"title": "浅云", "account": "ootd号", "open": "https://base/x"}],
+                 "待发": [{"title": "白露", "account": "ootd号", "open": "https://base/y",
+                          "materials": [{"code": "M-1", "link": "baidupan:/a.jpg"}]}],
+                 "待回填链接": [], "要补拍": [{"account": "ootd号", "类型": "上身图", "缺": 1}]}
+        card = cockpit.today_card("巧荷", panel=panel)
+        self.assertEqual(card["header"]["title"]["tag"], "plain_text")
+        self.assertIn("今日面板", card["header"]["title"]["content"])
+        blob = str(card["elements"])
+        self.assertIn("待你审 1 条", blob)
+        self.assertIn("[浅云](https://base/x)", blob)                # 标题带 base 深链(引导操作)
+        self.assertIn("取素材 M-1", blob)
+        self.assertIn("要补拍 1 项", blob)
+
+    def test_card_empty_sections_no_crash(self):
+        panel = {"待审": [], "待发": [], "待回填链接": [], "要补拍": []}
+        card = cockpit.today_card("巧荷", panel=panel)
+        self.assertTrue(card["elements"])                            # 空也出结构不炸
 
 
 if __name__ == "__main__":

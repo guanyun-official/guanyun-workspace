@@ -74,7 +74,7 @@ def main() -> int:
     a = ap.parse_args()
     print(f"env={config.ENV_NAME} test_mode={config.TEST_MODE}")
     cleanup()  # 先清残留 _SIM
-    all_accs = accounts.load_all("观云")
+    all_accs = accounts.load_all("巧荷")
     rounds = []
     i = 0
     for name in sorted(all_accs):                       # 全账号 × 全模式(一号多模式完整覆盖,不只第一套)

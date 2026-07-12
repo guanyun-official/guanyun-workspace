@@ -64,4 +64,4 @@
 - [ ] **extract 技能限制记档**:非登录主页 SSR 无 note_id → 取正文需 note URL 或登录态;`--raw-fields` 不解决(那批 24hex 是作者 userId,非 note_id)。
 
 ## 权威依据
-`AGENTS.md`(环境/红线)· `docs/架构一图流.md` · `brands/观云/accounts/README.md`(账号=data 非一号一技能)· `CONTEXT.md`(词汇)。
+`AGENTS.md`(环境/红线)· `docs/架构一图流.md` · `brands/巧荷/accounts/README.md`(账号=data 非一号一技能)· `CONTEXT.md`(词汇)。

@@ -22,7 +22,7 @@ class TestShotNeeds(unittest.TestCase):
             MF.TABLE: mats,
         }
         with mock.patch.object(feishu_io, "list_records", lambda t: base.get(t, [])):
-            return shotlist.shot_needs("观云")
+            return shotlist.shot_needs("巧荷")
 
     def test_low_inventory_flagged_with_brief_and_ref(self):
         # ootd号 上身视频 只有 1 条已拍(目标 runway_alert_days=4)→ 缺 3,带拍摄要求+参考

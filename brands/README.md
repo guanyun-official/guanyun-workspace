@@ -165,11 +165,11 @@ python3 skills/pipeline-A1/scripts/run_a1.py finalize --brand 新品牌ID --note
 ## 7. 复制现成品牌最快
 
 ```bash
-# 把观云的数据拷一份，改 brand_id + 飞书 ID 即可
-cp -r brands/观云 brands/新品牌ID
+# 把巧荷的数据拷一份，改 brand_id + 飞书 ID 即可
+cp -r brands/巧荷 brands/新品牌ID
 # 改 profile.json 里的 brand_id / name / slogan
 # 改 lark_config.json 里的 app_token + 9 张表 table_id
 # 公式库按需替换
 ```
 
-**最小改动**：profile.json + lark_config.json = 2 个文件就能跑（公式库和管线配置用观云的也能跑，只是风格不像新品牌）。
+**最小改动**：profile.json + lark_config.json = 2 个文件就能跑（公式库和管线配置用巧荷的也能跑，只是风格不像新品牌）。

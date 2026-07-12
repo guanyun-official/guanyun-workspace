@@ -37,7 +37,7 @@ qiaohe-skill/
 账号/模式目录应留在 workspace：
 
 ```text
-brands/观云/accounts/{账号}.md
+brands/巧荷/accounts/{账号}.md
   frontmatter.playbooks[] # 每账号每模式的 data
   body                    # account-teardown 产出的账号画像
 ```

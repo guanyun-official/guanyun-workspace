@@ -423,7 +423,7 @@ class KeywordInjection(unittest.TestCase):
                {"fields": {"关键词": "禁用词", "启用状态": "禁用"}},
                {"fields": {"关键词": "女性力量"}}]        # 无状态=按启用
         with mock.patch.object(feishu_io, "list_records", lambda t: kws):
-            out = draft.load_keywords("观云")
+            out = draft.load_keywords("巧荷")
         self.assertEqual(set(out), {"新中式", "女性力量"})   # 禁用跳过
 
     def test_stub_stays_offline_no_keyword(self):

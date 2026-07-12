@@ -109,14 +109,14 @@ def _accounts_dir(brand: str) -> Path:
     return config.WORKSPACE / "brands" / brand / "accounts"
 
 
-def load(name: str, brand: str = "观云") -> Account | None:
+def load(name: str, brand: str = "巧荷") -> Account | None:
     p = _accounts_dir(brand) / f"{name}.md"
     if not p.exists():
         return None
     return _parse(name, p.read_text(encoding="utf-8"))
 
 
-def load_all(brand: str = "观云") -> dict[str, Account]:
+def load_all(brand: str = "巧荷") -> dict[str, Account]:
     out = {}
     d = _accounts_dir(brand)
     if not d.exists():
@@ -130,7 +130,7 @@ def load_all(brand: str = "观云") -> dict[str, Account]:
     return out
 
 
-def problems(brand: str = "观云") -> dict[str, str]:
+def problems(brand: str = "巧荷") -> dict[str, str]:
     """{账号名: 错误} for 声明有问题的账号(空=全部健康)。两类坏声明都'有声':
       ① frontmatter JSON 解析失败(acc.error);
       ② 显式 playbooks 声明不健壮(validate_playbooks:缺 id / view 冲突 / 权重未归一)。

@@ -21,7 +21,7 @@ class RedlineUnderPressure(unittest.TestCase):
 
     def test_ai_declared_never_set_for_any_account(self):
         """遍历所有号所有模式生成 → note_fields 永远不含 AI声明(人手勾,机器一个字都不碰),状态永远=草稿待发。"""
-        names = accounts.load_all("观云")
+        names = accounts.load_all("巧荷")
         self.assertTrue(names, "一个号都没读到,声明源可能断了")
         for name in names:
             f = draft.generate_draft(name, llm_mode="stub")["note_fields"]

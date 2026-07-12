@@ -17,7 +17,7 @@ from . import config
 
 MODE = os.environ.get("GY_NETPAN_MODE", "stub")            # stub 零真操作 / real 走 BaiduPCS-Go
 BIN = os.environ.get("GY_NETPAN_BIN", "BaiduPCS-Go")        # CLI 可执行名/路径
-ROOT = os.environ.get("GY_NETPAN_ROOT", "/观云素材")        # 网盘素材根(投递+归档)
+ROOT = os.environ.get("GY_NETPAN_ROOT", "/巧荷素材")        # 网盘素材根(投递+归档)
 INBOX = f"{ROOT}/待入库"   # 人拍完/AI生成后统一往这丢的单一扁平投递箱(别人好弄+容错;归类交打标技能事后做)
 CACHE = Path(os.environ.get("GY_NETPAN_CACHE", str(config.WORKSPACE / ".netpan_cache")))
 POINTER_SCHEME = "baidupan:"   # 素材记录『链接』存的耐久指针(网盘路径,不过期);分享链接用时再 mint

@@ -30,7 +30,7 @@ def weekly_summary(notes: list[dict], needs: list[dict] | None = None,
 
 def format_weekly(summary: dict) -> str:
     """周报文本(飞书友好)。"""
-    lines = ["📊 观云·本周复盘"]
+    lines = ["📊 巧荷·本周复盘"]
     ranked = summary["ranked"]
     if not ranked:
         lines.append("（本周暂无已发/已回流的效果数据——先跑 collect_metrics 采集回流）")

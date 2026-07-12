@@ -23,7 +23,7 @@ def _brief(name: str, acc, mtype: str, gen_skill: str) -> str:
     return f"拍『{mtype}』:{notes or name} 调性;风格照技能『{gen_skill}』的真实帖 few-shot + 该号画像挑最出片的"
 
 
-def shot_needs(brand: str = "观云") -> list[dict]:
+def shot_needs(brand: str = "巧荷") -> list[dict]:
     """拍摄需求单:每号×素材类型,库存(已拍可用)< 目标缓冲 才提。
     返回 [{account, 类型, 缺, 已有, 目标, 拍摄要求, 参考}](缺=目标-已有,>0 才在单里)。"""
     mats = feishu_io.list_records(MF.TABLE)

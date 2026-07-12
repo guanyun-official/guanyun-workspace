@@ -19,7 +19,7 @@ from orchestrator import config, draft
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--account", required=True)
-    ap.add_argument("--brand", default="观云")
+    ap.add_argument("--brand", default="巧荷")
     ap.add_argument("--llm", choices=["stub", "real"], default="stub")
     ap.add_argument("--title-seed", default="")
     ap.add_argument("--clothes", default="", help="绑定知识库真实衣服编号(如 GY-001);官号品牌新作应绑,防编造")

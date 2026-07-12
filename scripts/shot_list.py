@@ -14,7 +14,7 @@ from orchestrator import config, shotlist
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--brand", default="观云")
+    ap.add_argument("--brand", default="巧荷")
     ap.add_argument("--alert", action="store_true", help="把拍摄需求单推飞书(hermes)")
     a = ap.parse_args()
     print(f"env={config.ENV_NAME} test_mode={config.TEST_MODE} brand={a.brand}")
@@ -32,7 +32,7 @@ def main() -> int:
     print("\n" + report)
     if a.alert:
         from orchestrator import alerts
-        alerts.send(report, title="观云·拍摄需求单")
+        alerts.send(report, title="巧荷·拍摄需求单")
         print("\n(已推飞书)")
     return 0
 

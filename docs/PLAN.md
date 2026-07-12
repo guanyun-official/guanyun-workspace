@@ -1,4 +1,4 @@
-# 观云 Workspace 搭建计划（v1.1，经审查修订）
+# 巧荷 Workspace 搭建计划（v1.1，经审查修订）
 
 > 目标：把内容运营从"人触发 AI 干活"升级为"AI 管理整个 loop，人只拍素材和确认发布"。
 > 方法论定调（2026-07-08，两轮外部调研 + 现状勘察后）：**飞书当脸，CLI agent 当手，Bitable 当账本，git skills 当大脑，人当质检员和发布键。**
@@ -14,7 +14,7 @@
 | 脸（员工界面） | 飞书原生：表单/看板/仪表盘/审批卡片 | 员工永不直接碰 agent |
 | 人 | 拍素材、审内容、点发布（勾 AI 声明） | 两个人审硬门不可自动化 |
 
-**Base 澄清（2026-07-09 用户重定义）**：`ZhzJbfkOsafwevsWkW8cfoILnfb` 虽历史名为“测试 Base”，但当前承担运营库；`.env` + `TEST_MODE=1` 即上线态。`N9IVbi…`（巧荷 Qiaohe-official-beta）保留为生产参考库，只读、焊死不碰；旧“切生产/TEST_MODE=0”路径不再作为上线方案。`ITz4bs…`（观云 Guanyun-official-beta）= 2026-06 旧版，已废弃，不纳入 schema 管理。
+**Base 澄清（2026-07-09 用户重定义）**：`ZhzJbfkOsafwevsWkW8cfoILnfb` 虽历史名为“测试 Base”，但当前承担运营库；`.env` + `TEST_MODE=1` 即上线态。`N9IVbi…`（巧荷 Qiaohe-official-beta）保留为生产参考库，只读、焊死不碰；旧“切生产/TEST_MODE=0”路径不再作为上线方案。`ITz4bs…`（巧荷 Guanyun-official-beta）= 2026-06 旧版，已废弃，不纳入 schema 管理。
 
 **本仓库（guanyun-workspace）= Workspace（空间）**；harness 不单独立项目，是本仓库的 `orchestrator/` 目录。
 
@@ -50,7 +50,7 @@ guanyun-workspace/
 
 ### P1 基地骨架（1 天）
 - AGENTS.md + CLAUDE.md 薄指针；`schema/` 从生产 Base dump 14 表契约（含 select 枚举）；定义并落 `skills.lock.json` schema（`{repo, ref/sha, skills[], install: copy|symlink}`）+ install 脚本；`.mcp.json`；`.env.example`（LARK/ARK/TIKHUB/APIFY/REDFOX 全量列出）。
-- 迁入 lib seams 与 brands/；**清理 `brands/观云/lark_config.json` 旧 A1-B 表引用，app_token 的 env 变量名与 .env.example 对齐**（审查 M3）。
+- 迁入 lib seams 与 brands/；**清理 `brands/巧荷/lark_config.json` 旧 A1-B 表引用，app_token 的 env 变量名与 .env.example 对齐**（审查 M3）。
 - **验收（脚本化）**：AGENTS.md 含全部 14 表 ID；skills.lock 可解析且 install 后技能脚本 import lib 冒烟通过；.mcp.json 语法合法。
 
 ### P2 测试 Base 改造（1 天）

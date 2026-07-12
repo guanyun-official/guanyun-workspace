@@ -1,4 +1,4 @@
-# AGENTS.md · 观云 Workspace 环境事实
+# AGENTS.md · 巧荷 Workspace 环境事实
 
 > 任何 agent(Claude Code / Codex / headless)进入本仓库先读这份。搭建计划与阶段验收见 `docs/PLAN.md`。
 > 方法论一句话:**飞书当脸,CLI agent 当手,Bitable 当账本,git skills 当大脑,人当质检员和发布键。**
@@ -20,7 +20,7 @@
 - **测试 Base**:`ZhzJbfkOsafwevsWkW8cfoILnfb`(曾复制自生产；2026-07-10 起按 SourceOwnership 重构为新体系工作台,当前 13 表,不再追求生产 14 表保真)。
 - **默认一切写操作只进测试 Base**(`.env` 的 `LARK_APP_TOKEN` 默认=测试 Base;`TEST_MODE=1`)。
   生产 Base 只读(dump schema 等);生产变更一律走"迁移清单 + 人工确认"(见 docs/PLAN.md P7)。
-- 旧观云 Base `ITz4bsLSWaKuSqsuUaocmEC0nXe` 已废弃,不纳入 schema 管理。
+- 旧巧荷 Base `ITz4bsLSWaKuSqsuUaocmEC0nXe` 已废弃,不纳入 schema 管理。
 
 ### 生产 Base 14 表 table_id 清单(2026-07-08 lark-cli 实拉)
 

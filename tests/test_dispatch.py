@@ -17,7 +17,7 @@ class DailyAssignments(unittest.TestCase):
 
     def test_covers_each_account_each_mode(self):
         with mock.patch.object(feishu_io, "list_records", lambda t: self.ALL_FOLLOW):
-            rows = dispatch.daily_assignments("观云")
+            rows = dispatch.daily_assignments("巧荷")
         keys = {(r["account"], r["content_type"]) for r in rows}
         self.assertIn(("ootd号", "视频唯美OOTD"), keys)
         self.assertIn(("ootd号", "图文唯美OOTD"), keys)          # 一号多模式:两模式都派
@@ -33,7 +33,7 @@ class DailyAssignments(unittest.TestCase):
         recs = [{"record_id": "r1", "fields": {"账号名": "官号@巧荷·东方美学", "自动排产": "暂停"}},
                 {"record_id": "r2", "fields": {"账号名": "ootd号", "自动排产": "跟随workspace"}}]
         with mock.patch.object(feishu_io, "list_records", lambda t: recs):
-            accts = {r["account"] for r in dispatch.daily_assignments("观云")}
+            accts = {r["account"] for r in dispatch.daily_assignments("巧荷")}
         self.assertNotIn("官号@巧荷·东方美学", accts)   # 暂停→跳过
         self.assertIn("ootd号", accts)                  # 跟随workspace→照派
 
@@ -52,7 +52,7 @@ class DailyAssignments(unittest.TestCase):
         from orchestrator import feishu_io
         fake = {"账号表": [{"record_id": "recA", "fields": {"账号名": "ootd号"}}], "素材表": []}  # 0可用素材
         with mock.patch.object(feishu_io, "list_records", lambda t: fake.get(t, [])):
-            alerts = dispatch.runway_alerts("观云")
+            alerts = dispatch.runway_alerts("巧荷")
         self.assertIn("ootd号", {a["account"] for a in alerts})   # 0素材<runway_alert_days→催拍
 
     def test_trend_imitate_hint_points_to_teardown_skills(self):
@@ -61,8 +61,8 @@ class DailyAssignments(unittest.TestCase):
         self.assertIn("explosive-teardown", dispatch.SOURCING_HINT["trend_imitate"])
 
     def test_dryrun_no_write(self):
-        rows = dispatch.dispatch("观云", write=False)
-        self.assertEqual(len(rows), len(dispatch.daily_assignments("观云")))
+        rows = dispatch.dispatch("巧荷", write=False)
+        self.assertEqual(len(rows), len(dispatch.daily_assignments("巧荷")))
 
     def test_pending_ideas_only_unconverted_valid(self):
         """灵感库→出稿前置:只捞『未转化+有效标题』的爆款灵感(trend_imitate 原料)。"""
@@ -73,7 +73,7 @@ class DailyAssignments(unittest.TestCase):
             {"record_id": "i3", "fields": {"标题": "（无标题）"}},                        # 无效→跳
         ]
         with mock.patch.object(feishu_io, "list_records", lambda t: rows):
-            ideas = dispatch.pending_ideas("观云")
+            ideas = dispatch.pending_ideas("巧荷")
         self.assertEqual([i["标题"] for i in ideas], ["高定工艺印度丝"])
         self.assertEqual(ideas[0]["可借鉴"], "手部特写好")
 
@@ -102,7 +102,7 @@ class RunDay(unittest.TestCase):
         created = []
         with mock.patch.object(feishu_io, "list_records", lambda t: self.BASE.get(t, [])), \
                 mock.patch.object(feishu_io, "create_record", lambda t, f: created.append(f) or "x"):
-            rows = dispatch.run_day("观云", write=False)
+            rows = dispatch.run_day("巧荷", write=False)
         self.assertTrue(rows and all(r["status"] == "(干跑)" for r in rows))
         self.assertEqual(created, [], "干跑不写库")
 
@@ -112,7 +112,7 @@ class RunDay(unittest.TestCase):
                 mock.patch.object(feishu_io, "create_record",
                                   lambda t, f: created.append(f) or f"recN{len(created)}"), \
                 mock.patch.object(feishu_io, "update_record", lambda t, r, f: None):
-            rows = dispatch.run_day("观云", llm_mode="stub", write=True)
+            rows = dispatch.run_day("巧荷", llm_mode="stub", write=True)
         landed = [r for r in rows if r.get("status") == NS.DRAFT_PENDING]
         keys = {(r["account"], r["content_type"]) for r in landed}
         self.assertIn(("ootd号", "视频唯美OOTD"), keys)
@@ -133,7 +133,7 @@ class DispatchRedline(unittest.TestCase):
             # mock 读(取「自动排产」/去重都不触网)→ 只验写闸:create_record 前抛 GuardError
             with mock.patch.object(feishu_io, "list_records", lambda t: []), \
                     self.assertRaises(GuardError):
-                dispatch.dispatch("观云", write=True)
+                dispatch.dispatch("巧荷", write=True)
         finally:
             config.BASE_TOKEN, config.TEST_MODE = o
 
@@ -146,7 +146,7 @@ class DispatchRedline(unittest.TestCase):
         with mock.patch.object(feishu_io, "list_records", lambda t: existing), \
                 mock.patch.object(feishu_io, "create_record",
                                   lambda table, fields: created.append(fields) or "recNew"):
-            rows = dispatch.dispatch("观云", write=True)
+            rows = dispatch.dispatch("巧荷", write=True)
         skipped = [r for r in rows if r.get("skipped")]
         self.assertTrue(any(r["account"] == "ootd号" and r["content_type"] == "视频唯美OOTD" for r in skipped))
         for f in created:                                        # 派的活一律待出文案,绝不已发/AI声明

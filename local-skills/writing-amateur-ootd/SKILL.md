@@ -1,11 +1,11 @@
 ---
 name: writing-amateur-ootd
-description: Writes first-person amateur-style Xiaohongshu 图文 captions for 观云 汉服/新中式 outfit 种草 posts (温柔/纠结/安利 voice, small personal account). Use for 观云 素人图文种草 accounts (图文号1 momo, 图文号2 每天都想买漂亮衣服). Not for brand-official or literary-video accounts.
+description: Writes first-person amateur-style Xiaohongshu 图文 captions for 巧荷 汉服/新中式 outfit 种草 posts (温柔/纠结/安利 voice, small personal account). Use for 巧荷 素人图文种草 accounts (图文号1 momo, 图文号2 每天都想买漂亮衣服). Not for brand-official or literary-video accounts.
 ---
 
 # writing-amateur-ootd · 素人图文种草文案
 
-给观云的素人图文种草号写小红书图文文案。**第一人称、口语、像真人发穿搭**,不是品牌腔、不是文邹邹的唯美视频腔。
+给巧荷的素人图文种草号写小红书图文文案。**第一人称、口语、像真人发穿搭**,不是品牌腔、不是文邹邹的唯美视频腔。
 
 ## 何时用
 - 账号:图文号1(momo)、图文号2(每天都想买漂亮衣服)——两个号共用本 skill,各带各的画像/例子。

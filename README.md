@@ -1,5 +1,5 @@
 # guanyun-workspace
-观云内容运营 Workspace:环境事实+薄执行器+契约——飞书当脸,CLI agent 当手,Bitable 当账本,git skills 当大脑
+巧荷内容运营 Workspace:环境事实+薄执行器+契约——飞书当脸,CLI agent 当手,Bitable 当账本,git skills 当大脑
 
 进门先读 `AGENTS.md`(环境事实);搭建计划在 `docs/PLAN.md`;P1 验收 `bash scripts/check_p1.sh`。
 

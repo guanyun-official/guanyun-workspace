@@ -28,8 +28,8 @@
 | `scripts/` | 运维/验收/迁移工具 | check_p、schema dump/diff、planner、cron、audit |
 | `tests/` | 行为锁 | 字段契约、唯一源审计、状态机、P4/P6 回归 |
 | `schema/prod` / `schema/test` / `schema/snapshots` | Base 契约 | 生产只读、测试可重构；schema 是迁移审计输入 |
-| `brands/观云/accounts/*.md` | 账号 know-how owner | frontmatter = strategy/playbooks；正文 = account-teardown 画像 |
-| `brands/观云/profile.json` | 品牌全局 know-how | 品牌定位、禁用词、基础调性；生成可读，不进 Base |
+| `brands/巧荷/accounts/*.md` | 账号 know-how owner | frontmatter = strategy/playbooks；正文 = account-teardown 画像 |
+| `brands/巧荷/profile.json` | 品牌全局 know-how | 品牌定位、禁用词、基础调性；生成可读，不进 Base |
 | `skills.lock.json` | skill 安装唯一清单 | 来源、版本、SHA；安装产物 `skills/` 不入库 |
 | `local-skills/content-loop` | 临时本地能力 | 迁移到 qiaohe-skill 前保留；迁完从 lock 移除 local source |
 | `lib/material_view.py` + 素材库 | 素材视图/usage owner | usage ledger 不进 Base |
@@ -39,9 +39,9 @@
 | 路径 | 当前问题 | 目标 |
 |---|---|---|
 | `brands/README.md` | 仍有旧 pipeline/A1-A3/B 文档 | 重写为当前 SourceOwnership + accounts/playbooks 接入指南 |
-| `brands/观云/lark_config.json` | 含旧观云 Base `ITz...` table_id 和 public_tables；与 `schema/` 双源 | 替换为最小说明：Base 映射以 `.env` + `schema/<env>/_tables.json` 为准；不再存 table_id |
-| `brands/观云/formulas/*.json` | 旧 pipeline 公式库，与 playbook 公式有重叠 | 拆成两类：品牌全局 style guide 可保留；账号/模式公式迁入 `accounts/*.md` 的 `playbooks[]` |
-| `brands/观云/knowledge_base/explosive/*.json` | 原帖数据含外部文案，生成链有 source leak 风险 | 移到 `sources/` 或 Base「灵感库」作为情报；生成只读结构化洞察，不读原文片段 |
+| `brands/巧荷/lark_config.json` | 含旧巧荷 Base `ITz...` table_id 和 public_tables；与 `schema/` 双源 | 替换为最小说明：Base 映射以 `.env` + `schema/<env>/_tables.json` 为准；不再存 table_id |
+| `brands/巧荷/formulas/*.json` | 旧 pipeline 公式库，与 playbook 公式有重叠 | 拆成两类：品牌全局 style guide 可保留；账号/模式公式迁入 `accounts/*.md` 的 `playbooks[]` |
+| `brands/巧荷/knowledge_base/explosive/*.json` | 原帖数据含外部文案，生成链有 source leak 风险 | 移到 `sources/` 或 Base「灵感库」作为情报；生成只读结构化洞察，不读原文片段 |
 | `autoresearch/results.tsv` | 一次性研究运行产物 | 若要留证据，迁到 `docs/archive/`；否则删除 |
 | `docs/PLAN.md` | 阶段计划仍是 P0-P7 主线 | 加一节“SourceOwnership 后续路线”：SkillCatalog / BaseWorkbench / FixtureLane |
 
@@ -213,7 +213,7 @@
 
 新增：
 
-- `workspace_ref`：例如 `brands/观云/accounts/图文号1.md`，便于员工/agent 定位 owner。
+- `workspace_ref`：例如 `brands/巧荷/accounts/图文号1.md`，便于员工/agent 定位 owner。
 - `画像状态`：占位/已拆解/需重跑。
 - `画像更新时间`：account-teardown 最近更新时间。
 - `自动排产`：bool 或 select；也可由 workspace `launched/cadence` 派生，若 Base 保留则只作员工开关，需明确优先级。
@@ -471,7 +471,7 @@ Owner：workspace + Base 字段。
 3. 新增 `账号` link、`数据用途`、`run_id` 等非破坏字段。
 4. 迁移 Note 的账号归属，从 `账号(自动)`/内容类型 lookup 转为显式 `账号` link（测试 Base 已完成回填，旧 lookup 已进入删除目标）。
 5. 删除或废弃 `内容类型表.取数字段·切面`、`内容类型表.文案元模版`。
-6. 重写 `brands/README.md` 和 `brands/观云/lark_config.json`。
+6. 重写 `brands/README.md` 和 `brands/巧荷/lark_config.json`。
 7. 把旧 formulas/knowledge_base 拆分为品牌全局 style guide 与 source intelligence。
 8. 删除/降级 Base「技能表」（测试 Base 已删除）。
 9. 将 Base「Issue 表」改名/改语义为员工需求，不再承担开发 issue。
