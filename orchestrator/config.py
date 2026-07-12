@@ -31,8 +31,6 @@ TEST_MODE = os.environ.get("TEST_MODE", "1") == "1"
 ENV_NAME = "test" if BASE_TOKEN == TEST_BASE else ("prod" if BASE_TOKEN == PROD_BASE else "unknown")
 
 # 阈值(可 env 覆盖)
-PER_RUN_COPY_LIMIT = int(os.environ.get("GY_PER_RUN_COPY_LIMIT",
-                                        os.environ.get("GY_DAILY_COPY_LIMIT", "2")))  # 每轮生成上限(审查 M3 更名)
 PER_ACCOUNT_DAILY_PUBLISH = int(os.environ.get("GY_ACCOUNT_DAILY_PUB", "3"))  # 单号每日发布上限(红线)
 REVIEW_OVERDUE_HOURS = int(os.environ.get("GY_REVIEW_OVERDUE_H", "24"))     # 待审超时催审
 METRICS_CLOSE_DAYS = int(os.environ.get("GY_METRICS_CLOSE_DAYS", "7"))      # 已发 N 天后回流收口

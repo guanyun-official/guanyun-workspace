@@ -35,11 +35,6 @@ def assert_publish_quota(published_today_for_account: int) -> None:
         )
 
 
-def copy_quota_left(generated_this_run: int) -> bool:
-    """每轮文案生成配额(成本闸):超额返回 False(跳过,不抛错——非异常路径)。"""
-    return generated_this_run < config.PER_RUN_COPY_LIMIT
-
-
 def assert_no_source_leak(source_text: str, payload: str, n: int = 10) -> None:
     """防搬运出口闸(红线):产出 payload 不得逐字搬对标/灵感源 source_text 的 ≥n 连续字符片段。
     爆款只当情报——出稿不得含对标原帖/原标题的连续片段。source 空/过短放行。"""

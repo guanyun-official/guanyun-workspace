@@ -75,6 +75,9 @@
 | 20 | "iter9状态机推进真库验过吗" | 只单测过 | 真跑:注入待出文案→stub出稿→推进同行草稿待发+挂素材+无重复,清理 | (真跑自证) | ✅ |
 | 21 | **"pipeline 记运行日志吗"** | log_run 定义但**全库零调用**→运行日志表不更新→周复盘读它=空、成本追踪没数据 | log_run 接进 draft_one/daily_dispatch/collect_metrics 的 run 边界;真跑验(9→10条含出稿) | (真跑自证) | ✅ |
 
+| 22 | "备份能恢复吗/ingest扫得动吗" | **备份只dump无restore工具**("误删可恢复"=手动、link要按名重解析);ingest scan sound;预算帽真传claude -p | flag备份restore(feature待建);ingest/预算sound | — | 🔶 restore待建 |
+| 23 | "还有休眠闸/死代码吗" | copy_quota_left+PER_RUN_COPY_LIMIT **只互引无调用无测试**=重引擎遗留死代码;Record适配器sound | 断舍离删死代码 | (无引用) | ✅ |
+
 ## 待提 issue(休眠闸/config 缺口)
 - assert_publish_quota(控量门)+ assert_ai_declared(AI声明门)生产零调用——发布/状态推进步(人/dedicated-agent)建时必接。
 - 灵感库无 trend_imitate 号消费;官号缺形象图素材(押后)。
