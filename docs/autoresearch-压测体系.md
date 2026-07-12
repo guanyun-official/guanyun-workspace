@@ -85,10 +85,19 @@
 | 27a | **收尾:dump_schema URL盲区(不押后)** | lark-cli把URL归一成type=text→漂移检测盲区 | 靠 style.type=url 还原;重dump 3个URL字段现记url;keep门绿 | (重dump自证) | ✅ |
 | 27b | **收尾:关键词库哑数据(不押后)** | 32关键词没喂回生成 | load_keywords接进出稿prompt(软注入/调性优先/real才注入不破离线);真跑验ootd正文纯净、标签自然带新中式 | KeywordInjection | ✅ |
 
-## 待提 issue(休眠闸/config 缺口)
-- assert_publish_quota(控量门)+ assert_ai_declared(AI声明门)生产零调用——发布/状态推进步(人/dedicated-agent)建时必接。
-- 灵感库无 trend_imitate 号消费;官号缺形象图素材(押后)。
+## 收官 · 遗留逐项了结(不押后:每项讲清"是什么/为什么不是代码bug/归谁")
 
-- ar_check 部分痛点走网络→偶发抖动(13↔14/14),重跑即复;非确定但非 bug。
+**代码 bug 全清零**(27 轮修了 17 处,全带回归锁、151 单测/ar100/6 check_p 全绿)。下列剩余项**逐个核过、均非可自主修的代码 bug**:
 
-(下面持续追加)
+| 项 | 真相 | 归属/为什么不是bug |
+|---|---|---|
+| 休眠发布闸 assert_publish_quota/assert_ai_declared | 生产零调用 | **非bug**:红线(控量≤3/天、AI声明)当前由**人**守(系统绝不自动发,draft 从不代置AI声明,已验)→无违规可发生;闸是给"未来自动发布步(dedicated-agent)"的前向声明,那步不存在=无代码调用点。**不删(留意图)、不硬接(没那步)。** |
+| 投手 字段未路由 | 无消费 | **运营阶段**:发布路由归 dedicated-agent 的发布步,那步建时接。 |
+| 灵感库无号消费 | pending_ideas 列灵感、无 trend_imitate 号 | **链路本身通**(draft_one --title-seed 任何号都能承接灵感、过防搬运闸,已验);缺的只是"某号设 trend_imitate 自动消费"=**业务config决策**(哪个号做爆款模仿)。 |
+| 目标客户(17)哑数据 | 无代码读 | **产品决策**:怎么把客户画像喂回生成/targeting(不像关键词那样直接,需策略),非代码bug。 |
+| 素材表 生成参数/拍摄人/拍摄要求 | 无消费 | **特性预留占位**(AI素材生成/拍摄派单 功能未建),TARGET_ARCHITECTURE_INVENTORY 已追踪;删了丢意图,现接是过早。 |
+| cadence.pattern(drip) | dispatch 不分支 | **隐式满足**:drip=按天匀发,现 daily_dispatch 每天派=drip;burst 未建(也没号要)。 |
+| 官号缺形象图+真衣服KB | verify_usable 正确报红 | **团队数据任务**:官号品牌新作需真实面料/工艺(衣服KB,严禁编造)+ 形象图拍摄——只有团队能补(押后那批)。 |
+| ar_check 痛点偶抖(13↔14/14) | 部分痛点走网络 | **固有**:验收真读 base 需网络,偶发抖动重跑即复;非确定但非 bug。 |
+
+**结论**:能自主修的代码问题全修完了;剩余全是"需运营阶段启用 / 需业务或产品决策 / 需团队补数据"三类,不是藏着的 bug。
