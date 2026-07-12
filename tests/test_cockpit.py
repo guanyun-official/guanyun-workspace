@@ -44,24 +44,27 @@ class TestTodayPanel(unittest.TestCase):
 
 
 class TestTodayCard(unittest.TestCase):
-    def test_card_structure_and_deeplink(self):
-        panel = {"待审": [{"title": "浅云", "account": "ootd号", "open": "https://base/x"}],
-                 "待发": [{"title": "白露", "account": "ootd号", "open": "https://base/y",
+    def test_card_partitioned_by_account_mode_no_material_detail(self):
+        panel = {"待审": [{"title": "浅云", "account": "ootd号", "mode": "图文唯美OOTD", "open": "https://base/x"}],
+                 "待发": [{"title": "白露", "account": "ootd号", "mode": "视频唯美OOTD", "open": "https://base/y",
                           "materials": [{"code": "M-1", "link": "baidupan:/a.jpg"}]}],
                  "待回填链接": [], "要补拍": [{"account": "ootd号", "类型": "上身图", "缺": 1}]}
         card = cockpit.today_card("巧荷", panel=panel)
-        self.assertEqual(card["header"]["title"]["tag"], "plain_text")
         self.assertIn("今日面板", card["header"]["title"]["content"])
         blob = str(card["elements"])
-        self.assertIn("待你审 1 条", blob)
-        self.assertIn("[浅云](https://base/x)", blob)                # 标题带 base 深链(引导操作)
-        self.assertIn("取素材 M-1", blob)
-        self.assertIn("要补拍 1 项", blob)
+        self.assertIn("ootd号 · 图文唯美OOTD", blob)                 # 按账号·模式分块
+        self.assertIn("ootd号 · 视频唯美OOTD", blob)
+        self.assertIn("📋 [浅云](https://base/x)", blob)             # 待审图标+可点标题(深链)
+        self.assertIn("📤 [白露](https://base/y)", blob)             # 待发图标+可点标题
+        self.assertNotIn("M-1", blob)                               # 素材细节不进卡片(base 里看)
+        self.assertIn("待补拍", blob)
+        self.assertIn("上身图×1", blob)
 
     def test_card_empty_sections_no_crash(self):
         panel = {"待审": [], "待发": [], "待回填链接": [], "要补拍": []}
         card = cockpit.today_card("巧荷", panel=panel)
         self.assertTrue(card["elements"])                            # 空也出结构不炸
+        self.assertIn("无待办", str(card["elements"]))
 
 
 if __name__ == "__main__":
