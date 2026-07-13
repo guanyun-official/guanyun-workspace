@@ -10,7 +10,7 @@ sourcing 决定这活『素材怎么来』(不冲突,只是第一步不同,下�
 """
 from __future__ import annotations
 
-from . import accounts, bitable, config, feishu_io, guard
+from . import accounts, bitable, config, feishu_io, guard, lock
 from .bitable import NoteFields as NF, NoteStatus as NS, AccountFields as AF, AutoSched, InspirationFields as IF
 
 # sourcing → 备料动作提示(trend_imitate 复用已装的爆款拆解技能,不另造)
@@ -85,24 +85,26 @@ def run_day(brand: str = "巧荷", llm_mode: str = "stub", write: bool = False) 
     - llm_mode=real 出真文案(≈2元/条,走 llm.run_prompt=画像+skill few-shot+配方);stub 零成本占位验证接线。
     红线不变:只推到『草稿待发』,**绝不自动发布、绝不代勾 AI 声明**。"""
     from . import draft
+    assigns = daily_assignments(brand)
+    if not write:                                        # 干跑:不写库,不加锁
+        return [{"account": a["account"], "content_type": a["content_type"],
+                 "gen_skill": a["gen_skill"], "material_needs": a["material_needs"],
+                 "status": "(干跑)"} for a in assigns]
     out: list[dict] = []
-    for a in daily_assignments(brand):
-        entry = {"account": a["account"], "content_type": a["content_type"],
-                 "gen_skill": a["gen_skill"], "material_needs": a["material_needs"]}
-        if not write:
-            entry["status"] = "(干跑)"
+    with lock.write_lock():                              # 并发锁(ADR-0009):防两个自动化写进程并发重复派活
+        for a in assigns:
+            entry = {"account": a["account"], "content_type": a["content_type"],
+                     "gen_skill": a["gen_skill"], "material_needs": a["material_needs"]}
+            try:
+                r = draft.generate_draft(a["account"], brand, llm_mode=llm_mode,
+                                         content_type=a["content_type"])
+                rid = draft.create_draft_note(r)   # upsert 待出文案→草稿待发 + 挂货对板素材
+                entry.update(note_id=rid, title=r["title"], status=NS.DRAFT_PENDING)
+                if r.get("quality_flags"):
+                    entry["质检"] = r["quality_flags"]   # #42 出稿即评:问题顶给人重点看(不阻塞)
+            except Exception as e:  # noqa: BLE001  单号失败不拖垮整天,记下继续
+                entry.update(status="✗失败", error=str(e)[:120])
             out.append(entry)
-            continue
-        try:
-            r = draft.generate_draft(a["account"], brand, llm_mode=llm_mode,
-                                     content_type=a["content_type"])
-            rid = draft.create_draft_note(r)   # upsert 待出文案→草稿待发 + 挂货对板素材
-            entry.update(note_id=rid, title=r["title"], status=NS.DRAFT_PENDING)
-            if r.get("quality_flags"):
-                entry["质检"] = r["quality_flags"]   # #42 出稿即评:问题顶给人重点看(不阻塞)
-        except Exception as e:  # noqa: BLE001  单号失败不拖垮整天,记下继续
-            entry.update(status="✗失败", error=str(e)[:120])
-        out.append(entry)
     return out
 
 
@@ -153,17 +155,18 @@ def dispatch(brand: str = "巧荷", write: bool = False) -> list[dict]:
     guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)  # 红线:只写测试库
     from .draft import _resolve_link
     from .bitable import AccountFields as AF, ContentTypeFields as CTF
-    in_flight = _open_slots()
-    for a in assigns:
-        if (a["account"], a["content_type"]) in in_flight:
-            a["skipped"] = "已在途"                     # 去重:不重复堆活
-            continue
-        fields = {NF.STATUS: NS.NEED_COPY, NF.TITLE: f"[派活]{a['account']}·{a['content_type']}"}
-        acc_ids = _resolve_link(AF.TABLE, AF.NAME, a["account"])
-        ct_ids = _resolve_link(CTF.TABLE, CTF.NAME, a["content_type"])
-        if acc_ids:
-            fields[NF.ACCOUNT] = acc_ids
-        if ct_ids:
-            fields[NF.CONTENT_TYPE] = ct_ids
-        a["note_id"] = feishu_io.create_record(NF.TABLE, fields)  # 状态=待出文案,等 draft_one 出稿
+    with lock.write_lock():                            # 并发锁(ADR-0009):在途去重是读-改-写 TOCTOU,加锁防并发重复派活
+        in_flight = _open_slots()
+        for a in assigns:
+            if (a["account"], a["content_type"]) in in_flight:
+                a["skipped"] = "已在途"                 # 去重:不重复堆活
+                continue
+            fields = {NF.STATUS: NS.NEED_COPY, NF.TITLE: f"[派活]{a['account']}·{a['content_type']}"}
+            acc_ids = _resolve_link(AF.TABLE, AF.NAME, a["account"])
+            ct_ids = _resolve_link(CTF.TABLE, CTF.NAME, a["content_type"])
+            if acc_ids:
+                fields[NF.ACCOUNT] = acc_ids
+            if ct_ids:
+                fields[NF.CONTENT_TYPE] = ct_ids
+            a["note_id"] = feishu_io.create_record(NF.TABLE, fields)  # 状态=待出文案,等 draft_one 出稿
     return assigns

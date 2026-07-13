@@ -47,11 +47,23 @@ def _extract_livp_still(livp: str, out_dir: Path) -> str:
 
 
 def _run_convert(src: str, dst: str) -> None:
-    """静图 → jpg 的 subprocess seam(唯一真调用点,可 mock;mac 用 sips,Linux 真跑可换 heif-convert/ImageMagick)。"""
-    r = subprocess.run(["sips", "-s", "format", "jpeg", src, "--out", dst],
-                       capture_output=True, text=True)
+    """静图 → jpg 的 subprocess seam(唯一真调用点,可 mock)。**跨平台**(ADR-0009 服务器 7×24):
+    mac 用 sips;Linux 用 heif-convert(libheif,heic/heif 专用)或 ImageMagick convert;都没有→报错(装工具)。"""
+    import platform
+    import shutil
+    if platform.system() == "Darwin" and shutil.which("sips"):
+        cmd = ["sips", "-s", "format", "jpeg", src, "--out", dst]
+    elif src.lower().endswith((".heic", ".heif")) and shutil.which("heif-convert"):
+        cmd = ["heif-convert", src, dst]              # libheif,Linux 上 heic/heif 首选
+    elif shutil.which("convert"):
+        cmd = ["convert", src, dst]                    # ImageMagick(需带 heic delegate)
+    elif shutil.which("sips"):
+        cmd = ["sips", "-s", "format", "jpeg", src, "--out", dst]
+    else:
+        raise MediaError("无可用转码工具:mac 需 sips;Linux 需 heif-convert(libheif)或 ImageMagick(convert)")
+    r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
-        raise MediaError(f"sips 转 jpg 失败: {r.stderr[:200]}")
+        raise MediaError(f"转 jpg 失败({cmd[0]}): {r.stderr[:200]}")
 
 
 def thumbnail(src: str, dst: str, max_px: int = 400) -> str:
