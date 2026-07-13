@@ -98,6 +98,7 @@ class CreateDraftNoteLinkResolution(unittest.TestCase):
                 "内容类型表": [{"record_id": "recCT", "fields": {"内容类型名": "视频唯美OOTD"}}]}
         cap = {}
         with mock.patch.object(feishu_io, "list_records", lambda t: fake.get(t, [])), \
+                mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: fake.get(t, [])), \
                 mock.patch.object(feishu_io, "create_record",
                                   lambda table, fields: cap.update(fields=fields) or "recNEW"):
             rid = draft.create_draft_note(r)
@@ -112,6 +113,7 @@ class CreateDraftNoteLinkResolution(unittest.TestCase):
         r = draft.generate_draft("ootd号", llm_mode="stub")
         cap = {}
         with mock.patch.object(feishu_io, "list_records", lambda t: []), \
+                mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: []), \
                 mock.patch.object(feishu_io, "create_record",
                                   lambda table, fields: cap.update(fields=fields) or "recNEW"):
             draft.create_draft_note(r)

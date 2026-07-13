@@ -194,11 +194,12 @@ def generate_draft(account_name: str, brand: str = "巧荷", llm_mode: str = "st
 
 
 def _resolve_link(table: str, name_field: str, name: str) -> list[str]:
-    """把名字解析成该表匹配行的 record_id 列表——账号/内容类型是 link 字段,飞书要 record_id 不是字符串。"""
+    """把名字解析成该表匹配行的 record_id 列表——账号/内容类型是 link 字段,飞书要 record_id 不是字符串。
+    规模M3:按名 **服务端过滤**(search_in,不全拉表);保留内存 strip 比对(等价严格 + 兜底空格/mock)。"""
     from . import bitable, feishu_io
     if not name:
         return []
-    return [r["record_id"] for r in feishu_io.list_records(table)
+    return [r["record_id"] for r in feishu_io.search_in(table, name_field, [name])
             if bitable.text(r["fields"].get(name_field)).strip() == name]
 
 

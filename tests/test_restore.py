@@ -15,7 +15,8 @@ class RestoreFields(unittest.TestCase):
         backup = {"内容类型名": "素人图文种草", "格式": "图文",
                   "所属账号": [{"record_ids": ["recOLD"], "text_arr": ["图文号1"], "table_id": "tblACC"}]}
         accts = [{"record_id": "recNEW", "fields": {"账号名": "图文号1"}}]
-        with mock.patch.object(feishu_io, "list_records", lambda t: accts):
+        with mock.patch.object(feishu_io, "list_records", lambda t: accts), \
+                mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: accts):
             out = rt.restore_fields(backup, tbl_by_id)
         self.assertEqual(out["内容类型名"], "素人图文种草")   # scalar 原样
         self.assertEqual(out["格式"], "图文")
@@ -24,7 +25,8 @@ class RestoreFields(unittest.TestCase):
     def test_unresolvable_link_dropped(self):
         tbl_by_id = {"tblACC": "账号表"}
         backup = {"标题": "x", "账号": [{"record_ids": ["recOLD"], "text_arr": ["不存在的号"], "table_id": "tblACC"}]}
-        with mock.patch.object(feishu_io, "list_records", lambda t: []):
+        with mock.patch.object(feishu_io, "list_records", lambda t: []), \
+                mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: []):
             out = rt.restore_fields(backup, tbl_by_id)
         self.assertEqual(out["标题"], "x")
         self.assertNotIn("账号", out)                          # 解析不到→丢弃,不写孤儿 id
