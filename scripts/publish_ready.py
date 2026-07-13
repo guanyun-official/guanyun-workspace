@@ -23,6 +23,18 @@ def main() -> int:
     ap.add_argument("--write", action="store_true", help="把『可发』的推进『待发布』(默认只报告)")
     a = ap.parse_args()
     print(f"env={config.ENV_NAME} test_mode={config.TEST_MODE} brand={a.brand} write={a.write}")
+
+    # **自愈:补『实际发布日』**(控量红线的命根子)——运营在 base 里只有两个手柄(改状态、填链接),
+    # 『实际发布日』他做不了。不补 → 控量『今日已发』恒为 0 → 单号日发上限形同虚设,可以无限发。
+    stamped = publish.stamp_published_at(write=a.write)
+    if stamped:
+        print(f"\n🩹 {len(stamped)} 条『已发但没有发布日』{'已补上' if a.write else '待补'}"
+              f"(不补的话控量算不进去,红线失效):")
+        for s in stamped:
+            print(f"   · {s['title']}")
+        if not a.write:
+            print("   (加 --write 真补)")
+
     rows = publish.review_approved(a.brand, write=a.write)
     if not rows:
         print("（当前没有『已批准』待处理的笔记）")

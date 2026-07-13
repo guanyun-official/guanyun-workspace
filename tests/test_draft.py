@@ -501,12 +501,6 @@ class KeywordInjection(unittest.TestCase):
 class FieldValueHelpers(unittest.TestCase):
     """codify 反复踩的 link/url 字段格式坑:link→record_id列表、url→{link,text}dict。"""
 
-    def test_link_value_wraps_to_list(self):
-        from orchestrator import bitable
-        self.assertEqual(bitable.link_value("recX"), ["recX"])
-        self.assertEqual(bitable.link_value(["recA", "recB"]), ["recA", "recB"])
-        self.assertEqual(bitable.link_value(""), [])
-        self.assertEqual(bitable.link_value(None), [])
 
     def test_url_value_wraps_to_dict(self):
         from orchestrator import bitable

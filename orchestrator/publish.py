@@ -163,3 +163,37 @@ def fill_publish_link(note_key: str, url: str, write: bool = False) -> dict:
                                 {NF.PUBLISH_LINK: bitable.url_value(url), NF.STATUS: NS.PUBLISHED,
                                  NF.PUBLISHED_AT: int(time.time() * 1000)})
     return {"ok": True, "title": title, "url": url, "matched": 1, "done": write}
+
+
+def stamp_published_at(write: bool = False) -> list[dict]:
+    """**自愈:给『已发但没有实际发布日』的稿补上发布日**(控量红线的命根子)。
+
+    2026-07-14 走运营流程真跑发现的事故:运营在 base 里**只有两个手柄**——改『状态』、填『发布链接』。
+    而『实际发布日』**他做不了**(base 里没人告诉他要填,也没有自动化)。于是他照着卡片发完一条:
+        状态=已发 ✓   发布链接=填了 ✓   实际发布日=**空**
+        → 控量『今日已发』算成 0(他明明发了一条)
+        → **单号日发上限形同虚设,可以无限发** —— 红线破了。
+    而全仓唯一会写这个字段的 `fill_publish_link()` **生产零调用**(它是卡片按钮的动作函数,webhook 未接)
+    —— 运营根本够不着它。卡片上那句"发完把链接发我认领"里的**那个"我"不存在**。
+
+    **系统不该依赖人去做一件他做不到的事。** 状态翻成『已发』本身就是信号:他说"我发了"。
+    所以系统自己把日期补上(补的是**发现时**的时间;运营当天发当天改状态,这就是对的。
+    若他补录旧帖,日期会偏——那种情况少,且卡片会把补过的列出来让他核)。
+    挂在 publish_ready(cron 路径)上跑,幂等。
+    """
+    import time
+    if write:
+        guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)   # 红线:只写测试库
+    out: list[dict] = []
+    now = int(time.time() * 1000)
+    for r in feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.PUBLISHED]):
+        f = r["fields"]
+        if f.get(NF.PUBLISHED_AT):
+            continue                                          # 已有日期,不动(幂等)
+        if not bitable.text(f.get(NF.PUBLISH_LINK)).strip():
+            continue                                          # 连链接都没有 → 不是"刚发完",别瞎补
+        out.append({"note_id": r["record_id"], "title": bitable.text(f.get(NF.TITLE)),
+                    "stamped": write})
+        if write:
+            feishu_io.update_record(NF.TABLE, r["record_id"], {NF.PUBLISHED_AT: now})
+    return out

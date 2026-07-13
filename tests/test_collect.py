@@ -29,7 +29,7 @@ class PublishedNotesFilter(unittest.TestCase):
             {"record_id": "rDraft", "fields": {NF.STATUS: NS.DRAFT_PENDING, NF.PUBLISH_LINK: "http://y"}},
         ]
         with _sm(notes):
-            ids = [r["record_id"] for r in collect.published_notes()]
+            ids = [r["record_id"] for r in collect.harvestable_notes()]
         self.assertEqual(ids, ["rP"])  # 只 已发 + 有发布链接
 
 

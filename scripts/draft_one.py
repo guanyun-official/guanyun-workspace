@@ -54,10 +54,21 @@ def main() -> int:
         print("(干跑:未写库。加 --write 才过红线闸落测试库笔记表)")
         return 0
     rid = draft.create_draft_note(r)
-    from orchestrator import feishu_io
+    from orchestrator import bitable, dispatch, feishu_io
+    from orchestrator.bitable import InspirationFields as IF
     feishu_io.log_run(summary=f"出稿 {a.account}/{r['content_type']}", action="出稿",
                       skill=r["gen_skill"], note_ref=rid, table="笔记表", cost=r["cost"])   # 记运行日志(复盘/成本追踪据此)
     print(f"✅ 已写测试库笔记表 record_id={rid}(状态=草稿待发,待人审;发布/AI声明人手)")
+
+    # **闭合爆款模仿环**(2026-07-14 对齐审查:`mark_idea_converted` 生产零调用 = 这个环从来没闭合过):
+    # 这条稿是从某条灵感来的(--title-seed 就是灵感标题,dispatch 的『爆款模仿待办』就是这么派的),
+    # 出完稿必须回填灵感库的『转化为笔记』——否则灵感永远是"未转化",**同一条爆款会被反复派活**。
+    if a.title_seed:
+        for row in feishu_io.list_records(IF.TABLE):
+            if bitable.text(row["fields"].get(IF.TITLE)).strip() == a.title_seed.strip():
+                dispatch.mark_idea_converted(row["record_id"], rid)
+                print(f"🔗 已回填灵感库『转化为笔记』:「{a.title_seed}」→ {rid}(闭合爆款模仿环,不再重复派活)")
+                break
     return 0
 
 

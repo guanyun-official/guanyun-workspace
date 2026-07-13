@@ -39,10 +39,6 @@ def harvestable_notes(refresh_days: int | None = None) -> list[dict]:
     return [r for r in fresh + refresh if _link(r["fields"].get(NF.PUBLISH_LINK))]
 
 
-def published_notes() -> list[dict]:
-    """(兼容旧名)仅状态=已发 且有发布链接的 note。回流实际用 harvestable_notes(含已回流刷新)。"""
-    return [r for r in harvestable_notes() if bitable.text(r["fields"].get(NF.STATUS)) == NS.PUBLISHED]
-
 
 def collect_and_writeback(mode: str = "stub", limit: int = 50) -> dict:
     """对每条可回流 note 采集互动数据并写回;**已发采集成功后推进→已回流**(状态机闭环,复盘据此有数据)。

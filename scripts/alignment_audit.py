@@ -39,6 +39,25 @@ sys.path.insert(0, str(ROOT))
 
 FAIL: list[str] = []
 
+# ══════════════════════════════════════════════════════════════════════════════
+# 死码白名单 —— **必须写明理由**。规矩是"要么真做出来,要么删掉";留着的必须说清为什么。
+# 静默豁免 = 又一个"看着像在保护你、实际是空的"。
+# ══════════════════════════════════════════════════════════════════════════════
+DEAD_CODE_ALLOW = {
+    "publish.approve":
+        "ADR-0005 卡片按钮动作函数。**运营现在是在 base 里直接改状态**(不点卡片按钮),"
+        "所以生产零调用是**符合现状**的。等服务器 webhook 接上、卡片真有按钮时才会被调用。"
+        "**注意**:它不是死码,是**待接线**——webhook 一天没接,卡片就一天不该出现'点按钮'的字样。",
+    "publish.fill_publish_link":
+        "同上(ADR-0005 聊天动作函数:运营把链接发给 bot → webhook → 认领)。webhook 未接 → 运营够不着它。"
+        "**后果已用 publish.stamp_published_at() 兜住**:运营在 base 只能改状态+填链接,"
+        "『实际发布日』他做不了 → 系统在 publish_ready(cron)里自愈补上,控量红线不再形同虚设。",
+    "compose.simple_decide":
+        "ADR-0006 加工环的 gated 钩子(GY_PROCESSING_ENABLED 默认关)。**关态下 processing.maybe_process "
+        "原样返回、绝不调它** —— 这是设计,不是遗漏。开关一开就会被调。",
+    "compose.compose_execute": "同上(ADR-0006 加工环 gated 钩子)。",
+}
+
 
 def bad(kind: str, what: str, why: str = "") -> None:
     FAIL.append(f"[{kind}] {what}" + (f" —— {why}" if why else ""))
@@ -84,6 +103,10 @@ def audit_dead_code() -> None:
                           for q, src in prod.items() if q != p)
             selfuse = len(re.findall(rf"\b{fn}\s*\(", s)) - 1     # 减去 def 本身
             if callers == 0 and selfuse == 0:
+                key = f"{p.stem}.{fn}"
+                if key in DEAD_CODE_ALLOW:
+                    ok(f"{key}() 生产零调用 —— **白名单(有理由)**:{DEAD_CODE_ALLOW[key][:52]}…")
+                    continue
                 in_tests = len(re.findall(rf"\b{fn}\s*\(", tsrc))
                 tag = (f"**只有测试在调它({in_tests} 次)= 测试在给死码站台**"
                        if in_tests else "连测试都没有")
@@ -256,6 +279,9 @@ def audit_empty_gates() -> None:
             found += 1
             continue
         if not rows:
+            # **空表不等于门是好的** —— 只是还没有东西可拦。如实说,别静默通过(那是自欺)。
+            print(f"  ○ {gate} ← {table} **是空的**(0 行)—— 门没东西可拦,"
+                  f"说明**喂它的那条链路还没真跑过**。不算红,但也别当绿。")
             continue
         filled = sum(1 for r in rows if bitable.text(r["fields"].get(field)).strip())
         if filled == 0:
@@ -356,6 +382,29 @@ def audit_human_surface() -> None:
         print("         每轮必须真渲染卡片/补拍单/周报,以人的眼睛读一遍,问'我会不会当场骂人'")
 
 
+def audit_skill_shadowing() -> None:
+    """⑨ 技能唯一真源:workspace 不许再藏技能(local-skills 是双源遮蔽的入口)。
+    接线 `skills_lock.shadowed_skills()` —— 它此前只有测试在调 = 哨兵没站岗。"""
+    print("\n── ⑨ 技能唯一真源(workspace 不许再藏技能)" + "─" * 20)
+    from orchestrator.skills_lock import shadowed_skills
+    local, inst = ROOT / "local-skills", ROOT / "skills"
+    names = [x.name for x in local.iterdir() if x.is_dir()] if local.exists() else []
+
+    def resolve(n):
+        q = inst / n
+        return str(q.resolve()) if q.exists() else None
+
+    errs = shadowed_skills(names, resolve)
+    if local.exists():
+        bad("技能双源", "workspace 又出现 local-skills/",
+            "技能唯一真源=qiaohe-skill 仓。local 优先于 skills/ → 技能仓的同名技能会被静默盖住,"
+            "而 installed_drift 只比远程 HEAD,一个字都不报")
+    for e in errs:
+        bad("技能双源遮蔽", e)
+    if not local.exists() and not errs:
+        ok("技能唯一真源 = qiaohe-skill 仓(workspace 无 local-skills/,无遮蔽)")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--offline", action="store_true", help="只查代码,不触真库")
@@ -370,6 +419,7 @@ def main() -> int:
     audit_dead_config()
     audit_default_traps()
     audit_fake_fixtures()
+    audit_skill_shadowing()
     if not a.offline:
         audit_views()
         audit_empty_gates()

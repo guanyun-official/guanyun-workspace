@@ -165,12 +165,6 @@ LINK_FIELDS = frozenset({"账号", "内容类型", "关联素材", "适用账号
 URL_FIELDS = frozenset({"发布链接", "链接", "主页链接"})  # 主页链接=URL字段(2026-07实测URLFieldConvFail坐实,曾误当text)
 
 
-def link_value(record_ids) -> list:
-    """link 字段值:record_id(单个 str 或列表)→ record_id 列表(飞书 link 字段只收列表)。"""
-    if isinstance(record_ids, str):
-        return [record_ids] if record_ids else []
-    return list(record_ids or [])
-
 
 def url_value(url: str, text: str = "") -> dict:
     """url 字段值:URL → {link, text} dict(url 字段写纯字符串会炸)。"""
