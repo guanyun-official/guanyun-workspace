@@ -45,6 +45,23 @@ class TestTodayPanel(unittest.TestCase):
         self.assertEqual(p["待发"], [])
         self.assertEqual(p["待回填链接"], [])
 
+    def test_quota_flags_account_at_cap(self):
+        # 控量(红线):某号今日待发布达到单号日上限→控量标『逼近』,卡片出控量预警(防超发)
+        from orchestrator import config
+        cap = config.PER_ACCOUNT_DAILY_PUBLISH
+        notes = [{"record_id": f"q{i}", "fields": {NF.STATUS: NS.TO_PUBLISH,
+                  NF.TITLE: f"待发{i}", NF.ACCOUNT: "ootd号"}} for i in range(cap)]
+        notes.append({"record_id": "other", "fields": {NF.STATUS: NS.TO_PUBLISH,
+                      NF.TITLE: "别号一条", NF.ACCOUNT: "图文号1"}})
+        p = self._run(notes, [])
+        q = {x["account"]: x for x in p["控量"]}
+        self.assertEqual(q["ootd号"]["今日"], cap)
+        self.assertTrue(q["ootd号"]["逼近"])            # 达上限→逼近
+        self.assertFalse(q["图文号1"]["逼近"])           # 1条<上限→不逼近
+        card = str(cockpit.today_card("巧荷", panel=p)["elements"])
+        self.assertIn("控量预警", card)                 # 逼近号在卡片标红
+        self.assertIn("ootd号", card)
+
     def test_surfaces_ai_declaration_needed(self):
         # M3:含AI合成素材的待审稿 surface『需AI声明』(人审前就看到⚠️;仍人自己勾)
         notes = [

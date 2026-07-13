@@ -435,11 +435,11 @@ class KeywordInjection(unittest.TestCase):
         from unittest import mock
         from orchestrator import feishu_io
         kws = [{"fields": {"关键词": "新中式", "启用状态": "启用"}},
-               {"fields": {"关键词": "禁用词", "启用状态": "禁用"}},
+               {"fields": {"关键词": "停用词", "启用状态": "停用"}},   # 飞书实际枚举=启用/停用(非"禁用")
                {"fields": {"关键词": "女性力量"}}]        # 无状态=按启用
         with mock.patch.object(feishu_io, "list_records", lambda t: kws):
             out = draft.load_keywords("巧荷")
-        self.assertEqual(set(out), {"新中式", "女性力量"})   # 禁用跳过
+        self.assertEqual(set(out), {"新中式", "女性力量"})   # 停用跳过
 
     def test_stub_stays_offline_no_keyword(self):
         p = draft.generate_draft("ootd号", llm_mode="stub")["prompt"]

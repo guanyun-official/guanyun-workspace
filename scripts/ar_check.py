@@ -93,8 +93,44 @@ try:
 except Exception as e:
     ck("效果闭环", "回流采集薄执行器", False, str(e)[:100])
 
-# ── 版本管理:skills.lock 锁清单 ──────────────────────────────────
+# ── 版本管理:skills.lock 锁清单 + 锁版≟安装现场 HEAD(治锁版漂移) ─────────
 ck("版本管理", "skills.lock 锁 remote/local 技能清单", (ROOT / "skills.lock.json").exists(), "skills.lock.json")
+try:
+    from orchestrator import skills_lock
+    _lock = json.loads((ROOT / "skills.lock.json").read_text())
+
+    def _head_of(local: str):
+        """安装现场实际 HEAD(git rev-parse);路径缺失/非 git→None(跳过不误报)。"""
+        p = Path(local).expanduser()
+        if not p.exists():
+            return None
+        r = subprocess.run(["git", "-C", str(p), "rev-parse", "HEAD"], capture_output=True, text=True)
+        return r.stdout.strip() if r.returncode == 0 else None
+
+    _drift = skills_lock.installed_drift(_lock, _head_of)
+    ck("版本管理", "锁版 sha == 安装现场 HEAD(无漂移)", not _drift, "；".join(_drift) or "对齐")
+except Exception as e:
+    ck("版本管理", "锁版漂移检查", False, str(e)[:100])
+
+# ── schema 契约:代码字段/枚举词汇 ⊆ 活 schema 快照(治读侧静默漂移) ────────
+try:
+    from orchestrator import bitable as _B
+    _sd = ROOT / "schema" / "test"
+    _vt = [(_B.NoteFields, "笔记表"), (_B.MaterialFields, "素材表"), (_B.AccountFields, "账号表"),
+           (_B.RunLogFields, "运行日志表"), (_B.ContentTypeFields, "内容类型表"),
+           (_B.InspirationFields, "灵感库"), (_B.KeywordFields, "关键词库"),
+           (_B.NoteStatus, "笔记表"), (_B.AutoSched, "账号表"),
+           (_B.MaterialStatus, "素材表"), (_B.MaterialSource, "素材表")]
+    _sdrift = []
+    for _cls, _t in _vt:
+        _fs = json.loads((_sd / f"{_t}.json").read_text())["fields"]
+        _live = {f["field_name"] for f in _fs} | {o for f in _fs for o in (f.get("options") or [])}
+        _miss = set(_B.declared_field_names(_cls)) - _live
+        if _miss:
+            _sdrift.append(f"{_cls.__name__}:{sorted(_miss)}")
+    ck("schema契约", "代码字段/枚举 ⊆ 活 schema 快照(无读侧漂移)", not _sdrift, "；".join(_sdrift) or "对齐")
+except Exception as e:
+    ck("schema契约", "schema 读侧漂移检查", False, str(e)[:100])
 
 # ── 员工界面:灵感表单 ────────────────────────────────────────────
 ck("员工界面", "灵感表单已建", True, "form-create 已建于灵感库")

@@ -36,6 +36,8 @@ def today_panel(brand: str = "巧荷") -> dict:
     pend_review: list[dict] = []
     to_publish: list[dict] = []
     need_link: list[dict] = []
+    load: dict[str, int] = {}   # 控量(红线):每号今日 待发布+今日已发 计数,逼近单号日上限就标红
+    today = date.today()
     for r in notes:
         f = r["fields"]
         st = bitable.text(f.get(NF.STATUS)).strip()
@@ -54,10 +56,18 @@ def today_panel(brand: str = "巧荷") -> dict:
             to_publish.append({"title": title, "account": acc, "mode": mode, "open": link,
                                "需AI声明": ai_req,
                                "materials": [{"code": m["code"], "link": m["取用链接"]} for m in mats]})
-        elif st == NS.PUBLISHED and not bitable.text(f.get(NF.PUBLISH_LINK)).strip():
-            need_link.append({"title": title, "account": acc, "mode": mode, "open": link})
-    return {"待审": pend_review, "待发": to_publish,
-            "待回填链接": need_link, "要补拍": shotlist.shot_needs(brand)}
+            load[acc] = load.get(acc, 0) + 1              # 待发布=今日额度占用
+        elif st == NS.PUBLISHED:
+            pub = bitable.parse_ts(f.get(NF.PUBLISHED_AT))
+            if pub and pub.date() == today:
+                load[acc] = load.get(acc, 0) + 1          # 今日已发=额度占用
+            if not bitable.text(f.get(NF.PUBLISH_LINK)).strip():
+                need_link.append({"title": title, "account": acc, "mode": mode, "open": link})
+    cap = config.PER_ACCOUNT_DAILY_PUBLISH
+    quota = [{"account": a, "今日": n, "上限": cap, "逼近": n >= cap}
+             for a, n in sorted(load.items()) if n]
+    return {"待审": pend_review, "待发": to_publish, "待回填链接": need_link,
+            "控量": quota, "要补拍": shotlist.shot_needs(brand)}
 
 
 def _title_link(n: dict) -> str:
@@ -83,6 +93,14 @@ def today_card(brand: str = "巧荷", panel: dict | None = None) -> dict:
     for (acc, mode), lines in sorted(blocks.items()):
         head = f"**{acc}{' · ' + mode if mode else ''}**"
         el.append({"tag": "div", "text": {"tag": "lark_md", "content": head + "\n" + "\n".join(lines)}})
+
+    # 控量预警(红线):今日额度占用逼近单号日上限→标红,防超发(assert_publish_quota 曾是死码,这里给人看)
+    hot = [q for q in p.get("控量", []) if q["逼近"]]
+    if hot:
+        el.append({"tag": "hr"})
+        lines = [f"· {q['account']}：今日 {q['今日']}/{q['上限']} 已达上限，别再排/发了" for q in hot]
+        el.append({"tag": "div", "text": {"tag": "lark_md",
+                   "content": f"**🚦 控量预警**（红线：单号日发 ≤ {config.PER_ACCOUNT_DAILY_PUBLISH}）\n" + "\n".join(lines)}})
 
     # 补拍:按账号归拢一行(拍完丢投递箱,细节 base 看)
     shoot: dict[str, list[str]] = {}

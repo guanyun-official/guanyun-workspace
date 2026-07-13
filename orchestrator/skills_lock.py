@@ -21,6 +21,25 @@ def is_local_source(s: dict) -> bool:
     return s.get("sha") == "local"
 
 
+def installed_drift(lock: dict, head_of) -> list[str]:
+    """锁版 vs 安装现场实际 HEAD 比对(治『锁版形同虚设』:源仓库被 pull 后 symlink 悄悄变、锁没跟上,
+    跑到的技能≠锁记录的版本却无人察觉)。head_of(local_path)->实际HEAD sha 或 None。
+    None(路径缺失/非 git)跳过不误报——存在性属部署校验(check_p1)。纯逻辑,git IO 由调用方注入(可零环境单测)。
+    只查远程 source(本地 source sha='local' 无 commit 概念)。返回漂移列表(空=对齐)。"""
+    errs: list[str] = []
+    for s in lock.get("sources") or []:
+        if is_local_source(s):
+            continue
+        actual = head_of(s.get("local", ""))
+        if actual is None:
+            continue  # 取不到实际 HEAD(路径不在/非 git)→部署校验层管,这里不误报
+        locked = str(s.get("sha", ""))
+        if actual != locked:
+            errs.append(f"技能源 {s.get('name', '?')} 锁版漂移:lock={locked[:8]} 实际HEAD={str(actual)[:8]}"
+                        "(源仓库变了没重装,或锁改了没重跑 install)")
+    return errs
+
+
 def validate(lock: dict) -> list[str]:
     """返回问题列表(空=合法)。远程 source 须有 repo+真 sha;本地 source 免 repo。"""
     errs: list[str] = []

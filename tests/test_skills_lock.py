@@ -58,6 +58,38 @@ class TestSkillsLock(unittest.TestCase):
             "真实 skills.lock.json 结构语义应合法(含 content-loop-local 本地 source)",
         )
 
+    def test_drift_detects_head_mismatch(self):
+        # 锁版漂移:安装现场实际 HEAD ≠ 锁定 sha → 抓;注入 head_of 免真 git
+        errs = skills_lock.installed_drift({"sources": [REMOTE]}, lambda p: "f" * 40)
+        self.assertTrue(any("漂移" in e for e in errs), f"HEAD 不符未被抓: {errs}")
+
+    def test_drift_silent_when_head_matches(self):
+        errs = skills_lock.installed_drift({"sources": [REMOTE]}, lambda p: REMOTE["sha"])
+        self.assertEqual(errs, [])                        # HEAD==锁 → 无漂移
+
+    def test_drift_skips_missing_repo_no_false_alarm(self):
+        errs = skills_lock.installed_drift({"sources": [REMOTE]}, lambda p: None)
+        self.assertEqual(errs, [])                        # 取不到 HEAD(路径缺/非git)→跳过不误报
+
+    def test_drift_ignores_local_source(self):
+        errs = skills_lock.installed_drift({"sources": [LOCAL]}, lambda p: "whatever")
+        self.assertEqual(errs, [])                        # 本地 source(sha=local)无 commit 概念,不查
+
+    def test_real_lock_head_aligned(self):
+        # 真实 lock:远程源锁定 sha 应 == 本地仓库现 HEAD(漂了这条红,提醒重装/更锁)
+        lock = json.loads((ROOT / "skills.lock.json").read_text(encoding="utf-8"))
+
+        def head_of(local):
+            p = Path(local).expanduser()
+            if not p.exists():
+                return None
+            r = subprocess.run(["git", "-C", str(p), "rev-parse", "HEAD"],
+                               capture_output=True, text=True)
+            return r.stdout.strip() if r.returncode == 0 else None
+
+        self.assertEqual(skills_lock.installed_drift(lock, head_of), [],
+                         "远程技能源锁版应与安装现场 HEAD 对齐(漂移=源仓库变了没重装或锁没更)")
+
     def test_install_skills_does_not_warn_for_local_source_marker(self):
         p = subprocess.run(
             ["bash", "scripts/install_skills.sh"],

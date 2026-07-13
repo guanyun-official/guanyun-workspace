@@ -122,8 +122,8 @@ class KeywordFields:
     """关键词库字段词汇(选题/SEO 池;此前散在 draft.load_keywords 用裸中文串)。"""
     TABLE = "关键词库"
     KEYWORD = "关键词"
-    ENABLED = "启用状态"      # 取值≠"禁用"(下方 DISABLED)即视为启用
-    DISABLED = "禁用"         # 「启用状态」的禁用取值(select 值,非字段名)
+    ENABLED = "启用状态"      # 取值≠"停用"(下方 DISABLED)即视为启用
+    DISABLED = "停用"         # 「启用状态」的停用取值(select 值,非字段名;飞书实际枚举=启用/停用,曾误写"禁用"致停用词漏筛——schema契约抓出)
 
 
 class NoteStatus:
