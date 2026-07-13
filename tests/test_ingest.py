@@ -42,3 +42,41 @@ class TestIngest(unittest.TestCase):
                                       {"ST-260702-001", "ST-260702-003"}), "ST-260702-004")
         self.assertEqual(ing.gen_code("上身视频", "2026-06-26 a.mp4", set()), "SV-260626-001")
         self.assertEqual(ing.gen_code("形象图", "无日期.mp4", set()), "XX-000000-001")   # 抽不到日期
+
+    def test_gen_code_covers_12_types(self):
+        # 对齐素材表真实 12 类:每类各有独立前缀,互不撞;未知类型→SC(不冒充形象图)
+        import scripts.ingest as ing
+        want = {"商品图": "SP", "形象图": "XX", "细节图": "XJ", "上身视频": "SV", "上身图": "ST",
+                "搭配图": "DP", "空镜·场景": "KJ", "工艺特写": "GY", "制作过程视频": "ZZ",
+                "面料·纹理特写": "ML", "文物原图": "WW", "文物对照图": "WD"}
+        self.assertEqual(len(set(want.values())), 12)                       # 前缀互不撞
+        for mtype, pre in want.items():
+            self.assertTrue(ing.gen_code(mtype, "2026-07-02 a.jpg", set()).startswith(f"{pre}-"))
+        self.assertTrue(ing.gen_code("没这个类型", "2026-07-02 a.jpg", set()).startswith("SC-"))
+
+    def test_register_separates_relpath_and_link(self):
+        # 字段归位:相对路径=系统指针(text),链接=分享链(url,带文件名);打标留空适用账号
+        from unittest import mock
+        import scripts.ingest as ing
+        from orchestrator import feishu_io
+        created = {}
+        with mock.patch.object(feishu_io, "create_record", lambda t, f: created.update(f) or "recR"):
+            rid = ing.register("ST-260702-001", "上身图", "baidupan:/巧荷素材/待入库/a.heic",
+                               note="藕荷色对襟·园林·柔光", source="实拍")
+        self.assertEqual(rid, "recR")
+        self.assertEqual(created["相对路径"], "baidupan:/巧荷素材/待入库/a.heic")   # 系统指针进相对路径
+        self.assertEqual(created["链接"]["text"], "a.heic")                        # url 字段带文件名
+        self.assertNotIn("适用账号", created)                                      # 打标不管消费,留空
+        self.assertNotIn("生成参数", created)                                      # 实拍不填生成参数
+
+    def test_register_ai_records_gen_params(self):
+        # AI 素材:来源=AI生成 且填生成参数(provenance 细节)
+        from unittest import mock
+        import scripts.ingest as ing
+        from orchestrator import feishu_io
+        created = {}
+        with mock.patch.object(feishu_io, "create_record", lambda t, f: created.update(f) or "r"):
+            ing.register("ML-000000-001", "面料·纹理特写", "file:///tmp/x.jpg",
+                         source="AI生成", gen_params="doubao seedream;提示词:云锦纹理")
+        self.assertEqual(created["来源"], "AI生成")
+        self.assertEqual(created["生成参数"], "doubao seedream;提示词:云锦纹理")

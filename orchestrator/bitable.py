@@ -37,11 +37,15 @@ class MaterialFields:
     TABLE = "素材表"
     CODE = "素材编号"
     TYPE = "类型"
-    LINK = "链接"
+    LINK = "链接"          # url 字段:人点开的分享链(投手一点直达该图/视频)
+    REL_PATH = "相对路径"   # text 字段:系统耐久指针(baidupan:/... 或 file://);寻址用,不被 url 改写
     SHOT_STATUS = "拍摄状态"
+    SHOOTER = "拍摄人"      # text:谁拍的(可空)
+    SHOOT_REQ = "拍摄要求"  # text:拍摄 brief(shotlist 派拍时的要求;可空,现多为空待回填)
     SOURCE = "来源"
+    GEN_PARAMS = "生成参数"  # text:仅 AI 素材填(生成/加工参数=provenance 细节,ADR-0004 来源随像素)
     NOTE = "备注"
-    ACCOUNTS = "适用账号"   # 赛道(账号×模式)投影;§4 素材按赛道存不挂衣服
+    ACCOUNTS = "适用账号"   # 赛道(账号×模式)投影;打标留空,分发选材时按类型+备注语义现选并回填(消费即记录)
     CITED = "被引用次数"    # 被笔记引用次数(formula 自算);选素材少用优先→分散防撞图 #36
 
 

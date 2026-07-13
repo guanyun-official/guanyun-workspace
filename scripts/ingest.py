@@ -50,7 +50,13 @@ def _resolve_link(link_path: str) -> str:
     return _as_pointer(link_path)
 
 
-_TYPE_PREFIX = {"上身图": "ST", "上身视频": "SV", "形象图": "XX"}
+# 系统编码前缀:素材表 12 类各一(拼音缩写,互不撞;ST/SV/XX 沿用旧值不破坏已入库编号)。
+_TYPE_PREFIX = {
+    "商品图": "SP", "形象图": "XX", "细节图": "XJ",
+    "上身视频": "SV", "上身图": "ST", "搭配图": "DP",
+    "空镜·场景": "KJ", "工艺特写": "GY", "制作过程视频": "ZZ",
+    "面料·纹理特写": "ML", "文物原图": "WW", "文物对照图": "WD",
+}
 
 
 def _batch_date(name: str) -> str:
@@ -62,7 +68,7 @@ def _batch_date(name: str) -> str:
 def gen_code(mtype: str, name: str, existing: set) -> str:
     """系统化素材编号 <类型>-<批次日期>-<序号>(如 ST-260702-001)。科学、可排序、不混。
     existing=已用编号集合,同(类型,批次)取最大序号+1;调用方每登记一个把返回值加进 existing。"""
-    pre = _TYPE_PREFIX.get(mtype, "XX")
+    pre = _TYPE_PREFIX.get(mtype, "SC")   # 未知类型→SC(素材),不冒充形象图 XX
     date = _batch_date(name)
     stem = f"{pre}-{date}-"
     nums = [int(m.group(1)) for c in existing if (m := re.match(rf"^{pre}-{date}-(\d+)$", c))]
@@ -109,19 +115,27 @@ def link(src: str, batch: str, category: str, name: str | None = None) -> str:
 
 
 def register(code: str, mtype: str, link_path: str, note: str = "",
-             source: str = MSrc.REAL, accounts: list | None = None) -> str:
-    """登记素材进测试库素材表(§4:素材按赛道存,不挂衣服)。
-    accounts=适用账号 record_id 列表(赛道=账号×模式 投影);类型(类型字段)是薄执行器选素材的 key。"""
+             source: str = MSrc.REAL, accounts: list | None = None,
+             shooter: str = "", gen_params: str = "") -> str:
+    """登记素材进测试库素材表(§4:素材按赛道存,不挂衣服)。字段归位(对齐素材表真实 schema):
+    - 链接(url)= 能点开的分享链(投手一点直达);相对路径(text)= 系统耐久指针(baidupan:/...),寻址用。
+    - 生成参数(text)只在 source=AI生成 时填(provenance 细节);拍摄人可空。
+    accounts=适用账号 record_id 列表——**打标时应留空**(None),消费在分发选材时决定并回填。"""
     fields = {
         MF.CODE: code,
         MF.TYPE: mtype,
         MF.LINK: {"link": _resolve_link(link_path), "text": Path(netpan.pointer_path(link_path)).name},
+        MF.REL_PATH: _as_pointer(link_path),   # 系统指针(text 字段,不被 url 改写)
         MF.SHOT_STATUS: MS.SHOT,
         MF.SOURCE: source,
         MF.NOTE: note,
     }
+    if shooter:
+        fields[MF.SHOOTER] = shooter
+    if source == MSrc.AI and gen_params:
+        fields[MF.GEN_PARAMS] = gen_params   # 仅 AI 素材:生成/加工参数(provenance)
     if accounts:
-        fields[MF.ACCOUNTS] = accounts   # 适用账号=赛道投影(薄执行器按此+类型筛选)
+        fields[MF.ACCOUNTS] = accounts   # 适用账号=赛道投影(打标留空;分发选材回填)
     return feishu_io.create_record("素材表", fields)
 
 
