@@ -78,6 +78,35 @@ def _pysrc(*dirs: str) -> dict[Path, str]:
     return out
 
 
+def _real_callers(fn: str) -> int:
+    """**真调用点**数量(AST 数 ast.Call;注释/docstring 里出现的名字不算)。
+
+    2026-07-14 —— 这个函数的来历,就是这个审查器要抓的病,**我自己连犯三次**:
+      1. 第一版「假承诺」检查用 regex 数源码里 `fn(` 出现次数 >1 就当"接线了"。
+         而 publish.py 的注释和 docstring **反复提到 fill_publish_link()** → 被算成已接线
+         → 检查当场变成摆设(把假承诺塞回卡片,它一声不吭)。**注释把检查骗了。**
+      2. 改用 AST 后,我把这个 helper **插错了位置,根本没插进文件**,而且没验证就往下走。
+      3. 于是它成了最恶劣的一种空壳:`_real_callers` 只在"真要检查"时才被调用 ——
+         **卡片没问题时循环体不执行 → 不崩、绿灯;卡片真有假承诺时才执行 → 崩溃。**
+         **它平时永远是绿的,只在真该报警的那一刻炸掉。**
+
+    教训写死在这:**检查器自己也必须过"把 bug 塞回去,看它报不报"这一关**,
+    否则它就是下一个"看着像在保护你、实际是空的"东西。
+    """
+    n = 0
+    for _q, src in _pysrc("orchestrator", "scripts").items():
+        try:
+            tree = ast.parse(src)
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                name = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+                if name == fn:
+                    n += 1
+    return n
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # ① 死码:orchestrator 的 public 函数,生产代码零调用
 #    (测试调用**不算数**——assert_publish_quota 曾经就只有测试在调,而门从没装在门框上)
@@ -376,8 +405,29 @@ def audit_human_surface() -> None:
             "运营会说:'就一条,还 0 赞,你让我多产?' 宁可说'数据不够',也不能编")
         found += 1
 
+
+    # (g) **假承诺:人面上说的能力,代码里没接线**(2026-07-14 人眼审抓到的,⑧ 的更深形态)
+    #     卡片原话:"发完把链接发我认领" —— "发我认领"要 webhook 接住聊天消息 →
+    #     `publish.fill_publish_link()` 是那个入口,而它**生产零调用、webhook 未接**:
+    #     运营真把链接发给 bot,**石沉大海,没有任何东西在听**。功能没接线,话却已经说出去了。
+    PROMISES = [
+        ("发我认领", "fill_publish_link", "把链接发给 bot 认领 —— 要 webhook 接住聊天消息"),
+        ("发给我", "fill_publish_link", "同上"),
+        ("点按钮", "approve", "卡片按钮 —— 要 webhook 接住按钮点击"),
+        ("点卡片", "approve", "同上"),
+    ]
+    for phrase, fn, need in PROMISES:
+        if phrase not in blob:
+            continue
+        wired = _real_callers(fn) > 0     # **AST 数真调用点**;注释里提到名字不算(第一版就栽在这)
+        if not wired:
+            bad("人面·假承诺", f"卡片上说「{phrase}」,但 {fn}() **生产零调用**",
+                f"{need}。**功能没接线,话却已经说出去了** —— 人照做,石沉大海。"
+                f"要么接线,要么别说")
+            found += 1
+
     if not found:
-        ok("人面产物:没有给错读者/黑洞/空表头/半句话/零数据编结论")
+        ok("人面产物:没有给错读者/黑洞/空表头/半句话/零数据编结论/假承诺")
         print("      ⚠️ 但机器只能查这些**形式**问题。**'人打开顺不顺手'查不了**——")
         print("         每轮必须真渲染卡片/补拍单/周报,以人的眼睛读一遍,问'我会不会当场骂人'")
 

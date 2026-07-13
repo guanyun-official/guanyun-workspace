@@ -224,7 +224,13 @@ def today_card(brand: str = "巧荷", panel: dict | None = None) -> dict:
     if not el:
         el.append({"tag": "div", "text": {"tag": "lark_md", "content": "✅ 今日无待办：没要审的、没要发的、库存也够。"}})
 
-    tip = "点标题去 base 审/发；发完把链接发我认领，或去 base 回填"
+    # **别说人做不到的事**(2026-07-14 人眼审抓到的假承诺):原文是"发完把链接发我认领,或去 base 回填"
+    # —— "发我认领"要 webhook 接住聊天消息 → `publish.fill_publish_link()` 是那个入口,
+    # 而它**生产零调用、webhook 未接**:运营真把链接发给 bot,**石沉大海,没有任何东西在听**。
+    # 功能没接线,话却已经说出去了。改成他**真能做**的:去 base 改状态+填链接。
+    # 『实际发布日』他做不了,系统在 publish_ready(cron)里自愈补上(stamp_published_at)——
+    # 别再要求人做一件他做不到的事。
+    tip = "点标题去 base：审就改『状态』，发完把小红书链接填进『发布链接』并把状态改成『已发』（发布日系统自动补）"
     el.append({"tag": "note", "elements": [{"tag": "lark_md", "content": tip}]})
 
     return {"config": {"wide_screen_mode": True},
