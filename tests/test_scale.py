@@ -33,6 +33,58 @@ class TestScaleBenchmark(unittest.TestCase):
         self.assertEqual(n["list"], 0, f"create_draft_note 应零全表扫,实际 list_records={n['list']} 次")
         self.assertGreaterEqual(n["search"], 3)   # 账号/内容类型/素材/笔记 走过滤查询(≥3)
 
+    def test_today_panel_zero_full_table_scan(self):
+        """today_panel:笔记走过滤(search)、素材按 linked id 取(get_record),零全表拉。"""
+        from orchestrator import cockpit, shotlist
+        from orchestrator.bitable import NoteFields as NF, NoteStatus as NS, MaterialFields as MF
+        from tests._search import search_mock, get_record_mock
+        notes = [{"record_id": "n1", "fields": {NF.STATUS: NS.TO_PUBLISH, NF.TITLE: "发",
+                  NF.LINKED_MATERIALS: [{"record_ids": ["m1"]}]}}]
+        mats = [{"record_id": "m1", "fields": {MF.SOURCE: "实拍", MF.CODE: "M-1", MF.TYPE: "上身图",
+                 MF.LINK: {"link": "x", "text": "x"}}}]
+        base = {NF.TABLE: notes, MF.TABLE: mats}
+        n = {"list": 0}
+
+        def flist(t, **k):
+            n["list"] += 1
+            return base.get(t, [])
+        with mock.patch.object(feishu_io, "list_records", flist), \
+                mock.patch.object(feishu_io, "search_records", search_mock(base)), \
+                mock.patch.object(feishu_io, "get_record", get_record_mock(base)), \
+                mock.patch.object(shotlist, "shot_needs", lambda b="巧荷": []):
+            cockpit.today_panel("巧荷")
+        self.assertEqual(n["list"], 0, f"today_panel 应零全表扫,实际 {n['list']}")
+
+    def test_review_approved_zero_full_table_scan(self):
+        """review_approved:已批准笔记走过滤、素材按 linked id 取,零全表拉。"""
+        from orchestrator import publish
+        from orchestrator.bitable import NoteFields as NF, NoteStatus as NS, MaterialFields as MF
+        from tests._search import search_mock, get_record_mock
+        notes = [{"record_id": "n1", "fields": {NF.STATUS: NS.APPROVED, NF.TITLE: "稿",
+                  NF.LINKED_MATERIALS: [{"record_ids": ["m1"]}]}}]
+        mats = [{"record_id": "m1", "fields": {MF.SOURCE: "实拍", MF.CODE: "M-1", MF.TYPE: "上身图"}}]
+        base = {NF.TABLE: notes, MF.TABLE: mats}
+        n = {"list": 0}
+
+        def flist(t, **k):
+            n["list"] += 1
+            return base.get(t, [])
+        with mock.patch.object(feishu_io, "list_records", flist), \
+                mock.patch.object(feishu_io, "search_records", search_mock(base)), \
+                mock.patch.object(feishu_io, "get_record", get_record_mock(base)):
+            publish.review_approved("巧荷", write=False)
+        self.assertEqual(n["list"], 0, f"review_approved 应零全表扫,实际 {n['list']}")
+
+    def test_search_mock_catches_wrong_condition(self):
+        """★治假绿自证★:过滤型 search_mock 按条件真过滤——错字段名/错值→0命中,条件拼错会被测出。"""
+        from tests._search import search_mock
+        from orchestrator.bitable import NoteFields as NF, NoteStatus as NS
+        base = {NF.TABLE: [{"record_id": "n1", "fields": {NF.STATUS: NS.APPROVED}}]}
+        sm = search_mock(base)
+        self.assertEqual(len(sm(NF.TABLE, [{"field_name": NF.STATUS, "operator": "is", "value": [NS.APPROVED]}])), 1)
+        self.assertEqual(len(sm(NF.TABLE, [{"field_name": "错字段", "operator": "is", "value": [NS.APPROVED]}])), 0)
+        self.assertEqual(len(sm(NF.TABLE, [{"field_name": NF.STATUS, "operator": "is", "value": ["待发布"]}])), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

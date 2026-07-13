@@ -21,7 +21,10 @@ class TestShotNeeds(unittest.TestCase):
                        {"record_id": "recTW1", "fields": {AF.NAME: "图文号1"}}],
             MF.TABLE: mats,
         }
-        with mock.patch.object(feishu_io, "list_records", lambda t: base.get(t, [])):
+        from tests._search import search_mock
+        # 素材走 search_in(按需类型过滤,过滤型mock治假绿);账号表小仍 list_records
+        with mock.patch.object(feishu_io, "list_records", lambda t: base.get(t, [])), \
+                mock.patch.object(feishu_io, "search_records", search_mock(base)):
             return shotlist.shot_needs("巧荷")
 
     def test_low_inventory_flagged_with_brief_and_ref(self):

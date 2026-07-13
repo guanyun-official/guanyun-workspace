@@ -28,12 +28,15 @@ def _note_link(record_id: str) -> str:
 def today_panel(brand: str = "巧荷") -> dict:
     """今日面板:一次读全笔记表+素材,分出 待审/待发/待回填链接/要补拍。纯读。
     每条笔记带 base 深链(飞书里一点直达该行操作)——面向『聊天优先、引导到 base』。"""
-    idx = publish._material_index()
+    # 状态∈{草稿待发,待发布,已发} 服务端过滤(规模M2,不全拉笔记表);再只取这些笔记引用的素材(规模M4,不全拉素材表)
+    notes = feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.DRAFT_PENDING, NS.TO_PUBLISH, NS.PUBLISHED])
+    linked = [rid for r in notes
+              for rid in bitable.link_record_ids(r["fields"].get(NF.LINKED_MATERIALS))]
+    idx = publish._material_index(linked)
     pend_review: list[dict] = []
     to_publish: list[dict] = []
     need_link: list[dict] = []
-    # 状态∈{草稿待发,待发布,已发} 服务端过滤(规模M2,不全拉笔记表);下面按状态分桶逻辑不变
-    for r in feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.DRAFT_PENDING, NS.TO_PUBLISH, NS.PUBLISHED]):
+    for r in notes:
         f = r["fields"]
         st = bitable.text(f.get(NF.STATUS)).strip()
         title = bitable.text(f.get(NF.TITLE))

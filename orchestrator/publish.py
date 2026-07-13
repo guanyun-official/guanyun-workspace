@@ -14,14 +14,25 @@ from . import bitable, config, feishu_io, guard, netpan
 from .bitable import NoteFields as NF, NoteStatus as NS, MaterialFields as MF
 
 
-def _material_index() -> dict:
-    """素材 record_id → {来源, 编号, 类型, 链接(耐久指针)}。一次读全,避免逐笔记重复拉素材表。"""
-    return {r["record_id"]: {"source": bitable.text(r["fields"].get(MF.SOURCE)),
-                             "code": bitable.text(r["fields"].get(MF.CODE)),
-                             "type": bitable.text(r["fields"].get(MF.TYPE)),
-                             "note": bitable.text(r["fields"].get(MF.NOTE)),
-                             "link": bitable.text(r["fields"].get(MF.LINK))}
-            for r in feishu_io.list_records(MF.TABLE)}
+def _mat_info(r: dict) -> dict:
+    f = r["fields"]
+    return {"source": bitable.text(f.get(MF.SOURCE)), "code": bitable.text(f.get(MF.CODE)),
+            "type": bitable.text(f.get(MF.TYPE)), "note": bitable.text(f.get(MF.NOTE)),
+            "link": bitable.text(f.get(MF.LINK))}
+
+
+def _material_index(record_ids: list | None = None) -> dict:
+    """素材 record_id → {来源,编号,类型,备注,链接}。
+    **record_ids 给定 = 只按 id 取那几条**(get_record,不全表扫,规模M4:只取笔记真引用的素材);
+    None = 全表(小规模/兜底)。"""
+    if record_ids is not None:
+        idx = {}
+        for rid in dict.fromkeys(record_ids):        # 去重保序
+            r = feishu_io.get_record(MF.TABLE, rid)
+            if r:
+                idx[rid] = _mat_info(r)
+        return idx
+    return {r["record_id"]: _mat_info(r) for r in feishu_io.list_records(MF.TABLE)}
 
 
 def note_materials(note_fields: dict, idx: dict) -> list[dict]:
@@ -42,12 +53,13 @@ def review_approved(brand: str = "巧荷", write: bool = False) -> list[dict]:
     返回 [{note_id, title, ai_required, declared, verdict, advanced}]。write 前过 base 红线闸(只写测试库)。"""
     if write:
         guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)  # 红线:只写测试库
-    idx = _material_index()
+    approved = feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.APPROVED])   # 已批准 服务端过滤
+    linked = [rid for r in approved
+              for rid in bitable.link_record_ids(r["fields"].get(NF.LINKED_MATERIALS))]
+    idx = _material_index(linked)   # 只取被批准笔记引用的素材(规模M4,不全拉素材表)
     out: list[dict] = []
-    for r in feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.APPROVED]):   # 已批准 服务端过滤(规模M2)
+    for r in approved:
         f = r["fields"]
-        if bitable.text(f.get(NF.STATUS)) != NS.APPROVED:
-            continue
         mats = note_materials(f, idx)                                # 取素材清单(编号/来源/可开链接)
         sources = [m["source"] for m in mats]
         ai_req = guard.ai_declaration_required(sources)
@@ -74,17 +86,16 @@ def approve(note_id: str, write: bool = False) -> dict:
     返回 {ok, title?, reason?}。之后 review_approved 判 AI声明→待发布。"""
     if write:
         guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)   # 红线:只写测试库
-    for r in feishu_io.list_records(NF.TABLE):
-        if r["record_id"] != note_id:
-            continue
-        f = r["fields"]
-        st = bitable.text(f.get(NF.STATUS)).strip()
-        if st != NS.DRAFT_PENDING:
-            return {"ok": False, "reason": f"不是草稿待发(当前:{st or '空'}),不批准"}
-        if write:
-            feishu_io.update_record(NF.TABLE, note_id, {NF.STATUS: NS.APPROVED})
-        return {"ok": True, "title": bitable.text(f.get(NF.TITLE)), "advanced": write}
-    return {"ok": False, "reason": "没找到该笔记"}
+    r = feishu_io.get_record(NF.TABLE, note_id)   # 规模M4:按id取单条,不全扫笔记表
+    if not r:
+        return {"ok": False, "reason": "没找到该笔记"}
+    f = r["fields"]
+    st = bitable.text(f.get(NF.STATUS)).strip()
+    if st != NS.DRAFT_PENDING:
+        return {"ok": False, "reason": f"不是草稿待发(当前:{st or '空'}),不批准"}
+    if write:
+        feishu_io.update_record(NF.TABLE, note_id, {NF.STATUS: NS.APPROVED})
+    return {"ok": True, "title": bitable.text(f.get(NF.TITLE)), "advanced": write}
 
 
 def fill_publish_link(note_key: str, url: str, write: bool = False) -> dict:

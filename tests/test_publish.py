@@ -39,10 +39,12 @@ class TestReviewApproved(unittest.TestCase):
         }
 
     def _run(self, note_fields, write=True):
+        from tests._search import search_mock, get_record_mock
         updates = []
         base = self._base(note_fields)
-        with mock.patch.object(feishu_io, "list_records", lambda t: base.get(t, [])), \
-                mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: base.get(t, [])), \
+        # 过滤型 search(按已批准状态真过滤,治假绿)+ get_record(review 只按linked id取素材)
+        with mock.patch.object(feishu_io, "search_records", search_mock(base)), \
+                mock.patch.object(feishu_io, "get_record", get_record_mock(base)), \
                 mock.patch.object(feishu_io, "update_record",
                                   lambda t, r, f: updates.append((r, f))):
             rows = publish.review_approved("巧荷", write=write)
@@ -100,9 +102,11 @@ class TestActionFns(unittest.TestCase):
         updates = []
 
         @contextlib.contextmanager
-        def notes_ctx():   # approve 用 list_records(按id)、fill 用 search_records(按状态)——都 mock 到 notes
-            with mock.patch.object(feishu_io, "list_records", lambda t: notes if t == NF.TABLE else []), \
-                    mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: notes if t == NF.TABLE else []):
+        def notes_ctx():   # approve 用 get_record(按id)、fill 用 search_records(按状态,过滤型治假绿)
+            from tests._search import search_mock, get_record_mock
+            base = {NF.TABLE: notes}
+            with mock.patch.object(feishu_io, "search_records", search_mock(base)), \
+                    mock.patch.object(feishu_io, "get_record", get_record_mock(base)):
                 yield
         return updates, notes_ctx(), \
             mock.patch.object(feishu_io, "update_record", lambda t, r, f: updates.append((r, f)))

@@ -120,14 +120,32 @@ def search_records(table_name: str, conditions: list[dict], conjunction: str = "
         token = d.get("page_token")
 
 
+_SEARCH_COND_CHUNK = 45   # 飞书 filter conditions 有上限(~50),分块防超限
+
+
 def search_in(table_name: str, field_name: str, values, page_size: int = 100) -> list[dict]:
     """便捷:『field ∈ values』服务端过滤(飞书 is 单选只收单值 → 每值一条件、conjunction=or 合并)。
-    真跑验证与 list_records+内存筛等价。**空 values → 返回 []**(∈空集=无命中,不退化全表)。"""
+    真跑验证与 list_records+内存筛等价。**空 values → 返回 []**(∈空集=无命中,不退化全表)。
+    values 很多时**分块**(每块≤45,防超飞书 filter 条件上限);块间结果合并(每行只匹配一个值,不重)。"""
     vals = [v for v in (values or []) if v]
     if not vals:
         return []
-    conds = [{"field_name": field_name, "operator": "is", "value": [v]} for v in vals]
-    return search_records(table_name, conds, conjunction="or", page_size=page_size)
+    out: list[dict] = []
+    for i in range(0, len(vals), _SEARCH_COND_CHUNK):
+        conds = [{"field_name": field_name, "operator": "is", "value": [v]}
+                 for v in vals[i:i + _SEARCH_COND_CHUNK]]
+        out += search_records(table_name, conds, conjunction="or", page_size=page_size)
+    return out
+
+
+def get_record(table_name: str, record_id: str) -> dict | None:
+    """按 record_id 取**单条**(GET,不全表扫)。找不到→None。用于 approve/成片索引等按 id 取的场景。"""
+    tid = config.tables()[table_name]
+    try:
+        d = _call("GET", f"/open-apis/bitable/v1/apps/{config.BASE_TOKEN}/tables/{tid}/records/{record_id}")
+        return d.get("record")
+    except FeishuIOError:
+        return None
 
 
 def update_record(table_name: str, record_id: str, fields: dict) -> None:

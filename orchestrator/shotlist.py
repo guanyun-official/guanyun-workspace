@@ -26,11 +26,15 @@ def _brief(name: str, acc, mtype: str, gen_skill: str) -> str:
 def shot_needs(brand: str = "巧荷") -> list[dict]:
     """拍摄需求单:每号×素材类型,库存(已拍可用)< 目标缓冲 才提。
     返回 [{account, 类型, 缺, 已有, 目标, 拍摄要求, 参考}](缺=目标-已有,>0 才在单里)。"""
-    mats = feishu_io.list_records(MF.TABLE)
+    accs = {n: a for n, a in accounts.load_all(brand).items() if not a.error}
+    # 全局需要的素材类型 → 一次按类型服务端过滤取素材(规模M4,不全拉素材表)
+    needed = sorted({mt for a in accs.values()
+                     for pb in a.playbooks() for mt in (pb.get("material_needs") or [])})
+    mats = feishu_io.search_in(MF.TABLE, MF.TYPE, needed)
     acc_id = {bitable.text(r["fields"].get(AF.NAME)).strip(): r["record_id"]
               for r in feishu_io.list_records(AF.TABLE)}
     out: list[dict] = []
-    for name, acc in sorted(accounts.load_all(brand).items()):
+    for name, acc in sorted(accs.items()):
         if acc.error:
             continue
         target = int(acc.strategy.get("runway_alert_days") or 3)   # 目标缓冲(条,≈够发几天)

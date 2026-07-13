@@ -11,9 +11,11 @@ from orchestrator.bitable import NoteFields as NF, NoteStatus as NS, MaterialFie
 
 class TestTodayPanel(unittest.TestCase):
     def _run(self, notes, mats):
+        from tests._search import search_mock, get_record_mock
         base = {NF.TABLE: notes, MF.TABLE: mats}
-        with mock.patch.object(feishu_io, "list_records", lambda t: base.get(t, [])), \
-                mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: base.get(t, [])), \
+        # 过滤型 mock(按条件真过滤,治假绿)+ get_record(today_panel 只按linked id取素材)
+        with mock.patch.object(feishu_io, "search_records", search_mock(base)), \
+                mock.patch.object(feishu_io, "get_record", get_record_mock(base)), \
                 mock.patch.object(shotlist, "shot_needs", lambda b="巧荷": [{"account": "ootd号", "类型": "上身图", "缺": 1, "投递去向": "网盘待入库"}]):
             return cockpit.today_panel("巧荷")
 
