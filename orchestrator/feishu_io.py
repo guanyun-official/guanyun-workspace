@@ -51,6 +51,37 @@ def _guard_write() -> None:
     guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)
 
 
+def upload_media(local_path: str, file_name: str = "") -> str:
+    """上传媒体到飞书(bitable 附件用),返回 file_token。用于素材缩略图。
+    lark-cli 沙盒只认 workspace 内路径 → 先拷进 workspace 临时目录再传(--file multipart),传完清理。"""
+    import shutil
+    import uuid
+    from pathlib import Path
+    src = Path(local_path)
+    if not src.exists():
+        raise FeishuIOError(f"上传媒体:文件不存在 {local_path}")
+    tmpdir = config.WORKSPACE / ".media_upload"
+    tmpdir.mkdir(exist_ok=True)
+    staged = tmpdir / f"{uuid.uuid4().hex}{src.suffix or '.jpg'}"
+    shutil.copy(src, staged)
+    rel = staged.relative_to(config.WORKSPACE)
+    env = os.environ.copy()
+    env["LARK_CLI_NO_PROXY"] = "1"
+    data = json.dumps({"file_name": file_name or src.name, "parent_type": "bitable_image",
+                       "parent_node": config.BASE_TOKEN, "size": src.stat().st_size}, ensure_ascii=False)
+    try:
+        r = subprocess.run(["lark-cli", "api", "POST", "/open-apis/drive/v1/medias/upload_all",
+                            "--data", data, "--file", f"file={rel}", "--as", "bot"],
+                           capture_output=True, text=True, cwd=str(config.WORKSPACE), env=env, timeout=120)
+        out = r.stdout[r.stdout.find("{"):] if "{" in r.stdout else ""
+        d = json.loads(out) if out else {}
+        if d.get("code") == 0:
+            return d["data"]["file_token"]
+        raise FeishuIOError(f"上传媒体失败: {str(d)[:200] or r.stderr[:200]}")
+    finally:
+        staged.unlink(missing_ok=True)
+
+
 def list_records(table_name: str, page_size: int = 100) -> list[dict]:
     tid = config.tables()[table_name]
     items, token = [], None

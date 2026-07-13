@@ -54,6 +54,16 @@ def _run_convert(src: str, dst: str) -> None:
         raise MediaError(f"sips 转 jpg 失败: {r.stderr[:200]}")
 
 
+def thumbnail(src: str, dst: str, max_px: int = 400) -> str:
+    """生成小缩略图(≤max_px)给 base 驾驶舱瞄一眼选材(不用点开网盘)。返回 dst。PIL 降采样。"""
+    from PIL import Image
+    img = Image.open(src).convert("RGB")
+    img.thumbnail((max_px, max_px))
+    Path(dst).parent.mkdir(parents=True, exist_ok=True)
+    img.save(dst, "JPEG", quality=80)
+    return dst
+
+
 def _duration(video: str) -> float:
     """视频时长(秒,ffprobe);拿不到→0。给抽帧定位中点用(避免固定1秒抽到片头黑帧/slate)。"""
     r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",

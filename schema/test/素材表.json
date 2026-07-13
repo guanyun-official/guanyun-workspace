@@ -7,6 +7,10 @@
       "type": "text"
     },
     {
+      "field_name": "缩略图",
+      "type": "attachment"
+    },
+    {
       "field_name": "拍摄人",
       "type": "text"
     },

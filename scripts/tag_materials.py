@@ -92,9 +92,9 @@ def _seen_names(mats: list[dict]) -> set[str]:
     return seen
 
 
-def _align(metas: list[dict], tags: list[dict]) -> list[tuple]:
-    """按序把标签对齐到 metas;标签少于图=缺的补 {}(_valid_type 会兜底),**绝不静默丢图**。纯函数直测。"""
-    return [(metas[i], tags[i] if i < len(tags) else {}) for i in range(len(metas))]
+def _align(metas: list[dict], views: list[str], tags: list[dict]) -> list[tuple]:
+    """按序把 (meta, view, tag) 对齐;标签少于图=缺的补 {}(_valid_type 会兜底),**绝不静默丢图**。纯函数直测。"""
+    return [(metas[i], views[i], tags[i] if i < len(tags) else {}) for i in range(len(metas))]
 
 
 def _prep_batch(files_batch: list[dict]) -> tuple[list[dict], list[str]]:
@@ -133,7 +133,7 @@ def _tag_one_batch(files_batch: list[dict]) -> list[tuple]:
         return []
     if len(tags) != len(views):
         print(f"  ⚠标签数({len(tags)})≠图数({len(views)}):按序对齐,缺的兜底类型(不丢图)", file=sys.stderr)
-    return _align(metas, tags)
+    return _align(metas, views, tags)
 
 
 def run(folder: str, batch_size: int = 5, limit: int = 0, write: bool = False,
@@ -166,14 +166,21 @@ def run(folder: str, batch_size: int = 5, limit: int = 0, write: bool = False,
         with ThreadPoolExecutor(max_workers=concurrency) as ex:   # 打标并发(护本机=并发度低)
             for br in ex.map(_tag_one_batch, batches[i:i + chunk]):
                 pairs.extend(br)
-        for meta, tag in pairs:                             # 串行登记:gen_code 序号单调
+        for meta, view, tag in pairs:                       # 串行登记:gen_code 序号单调
             mtype = _valid_type(tag.get("类型", ""), meta["kind"])
             source = "AI生成" if (tag.get("来源") == "AI生成") else "实拍"
             code = ing.gen_code(mtype, meta["name"], seen_codes)
             seen_codes.add(code)
             row = {"code": code, "type": mtype, "source": source, "note": tag.get("备注", "")}
             if write:
-                ing.register(code, mtype, meta["ptr"], tag.get("备注", ""), source)   # 适用账号留空
+                thumb_token = ""
+                try:                                        # 顺带生成+上传缩略图(base驾驶舱瞄一眼),失败不拦登记
+                    thumb = str(netpan.CACHE / (Path(view).stem + "_thumb.jpg"))
+                    media.thumbnail(view, thumb, 400)
+                    thumb_token = feishu_io.upload_media(thumb, meta["name"] + ".jpg")
+                except Exception as e:  # noqa: BLE001  缩略图失败不拦登记
+                    print(f"  ⚠缩略图失败 {code}: {str(e)[:40]}", file=sys.stderr)
+                ing.register(code, mtype, meta["ptr"], tag.get("备注", ""), source, thumb_token=thumb_token)
             out.append(row)
             print(f"  {'✓登记' if write else '·试跑'} {code} [{mtype}/{source}] {tag.get('备注','')[:36]}")
         netpan.clear_cache()                                # 每 chunk 清缓存(按需缓存不占地)

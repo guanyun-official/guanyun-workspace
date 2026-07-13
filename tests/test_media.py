@@ -70,3 +70,15 @@ class TestVideoKeyframe(unittest.TestCase):
         from orchestrator import media
         out = media.video_keyframe("/tmp/__nonexistent__.mp4", "/tmp")
         self.assertEqual(out, "/tmp/__nonexistent__.mp4")
+
+
+class TestThumbnail(unittest.TestCase):
+    def test_thumbnail_downscales_to_max(self):
+        from orchestrator import media
+        from PIL import Image
+        d = Path(tempfile.mkdtemp())
+        big = d / "big.jpg"
+        Image.new("RGB", (2000, 1500), (100, 150, 200)).save(big)
+        out = media.thumbnail(str(big), str(d / "t.jpg"), max_px=400)
+        w, h = Image.open(out).size
+        self.assertLessEqual(max(w, h), 400)

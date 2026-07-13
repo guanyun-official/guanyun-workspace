@@ -27,11 +27,12 @@ class TestTagHelpers(unittest.TestCase):
         # Doubao 返回标签少于图数时,不静默丢图(缺的补 {},后续 _valid_type 兜底)——防 folder2/3 那种静默0
         from scripts.tag_materials import _align
         metas = [{"name": "a"}, {"name": "b"}, {"name": "c"}]
-        out = _align(metas, [{"类型": "上身图"}])          # 3 张图,Doubao 只返 1 个标签
-        self.assertEqual(len(out), 3)                       # 3 张都保留
-        self.assertEqual(out[0][1], {"类型": "上身图"})
-        self.assertEqual(out[2][1], {})                    # 缺的补空,不丢
-        self.assertEqual(_align([], []), [])               # 空不炸
+        views = ["/a.jpg", "/b.jpg", "/c.jpg"]
+        out = _align(metas, views, [{"类型": "上身图"}])    # 3 张图,Doubao 只返 1 个标签
+        self.assertEqual(len(out), 3)                       # 3 张都保留 (meta,view,tag)
+        self.assertEqual(out[0][2], {"类型": "上身图"})     # tag 在索引 2
+        self.assertEqual(out[2][2], {})                    # 缺的补空,不丢
+        self.assertEqual(_align([], [], []), [])           # 空不炸
 
     def test_valid_type_clamps_to_12(self):
         from scripts.tag_materials import _valid_type

@@ -45,6 +45,7 @@ class MaterialFields:
     SOURCE = "来源"
     GEN_PARAMS = "生成参数"  # text:仅 AI 素材填(生成/加工参数=provenance 细节,ADR-0004 来源随像素)
     NOTE = "备注"
+    THUMB = "缩略图"        # 附件字段:降采样预览图(base 驾驶舱瞄一眼选材,不用点开网盘)
     ACCOUNTS = "适用账号"   # 赛道(账号×模式)投影;打标留空,分发选材时按类型+备注语义现选并回填(消费即记录)
     CITED = "被引用次数"    # 被笔记引用次数(formula 自算);选素材少用优先→分散防撞图 #36
 

@@ -116,7 +116,7 @@ def link(src: str, batch: str, category: str, name: str | None = None) -> str:
 
 def register(code: str, mtype: str, link_path: str, note: str = "",
              source: str = MSrc.REAL, accounts: list | None = None,
-             shooter: str = "", gen_params: str = "") -> str:
+             shooter: str = "", gen_params: str = "", thumb_token: str = "") -> str:
     """登记素材进测试库素材表(§4:素材按赛道存,不挂衣服)。字段归位(对齐素材表真实 schema):
     - 链接(url)= 能点开的分享链(投手一点直达);相对路径(text)= 系统耐久指针(baidupan:/...),寻址用。
     - 生成参数(text)只在 source=AI生成 时填(provenance 细节);拍摄人可空。
@@ -136,6 +136,8 @@ def register(code: str, mtype: str, link_path: str, note: str = "",
     }
     if shooter:
         fields[MF.SHOOTER] = shooter
+    if thumb_token:
+        fields[MF.THUMB] = [{"file_token": thumb_token}]   # 缩略图(附件),base 驾驶舱瞄一眼
     if source == MSrc.AI and gen_params:
         fields[MF.GEN_PARAMS] = gen_params   # 仅 AI 素材:生成/加工参数(provenance)
     if accounts:
