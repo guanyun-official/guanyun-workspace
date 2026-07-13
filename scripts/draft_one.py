@@ -29,6 +29,11 @@ def main() -> int:
     ap.add_argument("--write", action="store_true", help="过红线闸写测试库笔记表(默认干跑不写)")
     a = ap.parse_args()
     print(f"env={config.ENV_NAME} test_mode={config.TEST_MODE} account={a.account} llm={a.llm} write={a.write}")
+    if a.llm == "real":                       # 真出稿花钱:先查月度预算,超阈当场警示(不阻断,红线是发布不是成本)
+        from orchestrator import cost
+        warn = cost.budget_alert()
+        if warn:
+            print(f"⚠️ {warn}(本条仍出;如需收口降 GY_BUDGET_MONTHLY_CNY 或先停真出稿)")
     r = draft.generate_draft(a.account, a.brand, a.llm, a.title_seed, clothes=a.clothes,
                              content_type=a.content_type, source_text=a.source_text)
     print(f"gen_skill={r['gen_skill']} few-shot载入={r['skill_loaded']} 绑定衣服={r['clothes'] or '无'}"

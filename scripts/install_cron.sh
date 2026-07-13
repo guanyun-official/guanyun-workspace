@@ -50,6 +50,8 @@ done
 BLOCK="$MARK_BEGIN
 # cron PATH:装机时解析的工具目录(否则 lark-cli/hermes/claude/BaiduPCS-Go 按名找不到,子进程 FileNotFoundError)
 PATH=$CRON_PATH
+# 每日 07:50 活 schema 漂移前置探针(ADR-0009 P1):飞书改了字段名/删选项→代码会静默读空/写失败,提前告警别空跑。
+50 7 * * * cd $ROOT && $PY scripts/check_schema_drift.py --alert >> logs/cron.log 2>&1
 # 每日 08:00 轻调度器派活(#8):每号每模式落一条『待出文案』待人/系统出稿,已在途去重。绝不自动发布、绝不代勾AI声明。
 0 8 * * * cd $ROOT && $PY -m scripts.daily_dispatch --write >> logs/cron.log 2>&1
 # 网盘投递箱自动打标入库(人往 /巧荷素材/待入库 丢素材 → 自动拉+转码/抽帧+claude看图打标+register,永久分享链接+系统编码)。

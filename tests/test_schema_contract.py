@@ -54,6 +54,14 @@ class TestSchemaContract(unittest.TestCase):
         for _, table in VOCAB_TABLE:
             self.assertTrue((SCHEMA / f"{table}.json").exists(), f"缺 schema 快照: {table}(先跑 dump_schema)")
 
+    def test_live_probe_uses_same_vocab_list(self):
+        # 单一真相:离线契约(本文件)与活探针(check_schema_drift)必须查同一张词汇→表映射,
+        # 否则一处漏了某表/类,另一处却以为覆盖了(反"两份清单各自漂")。
+        from scripts.check_schema_drift import VOCAB_TABLE as LIVE
+        norm = lambda vt: sorted((cls.__name__, table) for cls, table in vt)
+        self.assertEqual(norm(VOCAB_TABLE), norm(LIVE),
+                         "离线契约与活探针的词汇→表清单不一致,同步二者(单一真相)")
+
 
 if __name__ == "__main__":
     unittest.main()
