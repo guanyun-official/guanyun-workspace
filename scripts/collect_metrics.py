@@ -22,13 +22,24 @@ from orchestrator.bitable import NoteFields as NF
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--real", action="store_true", help="真采集(默认 stub 零成本不写)")
+    ap.add_argument("--real", action="store_true", help="强制真采集(覆盖 GY_METRICS_MODE)")
+    ap.add_argument("--stub", action="store_true", help="强制 stub(覆盖 GY_METRICS_MODE)")
     ap.add_argument("--limit", type=int, default=50)
     a = ap.parse_args()
-    mode = "real" if a.real else "stub"
-    print(f"env={config.ENV_NAME} test_mode={config.TEST_MODE} mode={mode}")
+    # **默认听 config.METRICS_MODE(GY_METRICS_MODE)**——2026-07-14 走运维流程发现:
+    # 原来写死 `mode = "real" if a.real else "stub"`,**完全无视 config.METRICS_MODE**。
+    # 于是 `GY_METRICS_MODE` 这个配置项存在于 config.py、注释写得清清楚楚,却**没有任何人读它**——
+    # 运维照着注释在 .env 里设 GY_METRICS_MODE=real,以为切了真采,**实际跑的还是 stub 假数据**,
+    # 而且他不会知道。跟 assert_publish_quota 是同一类病:东西造好了,没接线。
+    mode = "real" if a.real else ("stub" if a.stub else config.METRICS_MODE)
+    real = mode == "real"
+    print(f"env={config.ENV_NAME} test_mode={config.TEST_MODE} mode={mode}"
+          f"  (来源:{'--real' if a.real else '--stub' if a.stub else 'GY_METRICS_MODE'})")
+    if not real:
+        print("  ⚠️ stub 模式=**不真采、不写回**(零成本占位)。要真拿小红书数据:"
+              "GY_METRICS_MODE=real 或加 --real", file=sys.stderr)
     s = collect.collect_and_writeback(mode=mode, limit=a.limit)
-    if a.real:
+    if real:
         feishu_io.log_run(summary=f"回流 采集{s['采集']}写回{s['写回']}", action="回流")   # 记运行日志(复盘据此)
         if s["采集"] > 0 and s["写回"] == 0:   # 有已发却全采不到=疑登录态过期/取数挂→告警私聊
             from orchestrator import alerts
