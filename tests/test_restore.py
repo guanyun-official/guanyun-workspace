@@ -39,3 +39,50 @@ class RestoreFields(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RestoreOnlyFillsMissing(unittest.TestCase):
+    """**回归锁:恢复=只补缺的,不是盲目重灌**(2026-07-14 真跑 L14 才发现的破坏性 bug)。
+
+    真跑:关键词库 32 条 → 真删 1 条(31)→ 跑 restore → **38 条**(凭空多出 7 条重复),
+    而被误删的那一条**始终没回来**。**「误删可恢复」是假的** —— 它不是恢复,是复制粘贴,
+    而且是**破坏性的**:在还有数据的表上跑一次,整张表就翻倍污染。
+
+    而这个文件里原本的 3 个测试,**全都在测 `restore_fields()`(字段级 link 解析)**——
+    最容易测的纯函数测得漂漂亮亮,**真正会毁数据的那个行为(会不会重复插)一个字没测**。
+    备份脚本有、恢复脚本有、测试绿、门也绿 —— 而"真删一条再恢复"从来没人真跑过。
+    """
+
+    def _restore(self, backup_recs, live_recs):
+        from unittest import mock
+        import scripts.restore_tables as rt
+        from orchestrator import feishu_io
+        created = []
+        with mock.patch.object(rt, "_table_name_by_id", lambda: {}), \
+                mock.patch.object(feishu_io, "list_records", lambda t: live_recs), \
+                mock.patch.object(feishu_io, "create_record",
+                                  lambda t, f: created.append(f) or "recNEW"), \
+                mock.patch("json.loads", lambda s: backup_recs), \
+                mock.patch("pathlib.Path.read_text", lambda self, **k: "[]"):
+            rt.restore("backups/x", "关键词库", write=True)
+        return created
+
+    def test_only_missing_records_are_created(self):
+        backup = [{"fields": {"关键词": "新中式"}}, {"fields": {"关键词": "被误删的词"}}]
+        live = [{"record_id": "r1", "fields": {"关键词": "新中式"}}]     # 库里已有第一条
+        created = self._restore(backup, live)
+        self.assertEqual(len(created), 1, "只该补库里缺的那一条")
+        self.assertEqual(created[0]["关键词"], "被误删的词")
+
+    def test_idempotent_nothing_missing_creates_nothing(self):
+        """跑第二遍不许再插 —— 这是'恢复'和'复制粘贴'的分水岭。"""
+        backup = [{"fields": {"关键词": "新中式"}}]
+        live = [{"record_id": "r1", "fields": {"关键词": "新中式"}}]
+        self.assertEqual(self._restore(backup, live), [], "库里一条不缺时,一条都不许插")
+
+    def test_fingerprint_ignores_link_fields(self):
+        """指纹只用标量字段:link 的 record_id 跨 base 会失效,拿它比会把所有记录都当成'缺失'。"""
+        from scripts.restore_tables import _fingerprint
+        a = {"关键词": "新中式", "灵感库-关联关键词": [{"record_ids": ["recOLD"]}]}
+        b = {"关键词": "新中式", "灵感库-关联关键词": [{"record_ids": ["recNEW"]}]}
+        self.assertEqual(_fingerprint(a), _fingerprint(b), "link 变了不影响身份,否则会重复插")
