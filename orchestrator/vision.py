@@ -33,13 +33,26 @@ def see(image_paths: list[str], prompt: str) -> str:
 
 _MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp",
          ".heic": "image/heic", ".heif": "image/heif"}
+_VISION_MAX_PX = 1536   # 降采样上限:打标不需要全分辨率,大图 base64 过大会让 ARK 连接崩(实测 Broken pipe)
 
 
 def _data_uri(path: str) -> str:
-    """本地图 → data URI(ARK 收 image_url,本地图无公网 URL 时用 base64 内联)。
-    MIME **按扩展名**定,别一律 jpeg——PNG/WebP 不经转码直达,贴错 MIME 换严格后端会静默解析失败。"""
-    mime = _MIME.get(Path(path).suffix.lower(), "image/jpeg")
-    return f"data:{mime};base64," + base64.b64encode(Path(path).read_bytes()).decode()
+    """本地图 → data URI(base64 内联)。**先降采样到 _VISION_MAX_PX 再编码 jpeg**——
+    专业大图(DSC/PNG 可达一二十MB)base64 过大 → ARK 连接崩(实测 Broken pipe);打标不需要全分辨率,缩了省又稳。
+    PIL 打不开(异常格式)→ 退回原始字节 + 扩展名 MIME(不炸)。"""
+    try:
+        import io
+
+        from PIL import Image
+        img = Image.open(path).convert("RGB")
+        if max(img.size) > _VISION_MAX_PX:
+            img.thumbnail((_VISION_MAX_PX, _VISION_MAX_PX))
+        buf = io.BytesIO()
+        img.save(buf, "JPEG", quality=85)
+        return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+    except Exception:  # noqa: BLE001  PIL 打不开→退回原始字节+扩展名MIME(不炸)
+        mime = _MIME.get(Path(path).suffix.lower(), "image/jpeg")
+        return f"data:{mime};base64," + base64.b64encode(Path(path).read_bytes()).decode()
 
 
 def _doubao(image_paths: list[str], prompt: str) -> str:

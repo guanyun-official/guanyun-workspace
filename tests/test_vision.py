@@ -63,14 +63,24 @@ class TestVision(unittest.TestCase):
             with self.assertRaises(vision.VisionError):
                 vision.see([], "x")
 
-    def test_data_uri_mime_by_extension(self):
+    def test_data_uri_downscales_large_to_jpeg(self):
+        # 大图→降采样到≤1536px再编码jpeg(防专业大图base64过大→ARK Broken pipe)
+        import base64 as b64
+        import io
+        from PIL import Image
         d = Path(tempfile.mkdtemp())
-        png = d / "b.png"
-        png.write_bytes(b"\x89PNG\r\n\x1a\n")
-        self.assertTrue(vision._data_uri(str(png)).startswith("data:image/png;base64,"))   # PNG 不再贴 jpeg
-        jpg = d / "c.jpg"
-        jpg.write_bytes(b"\xff\xd8\xff")
-        self.assertTrue(vision._data_uri(str(jpg)).startswith("data:image/jpeg;base64,"))
+        big = d / "big.png"
+        Image.new("RGB", (4000, 3000), (200, 100, 50)).save(big)
+        uri = vision._data_uri(str(big))
+        self.assertTrue(uri.startswith("data:image/jpeg;base64,"))
+        w, h = Image.open(io.BytesIO(b64.b64decode(uri.split(",", 1)[1]))).size
+        self.assertLessEqual(max(w, h), 1536)
+
+    def test_data_uri_fallback_on_unopenable(self):
+        d = Path(tempfile.mkdtemp())
+        bad = d / "bad.png"
+        bad.write_bytes(b"not-an-image")                       # PIL 打不开 → 退回原始字节+扩展名MIME
+        self.assertTrue(vision._data_uri(str(bad)).startswith("data:image/png;base64,"))
 
     def test_claude_backend_parses_result(self):
         out_json = '{"result": "[{\\"类型\\":\\"上身图\\",\\"来源\\":\\"实拍\\"}]"}'
