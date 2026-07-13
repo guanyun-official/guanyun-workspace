@@ -17,6 +17,11 @@ import argparse
 import json
 from datetime import datetime
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # 直接 python3 scripts/sim_loop.py 也能跑(不止 -m)
+
 from orchestrator import accounts, config, draft, feishu_io, guard, metrics
 from orchestrator import bitable
 from orchestrator.bitable import AccountFields as AF, ContentTypeFields as CTF

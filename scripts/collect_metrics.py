@@ -11,6 +11,11 @@ from __future__ import annotations
 import argparse
 import json
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # 直接 python3 scripts/collect_metrics.py 也能跑(不止 -m)
+
 from orchestrator import collect, config, feishu_io, metrics
 from orchestrator.bitable import NoteFields as NF
 

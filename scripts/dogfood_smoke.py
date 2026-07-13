@@ -38,6 +38,14 @@ def main() -> int:
     bad_quota = [q for q in p["控量"] if not q["account"].strip()]
     ck("控量键都是真账号名(不是空串聚成一坨)", not bad_quota, str(bad_quota[:3]))
 
+    # ①b 运营真正看的是**飞书卡片**(不敲终端):卡片必须按真账号名分组,不能出现空账号表头(那样人没法用)
+    print("①b 今日卡片 today_card(运营手机上真看到的)")
+    card = cockpit.today_card("巧荷", panel=p)
+    heads = [el.get("text", {}).get("content", "") for el in card["elements"]]
+    empty_head = [h for h in heads if h.startswith("**") and h.split("\n")[0].strip("* ") in ("", "·")]
+    ck("卡片按真账号名分组(无空账号表头,人一眼知道是哪个号)", not empty_head, str(empty_head[:3]))
+    ck("卡片有内容(不是空卡)", len(card["elements"]) >= 1)
+
     # ② 派活去重:in-flight 键必须是 (真账号名, 真模式),否则 daily_assignments 真名永不命中→天天重复派活
     print("② 派活去重 _open_slots(真库)")
     slots = dispatch._open_slots()
