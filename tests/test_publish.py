@@ -135,6 +135,7 @@ class TestActionFns(unittest.TestCase):
         self.assertTrue(r["ok"] and r["matched"] == 1)
         self.assertEqual(updates[0][1][NF.STATUS], NS.PUBLISHED)
         self.assertEqual(updates[0][1][NF.PUBLISH_LINK]["link"], "https://xhs/abc")
+        self.assertIsInstance(updates[0][1][NF.PUBLISHED_AT], int)      # 补写实际发布日(控量今日已发/回流采集靠它,曾常年空)
 
     def test_fill_link_ambiguous_returns_candidates(self):
         notes = [{"record_id": "n1", "fields": {NF.STATUS: NS.TO_PUBLISH, NF.TITLE: "OOTD 一", NF.ACCOUNT: "ootd号"}},

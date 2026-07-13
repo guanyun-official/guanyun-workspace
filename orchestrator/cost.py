@@ -2,7 +2,8 @@
 
 读运行日志表『成本_元』求和(当月),超 config.BUDGET_MONTHLY_CNY → 返回告警文案,
 由 daily_dispatch 推 alerts.send(把"设了没执行"的告警阈值真正接上)。纯读,不写库。
-注:Doubao 看图打标当前未经 log_run 记成本(在 LLM 帽外),真控成本需 tagger 也记 成本_元——见 ADR-0009。
+成本来源已齐:出稿 LLM(draft_one log_run cost)+ 豆包看图(tag_materials.run 汇总 log_run(action=看图打标));
+豆包费率是 config.VISION_COST_PER_1K_CNY 的保守估值,待第一份 ARK 账单校准(env 覆盖)。残留:改写去重/模型分档未做。
 """
 from __future__ import annotations
 

@@ -55,7 +55,7 @@ def pick_playbook(acc, content_type: str = "") -> dict:
 
 
 def load_keywords(brand: str = "巧荷", limit: int = 18) -> list[str]:
-    """关键词库里启用的关键词(选题/SEO 池;曾是哑数据没喂回生成)。启用状态≠禁用 且有词。"""
+    """关键词库里启用的关键词(选题/SEO 池;曾是哑数据没喂回生成)。启用状态≠停用 且有词(飞书实际枚举=启用/停用)。"""
     from . import bitable, feishu_io
     from .bitable import KeywordFields as KF
     out = []

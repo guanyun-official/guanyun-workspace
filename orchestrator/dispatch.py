@@ -84,7 +84,9 @@ def run_day(brand: str = "巧荷", llm_mode: str = "stub", write: bool = False) 
     **一条命令产出"今天每号要发什么(草稿+素材,待人审)"**,人打开 base 就能审。
     - write=False 干跑:只算今天的活,不写库;write=True 落『草稿待发』。
     - llm_mode=real 出真文案(≈2元/条,走 llm.run_prompt=画像+skill few-shot+配方);stub 零成本占位验证接线。
-    红线不变:只推到『草稿待发』,**绝不自动发布、绝不代勾 AI 声明**。"""
+    红线不变:只推到『草稿待发』,**绝不自动发布、绝不代勾 AI 声明**。
+    注:run_day 是**批量从零出稿**(画像+skill 原创),不传 source_text,故防搬运门对它 no-op(本就无对标源可搬)。
+    **蹭爆款(trend_imitate)走 draft_one --source-text 传灵感库正文**,防搬运门才比对得到爆款正文——不要用 run_day 蹭稿。"""
     from . import draft
     assigns = daily_assignments(brand)
     if not write:                                        # 干跑:不写库,不加锁

@@ -35,8 +35,11 @@ def main() -> int:
     if ideas:
         print(f"\n爆款模仿待办({len(ideas)} 条灵感未转化,trend_imitate 号可据此出稿):")
         for it in ideas[:8]:
-            print(f"  · {it['标题']}  可借鉴:{it['可借鉴'] or '—'}")
-        print("  出稿:draft_one --account <trend_imitate号> --title-seed \"<灵感标题/可借鉴>\";出后回填灵感库『转化为笔记』。")
+            has_body = "有正文✓" if it.get("文案") else "无正文(去灵感库补『文案』)"
+            print(f"  · {it['标题']}  可借鉴:{it['可借鉴'] or '—'}  [{has_body}]")
+        print("  出稿:draft_one --account <trend_imitate号> --title-seed \"<灵感标题>\" "
+              "--source-text \"<灵感库『文案』全文>\";**传 --source-text 防搬运门才比对得到爆款正文**(只给标题=门看不到正文)。"
+              "出后回填灵感库『转化为笔记』。")
     # 素材余量催拍(消费账号 md 的 runway_alert_days,曾是哑字段)
     alerts = dispatch.runway_alerts(a.brand)
     if alerts:

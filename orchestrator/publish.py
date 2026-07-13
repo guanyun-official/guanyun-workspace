@@ -120,6 +120,10 @@ def fill_publish_link(note_key: str, url: str, write: bool = False) -> dict:
         return {"ok": False, "matched": len(cands), "candidates": [t for _, t in cands]}
     rid, title = cands[0]
     if write:
+        import time
+        # 认领链接=人确认此刻已发→同时补写『实际发布日』:控量『今日已发』/回流采集/效果归因都靠它,
+        # 此前只 sim 写、真发从不写→字段常年空、今日已发计数恒为 0(ADR-0009 收尾修)
         feishu_io.update_record(NF.TABLE, rid,
-                                {NF.PUBLISH_LINK: bitable.url_value(url), NF.STATUS: NS.PUBLISHED})
+                                {NF.PUBLISH_LINK: bitable.url_value(url), NF.STATUS: NS.PUBLISHED,
+                                 NF.PUBLISHED_AT: int(time.time() * 1000)})
     return {"ok": True, "title": title, "url": url, "matched": 1, "done": write}
