@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -48,14 +47,6 @@ TAXONOMY = """你是巧荷(汉服/新中式服饰)素材打标员。逐张看图
 只输出 JSON 数组,每张一个对象 {"类型","来源","备注"},顺序严格对应图片编号,不要多余解释。"""
 
 
-def _keyframe(video: str, out_dir: Path) -> str:
-    """视频抽 1 帧关键帧给 agent 看(标整条视频)。ffmpeg 取第 1 秒那帧。"""
-    out = out_dir / (Path(video).stem + "_frame.jpg")
-    subprocess.run(["ffmpeg", "-y", "-ss", "1", "-i", video, "-frames:v", "1", str(out)],
-                   capture_output=True, text=True, timeout=120)
-    return str(out) if out.exists() else video
-
-
 def _extract_json(text: str) -> list:
     """从 claude 输出里抠出 JSON 数组(容错 ```json 包裹/前后废话)。"""
     i, j = text.find("["), text.rfind("]")
@@ -74,9 +65,17 @@ def tag_batch(view_paths: list[str]) -> list[dict]:
     return _extract_json(vision.see(view_paths, prompt))
 
 
+_VIDEO_TYPES = frozenset({"上身视频", "制作过程视频"})
+
+
 def _valid_type(raw: str, kind: str) -> str:
-    """模型返回的类型钳到素材表真实 12 类;越界/空 → 按形态兜底(不污染 select 选项防 schema 漂移)。"""
-    return raw if raw in ing._TYPE_PREFIX else ("上身视频" if kind == "video" else "上身图")
+    """模型返回的类型钳到素材表真实 12 类,且**按文件形态约束**:
+    Doubao 看的是关键帧(静图),会把视频误标成静图类——**视频文件强制落视频类**(默认上身视频);
+    静图若误落视频类/越界→上身图。防 schema 漂移 + 防"视频标成上身图"。"""
+    raw = (raw or "").strip()
+    if kind == "video":
+        return raw if raw in _VIDEO_TYPES else "上身视频"
+    return raw if (raw in ing._TYPE_PREFIX and raw not in _VIDEO_TYPES) else "上身图"
 
 
 def _seen_names(mats: list[dict]) -> set[str]:
@@ -108,7 +107,7 @@ def _prep_batch(files_batch: list[dict]) -> tuple[list[dict], list[str]]:
             if media.needs_jpg(local):
                 view = media.to_jpg(local, str(netpan.CACHE))
             elif kind == "video":
-                view = _keyframe(local, netpan.CACHE)
+                view = media.video_keyframe(local, str(netpan.CACHE))   # 中点抽帧(ffprobe定位)
             else:
                 view = local
             if not Path(view).exists():                      # 转码没产出(sips 静默失败)→ 跳过,不让读空文件炸全场
@@ -146,9 +145,17 @@ def run(folder: str, batch_size: int = 5, limit: int = 0, write: bool = False,
     mats = feishu_io.list_records(MF.TABLE)
     seen = _seen_names(mats)
     seen_codes = {bitable.text(r["fields"].get(MF.CODE)).strip() for r in mats}   # 供 gen_code 递增序号
-    files = [e for e in netpan.list_dir(folder)
-             if not e["is_dir"] and media.kind(e["name"]) in ("still", "video")
-             and e["name"] not in seen]
+    all_media = [e for e in netpan.list_dir(folder)
+                 if not e["is_dir"] and media.kind(e["name"]) in ("still", "video")
+                 and e["name"] not in seen]
+    if config.INGEST_VIDEO:
+        files = all_media                                    # 服务器/确需:视频也入(下载一次→中点抽帧)
+    else:
+        vids = [e for e in all_media if media.kind(e["name"]) == "video"]
+        if vids:
+            print(f"  ⏭ 跳过 {len(vids)} 个视频(GY_INGEST_VIDEO=0 护本机;raw是剪辑原料→走成片入库)",
+                  file=sys.stderr)
+        files = [e for e in all_media if media.kind(e["name"]) == "still"]   # 本机默认只入静图
     if limit:
         files = files[:limit]
     batches = [files[k:k + batch_size] for k in range(0, len(files), batch_size)]

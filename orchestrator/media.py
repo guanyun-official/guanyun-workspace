@@ -54,6 +54,30 @@ def _run_convert(src: str, dst: str) -> None:
         raise MediaError(f"sips 转 jpg 失败: {r.stderr[:200]}")
 
 
+def _duration(video: str) -> float:
+    """视频时长(秒,ffprobe);拿不到→0。给抽帧定位中点用(避免固定1秒抽到片头黑帧/slate)。"""
+    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                        "-of", "default=nw=1:nk=1", video], capture_output=True, text=True)
+    try:
+        return float(r.stdout.strip())
+    except (ValueError, TypeError):
+        return 0.0
+
+
+def video_keyframe(video: str, out_dir: str | None = None, frac: float = 0.5) -> str:
+    """抽一帧代表帧给打标看:seek 到时长的 frac 处(默认中点,比固定1秒更能代表内容)。
+    拿不到时长→退化 1 秒处。返回 jpg 路径(抽不出→返回原视频路径,调用方自行兜底/跳过)。
+    注:视频下载是重活(ADR:baidu 无 range 只能下整包),本函数只管"已在本地的视频"抽帧。"""
+    od = Path(out_dir) if out_dir else Path(video).parent
+    od.mkdir(parents=True, exist_ok=True)
+    out = od / (Path(video).stem + "_frame.jpg")
+    dur = _duration(video)
+    at = max(0.0, dur * frac) if dur > 0 else 1.0
+    subprocess.run(["ffmpeg", "-y", "-ss", str(at), "-i", video, "-frames:v", "1", str(out)],
+                   capture_output=True, text=True, timeout=120)
+    return str(out) if out.exists() else video
+
+
 def to_jpg(path: str, out_dir: str | None = None) -> str:
     """把 heic/heif/livp 静图转 jpg(通用可选用/预览);已是 jpg/png 原样返回。返回 jpg 路径。"""
     p = Path(path)

@@ -39,6 +39,13 @@ class TestTagHelpers(unittest.TestCase):
         self.assertEqual(_valid_type("胡编的类型", "video"), "上身视频")           # 越界→按形态兜底
         self.assertEqual(_valid_type("", "still"), "上身图")                       # 空→兜底
 
+    def test_valid_type_constrains_by_media_kind(self):
+        # 视频关键帧(静图)被 Doubao 误标静图类→强制视频类;静图误落视频类→纠回
+        from scripts.tag_materials import _valid_type
+        self.assertEqual(_valid_type("上身图", "video"), "上身视频")       # 视频不会标成上身图
+        self.assertEqual(_valid_type("制作过程视频", "video"), "制作过程视频")  # 视频类保留
+        self.assertEqual(_valid_type("上身视频", "still"), "上身图")       # 静图不落视频类
+
     def test_legacy_rows_selects_empty_relpath_and_old_type(self):
         # 老打标行=相对路径空 且 类型∈旧3类;新行(有相对路径)、人工新建的非旧类型行 都不选(防误删)
         from scripts.tag_materials import _legacy_rows

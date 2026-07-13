@@ -43,6 +43,11 @@ METRICS_MODE = os.environ.get("GY_METRICS_MODE", "stub")  # 效果采集:stub �
 # 打标并发度(护本机负载的旋钮):看图打标并发跑几批。转码=本机CPU大头,本地默认低(护笔记本),
 # 上线服务器可 GY_TAG_CONCURRENCY 调高。"串行不并发"红线=别把高负载压用户本机,不是禁打标并发。
 TAG_CONCURRENCY = int(os.environ.get("GY_TAG_CONCURRENCY", "4"))
+
+# 视频入库开关(护本机):baidu 网盘无 range/直链外部被拒(实测403/503),视频只能下整包;
+# 视频底片=GB级raw剪辑原料(实测 median 511MB/条),下载=带宽+磁盘重活。**默认关(0)**——本机不碰视频入库
+# (raw 走 video-editing 出成片,成片才入库打标);服务器/确需时 GY_INGEST_VIDEO=1(下载一次→多帧→缓存帧→删)。
+INGEST_VIDEO = os.environ.get("GY_INGEST_VIDEO", "0") == "1"
 VISION_BACKEND = os.environ.get("GY_VISION_BACKEND", "doubao")
 VISION_MODEL = os.environ.get("GY_VISION_MODEL", "doubao-seed-2-0-mini-260428")
 ARK_ENDPOINT = os.environ.get("GY_ARK_ENDPOINT", "https://ark.cn-beijing.volces.com/api/v3/chat/completions")

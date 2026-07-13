@@ -62,3 +62,11 @@ class TestToJpg(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestVideoKeyframe(unittest.TestCase):
+    def test_graceful_on_bad_input(self):
+        # 抽不出帧(非视频/不存在)→ 返回原路径,不炸(调用方自行跳过)
+        from orchestrator import media
+        out = media.video_keyframe("/tmp/__nonexistent__.mp4", "/tmp")
+        self.assertEqual(out, "/tmp/__nonexistent__.mp4")
