@@ -96,6 +96,30 @@ def list_records(table_name: str, page_size: int = 100) -> list[dict]:
         token = d.get("page_token")
 
 
+def search_records(table_name: str, conditions: list[dict], conjunction: str = "and",
+                   page_size: int = 100) -> list[dict]:
+    """服务端过滤查询(飞书 records/search API):按字段条件**下推**,只拉命中行(不全表拉)。
+    conditions=[{"field_name":.., "operator":"is"/"isNot"/"isEmpty"/.., "value":[...]}];conjunction="and"/"or"。
+    返回 record 列表,形态经 bitable 收窄 seam(text/link_record_ids/parse_ts)与 list_records **等价**
+    (search 返回字段是富文本数组,bitable.text 已归一化;调用点一律走 bitable seam,不裸取字段)。
+    **空 conditions → 退化 list_records(全表)**,语义不变。"""
+    if not conditions:
+        return list_records(table_name, page_size)
+    tid = config.tables()[table_name]
+    body = {"filter": {"conjunction": conjunction, "conditions": conditions}}
+    items, token = [], None
+    while True:
+        params = {"page_size": page_size}
+        if token:
+            params["page_token"] = token
+        d = _call("POST", f"/open-apis/bitable/v1/apps/{config.BASE_TOKEN}/tables/{tid}/records/search",
+                  params, body)
+        items += d.get("items") or []
+        if not d.get("has_more"):
+            return items
+        token = d.get("page_token")
+
+
 def update_record(table_name: str, record_id: str, fields: dict) -> None:
     _guard_write()
     tid = config.tables()[table_name]
