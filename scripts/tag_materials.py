@@ -1,11 +1,13 @@
-"""自动打标管线(#40 素材不用人管理的命门):网盘素材 → 拉+转码/抽帧 → claude -p 看图按
-local-skills/tagging-material 技能出标签 JSON → ingest.register。图片+视频都处理。无人值守(cron 可挂)。
+"""自动打标管线(#40 素材不用人管理的命门):网盘素材 → 拉+转码/抽帧 → vision seam 看图出标签
+JSON(对齐素材表真实 12 类)→ ingest.register。图片+视频都处理。无人值守(cron 可挂)。
 
   python3 -m scripts.tag_materials --from-netpan /巧荷/2026.7.1手机拍静态 --limit 6      # 试跑
   python3 -m scripts.tag_materials --from-netpan /巧荷/2026.7.1手机拍静态 --write         # 真入库
 
-省钱:一次 claude -p 批量看多张(默认 5)出 JSON 数组,不一图一次(≈¥/次)。串行不并发。
-只写测试库;来源默认实拍(agent 判 AI 合成才标 AI生成);无赛道留 orphan;按素材编号去重不重复登记。
+看图后端由 orchestrator.vision seam 选(GY_VISION_BACKEND=doubao 便宜/claude 兜底);doubao 需 env ARK_API_KEY。
+省钱:一次批量看多张(默认 5)出 JSON 数组,不一图一次。串行不并发。
+只写测试库;**打标只出客观事实**(类型+来源+丰富NL备注),适用账号留空(消费=分发选材决定);
+按网盘文件名去重不重复登记(手动标过的也认得)。
 """
 from __future__ import annotations
 
@@ -16,7 +18,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from orchestrator import bitable, feishu_io, media, netpan, vision  # noqa: E402
+from orchestrator import bitable, config, feishu_io, media, netpan, vision  # noqa: E402
 from orchestrator.bitable import MaterialFields as MF  # noqa: E402
 import scripts.ingest as ing  # noqa: E402
 
@@ -127,17 +129,60 @@ def run(folder: str, batch_size: int = 5, limit: int = 0, write: bool = False) -
     return out
 
 
+def _legacy_rows(mats: list[dict]) -> list[dict]:
+    """老打标行 = 字段归位前(旧 register)入库的行,特征:相对路径为空。
+    这些正是本轮要重标的(旧 3 类/字段没归位);删掉后重跑 tagger 会以真实 12 类+字段归位重新入库。
+    纯谓词(零 IO,records 注入)→ 可直测。"""
+    out = []
+    for r in mats:
+        f = r["fields"]
+        if not bitable.text(f.get(MF.REL_PATH)).strip():   # 相对路径空 = 旧 register 入的
+            out.append({"record_id": r["record_id"], "code": bitable.text(f.get(MF.CODE)),
+                        "type": bitable.text(f.get(MF.TYPE)), "file": bitable.text(f.get(MF.LINK))})
+    return out
+
+
+def reset_legacy(write: bool = False) -> list[dict]:
+    """重标第一步:列出/清除老打标行(相对路径空)。write=True 先**全表备份**(误删可恢复)再删,否则只列(干跑)。
+    删后重跑 `tag_materials --from-netpan <源文件夹> --write` 即以真实 12 类+字段归位重新入库。
+    红线:只在测试库删(assert_base_allowed)、只删老自建行(相对路径空)、删前备份读回自证。"""
+    mats = feishu_io.list_records(MF.TABLE)
+    legacy = _legacy_rows(mats)
+    if write and legacy:
+        from orchestrator import guard
+        import scripts.backup_tables as backup
+        guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)  # 红线:只在测试库删
+        backup.main()   # 删前全表备份(误删可恢复;备份读回自证)
+        for row in legacy:
+            feishu_io.delete_record(MF.TABLE, row["record_id"])
+        feishu_io.log_run(summary=f"重标清除老打标行 {len(legacy)} 条(相对路径空,已备份)", action="重标清除")
+    return legacy
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--from-netpan", required=True, help="网盘文件夹,如 /巧荷/2026.7.1手机拍静态")
+    ap.add_argument("--from-netpan", help="网盘文件夹,如 /巧荷/2026.7.1手机拍静态")
+    ap.add_argument("--reset-legacy", action="store_true",
+                    help="重标准备:列出/清除老打标行(相对路径空);配 --write 才真删(先自动备份)")
     ap.add_argument("--batch-size", type=int, default=5)
     ap.add_argument("--limit", type=int, default=0, help="只处理前 N 个(试跑/控成本)")
-    ap.add_argument("--write", action="store_true", help="真入库(默认试跑不写)")
+    ap.add_argument("--write", action="store_true", help="真入库/真删(默认试跑不写)")
     a = ap.parse_args()
+    if a.reset_legacy:
+        legacy = reset_legacy(a.write)
+        for row in legacy:
+            print(f"  {'✗已删' if a.write else '·待删'} {row['code']} [{row['type']}] {row['file']}")
+        print(f"\n{'✅ 已清除' if a.write else '干跑列出'} {len(legacy)} 条老打标行"
+              + ("(加 --write 真删,会先备份;删后重跑 --from-netpan 重标)" if not a.write else "(已备份;现可重跑 --from-netpan 重标)"))
+        return 0
+    if not a.from_netpan:
+        print("❌ 需 --from-netpan <文件夹> 或 --reset-legacy", file=sys.stderr)
+        return 2
     if not netpan.logged_in():
         print("❌ 网盘未登录(需 GY_NETPAN_MODE=real + BaiduPCS-Go 已登录)", file=sys.stderr)
         return 2
-    print(f"自动打标 {a.from_netpan}  batch={a.batch_size} limit={a.limit or '全部'} write={a.write}")
+    print(f"自动打标 {a.from_netpan}  batch={a.batch_size} limit={a.limit or '全部'} write={a.write} "
+          f"看图后端={config.VISION_BACKEND}")
     res = run(a.from_netpan, a.batch_size, a.limit, a.write)
     print(f"\n{'✅ 入库' if a.write else '试跑'} {len(res)} 条" + ("(加 --write 真入库)" if not a.write else ""))
     if a.write and res:
