@@ -57,11 +57,35 @@ class TestLocalSource(unittest.TestCase):
         self.assertTrue(self.inc.LocalSource(str(self.d / "src")).pointer(it).startswith("file://"))
 
 
-class TestNetpanSourceStub(unittest.TestCase):
-    def test_list_empty_in_stub(self):
+class TestNetpanSource(unittest.TestCase):
+    """NetpanSource 的契约:**把网盘给的东西过滤成待入库清单**(去掉目录、去掉非图非视频)。
+
+    原来这条测试写的是 `test_list_empty_in_stub`,直接断言 `NetpanSource().list() == []`,
+    **前提是"这台机器的网盘恰好是 stub 模式"**。可真配了 BDUSS 的机器上 netpan 是 real 模式,
+    它会真去列网盘目录——2026-07-14 我往待入库箱传了压测图,这条测试当场变红。
+    **测试不该赌环境**(而且赌的还是"环境是 stub"——正是我们不该依赖的东西)。
+    改成显式控制 seam:不管这台机器有没有网盘凭证,契约都成立。
+    """
+
+    def _src(self, entries):
+        from unittest import mock
+        from orchestrator import netpan
         inc = _fresh(Path(tempfile.mkdtemp()) / "assets")
-        # stub 下 netpan.list_dir 返 []，源自然空
-        self.assertEqual(inc.NetpanSource().list(), [])
+        with mock.patch.object(netpan, "list_dir", lambda remote: entries):
+            return inc.NetpanSource().list()
+
+    def test_empty_inbox_gives_empty_list(self):
+        self.assertEqual(self._src([]), [])
+
+    def test_filters_dirs_and_non_media(self):
+        """真实的待入库箱里会混进目录和人误传的文件(实测:箱里躺着个 gy_probe2.txt)——都得过滤掉。"""
+        got = self._src([
+            {"name": "子目录", "path": "/巧荷素材/待入库/子目录", "is_dir": True},
+            {"name": "gy_probe2.txt", "path": "/巧荷素材/待入库/gy_probe2.txt", "is_dir": False},
+            {"name": "DSC001.jpg", "path": "/巧荷素材/待入库/DSC001.jpg", "is_dir": False},
+        ])
+        self.assertEqual([x["name"] for x in got], ["DSC001.jpg"])   # 只剩真图/视频
+        self.assertTrue(got[0]["key"])                                # 带耐久指针(去重/寻址靠它)
 
 
 if __name__ == "__main__":

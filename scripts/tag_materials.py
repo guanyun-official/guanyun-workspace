@@ -147,9 +147,27 @@ def run(folder: str, batch_size: int = 5, limit: int = 0, write: bool = False,
     mats = feishu_io.list_records(MF.TABLE)
     seen = _seen_names(mats)
     seen_codes = {bitable.text(r["fields"].get(MF.CODE)).strip() for r in mats}   # 供 gen_code 递增序号
-    all_media = [e for e in netpan.list_dir(folder)
-                 if not e["is_dir"] and media.kind(e["name"]) in ("still", "video")
-                 and e["name"] not in seen]
+    entries = [e for e in netpan.list_dir(folder) if not e["is_dir"]]
+    all_media = [e for e in entries
+                 if media.kind(e["name"]) in ("still", "video") and e["name"] not in seen]
+
+    # **跳过了什么,必须说出来**(2026-07-14 走摄影师流程发现):真跑时摄影师往待入库箱传了图,
+    # 系统只回一句「试跑 0 条」——**一个字都不解释为什么**。他会懵:"我明明传了啊?"
+    # 而跳过有两种,含义完全不同:
+    #   · 非图非视频 → 传错文件了(该删)
+    #   · 已登记同名 → **危险**:去重键是**纯文件名**,而相机是循环编号(DSC6680.jpg 换张卡就重现),
+    #     素材表又没存大小/哈希 → 一批全新的片子只要文件名撞上历史,就会被**静默吞掉**。
+    #     待入库箱是中转箱,正常流程里入库后就该清空;箱里躺着"已登记"的文件本身就是异常。
+    skipped_dup = [e["name"] for e in entries
+                   if media.kind(e["name"]) in ("still", "video") and e["name"] in seen]
+    skipped_kind = [e["name"] for e in entries if media.kind(e["name"]) not in ("still", "video")]
+    if skipped_kind:
+        print(f"  ⏭ 跳过 {len(skipped_kind)} 个非图非视频文件(传错了?):{skipped_kind[:5]}", file=sys.stderr)
+    if skipped_dup:
+        print(f"  ⚠️ 跳过 {len(skipped_dup)} 个**文件名已登记过**的:{skipped_dup[:5]}\n"
+              f"     去重看的是**文件名**。若这些其实是新拍的片子(相机循环编号会撞名!),"
+              f"改个名再传,否则会被当成旧素材静默丢掉。\n"
+              f"     若确认是旧素材,把它们从待入库箱移走(箱子是中转,入库后就该清空)。", file=sys.stderr)
     if config.INGEST_VIDEO:
         files = all_media                                    # 服务器/确需:视频也入(下载一次→中点抽帧)
     else:

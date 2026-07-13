@@ -67,9 +67,18 @@ def _run_convert(src: str, dst: str) -> None:
 
 
 def thumbnail(src: str, dst: str, max_px: int = 400) -> str:
-    """生成小缩略图(≤max_px)给 base 驾驶舱瞄一眼选材(不用点开网盘)。返回 dst。PIL 降采样。"""
-    from PIL import Image
-    img = Image.open(src).convert("RGB")
+    """生成小缩略图(≤max_px)给 base 驾驶舱瞄一眼选材(不用点开网盘)。返回 dst。PIL 降采样。
+
+    **LOAD_TRUNCATED_IMAGES**(2026-07-14 走摄影师流程真跑发现):真拍的片子入库时报
+    `image file is truncated (11 bytes not processed)` → 缩略图生成失败 → **运营在 base 里
+    选素材是一片空白**,每张都得点开网盘才知道是什么。而豆包看图明明成功了(标打出来了),
+    说明图本身没坏,**是 PIL 的严格模式太苛**:真实相机出的 JPEG 常有轻微截断/EXIF 不规范,
+    PIL 默认直接抛错。不放宽的话,真实拍摄的素材会有一大片没有缩略图——直接砸在人面上。
+    """
+    from PIL import Image, ImageFile
+    ImageFile.LOAD_TRUNCATED_IMAGES = True     # 真相机出的图常轻微不规范,别为这个丢掉缩略图
+    img = Image.open(src)
+    img = img.convert("RGB")
     img.thumbnail((max_px, max_px))
     Path(dst).parent.mkdir(parents=True, exist_ok=True)
     img.save(dst, "JPEG", quality=80)
