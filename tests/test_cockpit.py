@@ -142,7 +142,11 @@ class TestTodayCard(unittest.TestCase):
         self.assertIn("📤 [白露](https://base/y)", blob)             # 待发图标+可点标题
         self.assertNotIn("M-1", blob)                               # 素材细节不进卡片(base 里看)
         self.assertIn("待补拍", blob)
-        self.assertIn("上身图×1", blob)
+        # 补拍区必须带**摄影师能直接用的东西**(2026-07-14 运营视角实测):原来卡片上只有干巴巴一行
+        # 「ootd号:上身图×1」——怎么拍、照着什么拍全都只存在于 shot_list 这个 CLI 里,**而运营不敲终端**。
+        # 他手机上收到卡片,只知道"要拍1条",不知道怎么拍 → 补拍单的人面是断的。
+        self.assertIn("上身图", blob)
+        self.assertIn("待入库", blob)                                # 拍完丢哪(网盘路径)直接在卡片上
 
     def test_card_empty_sections_no_crash(self):
         panel = {"待审": [], "待发": [], "待回填链接": [], "要补拍": []}
