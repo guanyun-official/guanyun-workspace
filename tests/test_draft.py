@@ -553,6 +553,47 @@ class TestQualityFlagsRealDrafts(unittest.TestCase):
         self.assertFalse(any("技能要求" in f for f in flags), f"没规格却检了篇幅: {flags}")
 
 
+class TestZeroMaterialAndSpread(unittest.TestCase):
+    """全真实测(2026-07-14,5 个号×模式全 --llm real 真落库)炸出的两个真 bug。"""
+
+    def test_zero_material_draft_must_be_flagged(self):
+        """官号绑 --clothes GY-001,货对板规则筛掉全部素材 → **0 张图的稿**落进草稿待发,
+        而当时质检说「✅ 无问题」。小红书没图发不了帖,运营拿到手是废稿。必须喊出来。"""
+        from orchestrator.draft import quality_flags
+        good_text = REAL_DRAFT_SONNET_OK
+        self.assertEqual(quality_flags(good_text, PB_VIDEO, material_count=1), [])   # 有图=没事
+        flags = quality_flags(good_text, PB_VIDEO, material_count=0)
+        self.assertTrue(any("零素材" in f for f in flags), f"零素材没报: {flags}")
+
+    def test_cited_count_reads_backlink_not_broken_formula(self):
+        """『被引用次数』是 formula 字段,但**活库里 COUNTA/COUNT 对 DuplexLink 都算不出来,恒返回 0**
+        (真库实证:ST-260702-001 反向链接挂了 4 篇笔记,formula 仍报 0)。
+        后果:所有素材 cited 全 0 → 排序 stable → **永远返回表序前 3 条** → 133 条上身图只用前 3 条,
+        3 个号同一天出稿全撞同一批图。真被引用次数必须**数反向链接**,别信那个 formula。"""
+        from orchestrator.draft import _cited_count
+        # 真库形态(get_record 返回的 DuplexLink):4 篇笔记引用了它,formula 却是 0
+        real_fields = {
+            "素材编号": "ST-260702-001",
+            "被引用次数": 0,                      # ← 坏 formula,真库就是这么返回的
+            "笔记表-关联素材": [{"record_ids": ["recA", "recB", "recC", "recD"],
+                                 "table_id": "tblsiceNwWpidwAG", "text": ""}],
+        }
+        self.assertEqual(_cited_count(real_fields), 4, "被引用次数必须数反向链接,不能信坏 formula")
+
+        never_used = {"素材编号": "ST-260702-004", "被引用次数": 0}   # 没反向链接 = 真没被用过
+        self.assertEqual(_cited_count(never_used), 0)
+
+    def test_least_cited_wins_so_materials_spread(self):
+        """少用优先必须真生效:被引用多的沉底,没用过的先出 → 素材分散,不撞图。"""
+        from orchestrator import draft
+        used4 = {"record_id": "recHot", "fields": {
+            "类型": "上身图", "拍摄状态": "已拍",
+            "笔记表-关联素材": [{"record_ids": ["n1", "n2", "n3", "n4"]}]}}
+        fresh = {"record_id": "recCold", "fields": {"类型": "上身图", "拍摄状态": "已拍"}}
+        got = draft._material_hits([used4, fresh], ["上身图"], limit=1)
+        self.assertEqual(got, ["recCold"], "被引用 4 次的还排在没用过的前面 → 撞图会复发")
+
+
 class TestMaterialFacts(unittest.TestCase):
     """出稿的**事实底座**:选中素材的 vision 标(『备注』)进 prompt,文案才是『配』画面写的不是编的。"""
 

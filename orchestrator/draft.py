@@ -151,7 +151,7 @@ def body_text(draft_text: str) -> str:
     return "".join(ln for ln in lines[1:] if not ln.startswith("#"))
 
 
-def quality_flags(draft_text: str, pb: dict | None = None) -> list[str]:
+def quality_flags(draft_text: str, pb: dict | None = None, material_count: int | None = None) -> list[str]:
     """出稿即评轻量闸(#42 evaluator):对生成草稿做客观质检,返回问题标记(空列表=通过)。
     **不阻塞**(仍进草稿待发人审),把问题顶给人重点看——真正的把关在人审,这里只替人先扫一眼。
 
@@ -168,6 +168,14 @@ def quality_flags(draft_text: str, pb: dict | None = None) -> list[str]:
     if not t:
         return ["空稿"]
     lines = [ln.strip() for ln in t.splitlines() if ln.strip()]
+
+    # ⓪ **零素材 = 这条稿发不出去**(小红书图文/视频都必须有图/视频)。
+    # 真跑实证(2026-07-14 全真实测):官号「品牌新作展示」绑了 --clothes GY-001,而 #36 货对板规则是
+    # "只选标了该衣服的素材,否则**宁可 0 条不挂错图**"——素材库里没有任何素材标了 GY-001 → 选出 0 条 →
+    # 一条**没有任何图的稿**落进『草稿待发』,而质检当时说「✅ 无问题」。运营拿到手根本发不了。
+    # 规则本身没错(不挂错图),错在**没人把"这稿是废的"喊出来**。
+    if material_count == 0:
+        flags.append("零素材:一张图/视频都没挂,小红书发不出去——去素材表给这件衣服标上素材,或改用别的模式")
 
     # ① 制作说明混进要发的文案(真事故:运营从 base 复制就发)
     hit = [m for m in _PRODUCTION_MARKERS if m in t]
@@ -274,8 +282,9 @@ def generate_draft(account_name: str, brand: str = "巧荷", llm_mode: str = "st
         "draft_text": draft_text,
         "cost": cost,
         "prompt": prompt,
-        # 按**本模式技能自己的规格**质检(playbook.body_len),不再守那道够不着的平台天花板
-        "quality_flags": quality_flags(draft_text, pb),   # #42 出稿即评:问题标记顶给人审(空=通过)
+        # 按**本模式技能自己的规格**质检(playbook.body_len)+ 零素材(发不出去)——不再守那道够不着的平台天花板
+        "quality_flags": quality_flags(draft_text, pb,
+                                       None if mat_rows is None else len(mat_rows)),
         "note_fields": note_fields,
     }
 
@@ -319,7 +328,8 @@ def _material_hits(records: list[dict], material_needs: list[str], account_rec_i
             continue                       # #38 内容寻址:按备注里的内容标签(场景/调性/衣服)选,如'逆光'
         cands.append(m)
     # #36 少用优先:按被引用次数升序(stable,同分保持原序)→ 素材天然分散,减少跨号/跨条撞图
-    cands.sort(key=lambda m: _cited_count(m["fields"].get(MF.CITED)))
+    # 整条 fields 传进去:真被引用次数要**数反向链接**,formula『被引用次数』在活库里是空公式恒为 0。
+    cands.sort(key=lambda m: _cited_count(m["fields"]))
     return [m["record_id"] for m in cands[:limit]]
 
 
@@ -366,14 +376,30 @@ def material_facts(rows: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def _cited_count(v) -> int:
-    """被引用次数(formula 字段,可能 int/str/list/dict/None)→ int,坏值当 0(不炸,当没被引用)。"""
+def _cited_count(fields: dict) -> int:
+    """这条素材被多少篇笔记引用过 → `#36 少用优先` 的排序依据(分散选材,防撞图)。
+
+    **数反向链接,不信 formula**(dogfood 2026-07-14 真跑抓的死机制):
+    『被引用次数』是 formula 字段,但**活库里它的 property=null——公式压根没配,恒返回 0**。
+    真跑实证:ST-260702-001 的反向链接『笔记表-关联素材』已经挂了 4 篇笔记,formula 仍报 0。
+    后果:所有素材 cited 全 0 → 排序 stable → **永远返回表序前 3 条** → 素材池 133 条上身图
+    只有前 3 条被用过、其余 130 条一次没用;3 个号同一天出稿全撞同一批图。
+    "少用优先防撞图"这个机制**整个是死的**,而且没有任何门发现得了(绿门测的是排序逻辑,不是数据源)。
+
+    改成数反向 link(link 字段是真实数据,不依赖飞书 UI 里有没有人配对公式);formula 只当兜底。
+    """
+    from . import bitable
+    from .bitable import MaterialFields as MF
+    n = len(bitable.link_record_ids(fields.get(MF.BACKLINK)))
+    if n:
+        return n
+    v = fields.get(MF.CITED)                 # 兜底:哪天真把 formula 配上了,也认
     if isinstance(v, list):
         v = v[0] if v else 0
     if isinstance(v, dict):
         v = v.get("value") or v.get("text") or 0
     try:
-        return int(float(v))
+        return int(float(v or 0))
     except (TypeError, ValueError):
         return 0
 

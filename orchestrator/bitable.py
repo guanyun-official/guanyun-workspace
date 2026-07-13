@@ -47,7 +47,8 @@ class MaterialFields:
     NOTE = "备注"
     THUMB = "缩略图"        # 附件字段:降采样预览图(base 驾驶舱瞄一眼选材,不用点开网盘)
     ACCOUNTS = "适用账号"   # 赛道(账号×模式)投影;打标留空,分发选材时按类型+备注语义现选并回填(消费即记录)
-    CITED = "被引用次数"    # 被笔记引用次数(formula 自算);选素材少用优先→分散防撞图 #36
+    CITED = "被引用次数"    # formula 字段——**活库里 property=null(公式是空的),恒返回 0**,别信它
+    BACKLINK = "笔记表-关联素材"   # 反向 link:哪些笔记引用了这条素材。**数它才是真被引用次数**(见 draft._cited_count)
 
 
 class AccountFields:
