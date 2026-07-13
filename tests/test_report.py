@@ -50,7 +50,21 @@ class TestWeeklySummary(unittest.TestCase):
         self.assertNotIn("本周最有效", txt, "零赞时不许下「哪类更有效」的结论")
         self.assertNotIn("单条最佳", txt, "0 赞的「最佳」是荒谬的")
         self.assertIn("给不出", txt)          # 诚实说给不出结论
-        self.assertIn("回填", txt)            # 并告诉人多半是没回填真链接
+        # **建议必须基于真实状态**(2026-07-14 人眼审:周报让人"去回填链接",可那条已发的稿
+        # **链接早就填了** —— 它在教人做一件已经做完的事。**建议没基于真实状态 = 话在骗人**)。
+        # 这条固件是"已发但没填链接" → 该建议他去填。锁**行为**,不锁字面词(原来断言字面「回填」二字)。
+        self.assertIn("发布链接", txt)        # 没填链接的 → 告诉他去填
+
+
+    def test_advice_matches_real_state_not_generic(self):
+        """**链接已经填了却零赞 → 不许再让人"去填链接"**,该说是回流没采到。"""
+        notes = [{NF.STATUS: NS.PUBLISHED, NF.PLAYBOOK: "视频唯美OOTD", NF.TITLE: "填了链接但零赞",
+                  NF.LIKED: 0, NF.PUBLISH_LINK: {"link": "https://www.xiaohongshu.com/explore/x",
+                                                 "text": "x"}}]
+        txt = report.format_weekly(report.weekly_summary(notes))
+        self.assertIn("链接已经填了", txt)
+        self.assertIn("回流没采到", txt)
+        self.assertNotIn("去 base 把小红书链接填进", txt, "链接已经填了,别再教人去填")
 
 
 if __name__ == "__main__":
