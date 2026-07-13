@@ -66,8 +66,8 @@ def pending_ideas(brand: str = "巧荷") -> list[dict]:
     out = []
     for r in feishu_io.list_records(IF.TABLE):
         f = r["fields"]
-        if bitable.text(f.get(IF.CONVERTED)).strip():
-            continue                                          # 已转化→跳过
+        if bitable.link_record_ids(f.get(IF.CONVERTED)):
+            continue                                          # 已转化(有关联笔记 id)→跳过;看 link 存在性不看显示 text(更稳,兼容 search 形态)
         title = bitable.text(f.get(IF.TITLE)).strip()
         if not title or title == "（无标题）":
             continue                                          # 无效灵感跳过

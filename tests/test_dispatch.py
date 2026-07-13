@@ -70,7 +70,8 @@ class DailyAssignments(unittest.TestCase):
         rows = [
             {"record_id": "i1", "fields": {"标题": "高定工艺印度丝", "优点": "手部特写好",
                                            "链接": "https://xhs/1", "转化为笔记": ""}},
-            {"record_id": "i2", "fields": {"标题": "已转化", "转化为笔记": "recNote"}},  # 已转化→跳
+            {"record_id": "i2", "fields": {"标题": "已转化",                              # 已转化→跳
+                                           "转化为笔记": [{"record_ids": ["recNote"], "text": "某笔记"}]}},  # link 真形态
             {"record_id": "i3", "fields": {"标题": "（无标题）"}},                        # 无效→跳
         ]
         with mock.patch.object(feishu_io, "list_records", lambda t: rows):
