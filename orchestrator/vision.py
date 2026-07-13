@@ -24,12 +24,21 @@ class VisionError(RuntimeError):
 
 def see(image_paths: list[str], prompt: str) -> str:
     """给一批本地图 + 提示词,返回模型文本(打标 JSON 由调用方抽取)。按 config.VISION_BACKEND 选后端。"""
+    return see_with_cost(image_paths, prompt)[0]
+
+
+def see_with_cost(image_paths: list[str], prompt: str) -> tuple[str, float]:
+    """看图 + 估算成本(元)=实测 usage.total_tokens/1000 × config.VISION_COST_PER_1K_CNY。
+    成本进运行日志→纳入月度成本硬闸(打标看图曾在帽外=成本盲区,这里补上)。
+    只有 doubao 后端回 usage;claude 兜底或无 usage → 成本 0(未知,不假报)。"""
     backend = config.VISION_BACKEND
     if backend == "doubao":
-        return _doubao(image_paths, prompt)
-    if backend == "claude":
-        return _claude(image_paths, prompt)
-    raise VisionError(f"未知看图后端 GY_VISION_BACKEND={backend!r}(doubao|claude)")
+        text, tokens = _doubao(image_paths, prompt)
+    elif backend == "claude":
+        text, tokens = _claude(image_paths, prompt), 0
+    else:
+        raise VisionError(f"未知看图后端 GY_VISION_BACKEND={backend!r}(doubao|claude)")
+    return text, round(tokens / 1000 * config.VISION_COST_PER_1K_CNY, 4)
 
 
 _MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp",
@@ -56,8 +65,9 @@ def _data_uri(path: str) -> str:
         return f"data:{mime};base64," + base64.b64encode(Path(path).read_bytes()).decode()
 
 
-def _doubao(image_paths: list[str], prompt: str) -> str:
-    """ARK(火山)豆包看图:OpenAI 兼容 chat/completions,content = [image_url...] + text。便宜。"""
+def _doubao(image_paths: list[str], prompt: str) -> tuple[str, int]:
+    """ARK(火山)豆包看图:OpenAI 兼容 chat/completions,content = [image_url...] + text。便宜。
+    返回 (文本, usage.total_tokens);无 usage→0(成本按 0 记,不假报)。"""
     key = os.environ.get("ARK_API_KEY", "")
     if not key:
         raise VisionError("doubao 看图需 env ARK_API_KEY(自己终端设置;明文凭证不入代码/库)")
@@ -67,9 +77,13 @@ def _doubao(image_paths: list[str], prompt: str) -> str:
     resp = _post(config.ARK_ENDPOINT,
                  {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, body)
     try:
-        return resp["choices"][0]["message"]["content"] or ""
+        text = resp["choices"][0]["message"]["content"] or ""
     except (KeyError, IndexError, TypeError) as e:
         raise VisionError(f"ARK 返回异常: {str(resp)[:200]}") from e
+    tokens = 0
+    if isinstance(resp, dict) and isinstance(resp.get("usage"), dict):
+        tokens = int(resp["usage"].get("total_tokens") or 0)   # 真实用量→成本据此估
+    return text, tokens
 
 
 def _post(url: str, headers: dict, body: dict, retries: int = 3) -> dict:

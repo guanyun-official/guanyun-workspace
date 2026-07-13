@@ -44,6 +44,28 @@ class TestVision(unittest.TestCase):
         self.assertEqual(content[-1]["type"], "text")
         self.assertIn("Bearer SECRET", seen["headers"]["Authorization"])   # key 从 env 进 header,不进 argv
 
+    def test_see_with_cost_from_usage(self):
+        # 看图成本=实测 usage.total_tokens/1000 × 费率(纳入月度成本硬闸,打标看图不再帽外)
+        def fake_post(url, headers, body):
+            return {"choices": [{"message": {"content": "[]"}}], "usage": {"total_tokens": 3000}}
+        with mock.patch.dict(os.environ, {"ARK_API_KEY": "K"}), \
+                mock.patch.object(config, "VISION_BACKEND", "doubao"), \
+                mock.patch.object(config, "VISION_COST_PER_1K_CNY", 0.002), \
+                mock.patch.object(vision, "_post", fake_post):
+            text, cost = vision.see_with_cost([_fake_jpg()], "p")
+        self.assertEqual(text, "[]")
+        self.assertAlmostEqual(cost, 3000 / 1000 * 0.002)          # 3000 tokens → 0.006 元
+
+    def test_see_with_cost_no_usage_is_zero(self):
+        # ARK 没回 usage → 成本 0(未知不假报),不炸
+        def fake_post(url, headers, body):
+            return {"choices": [{"message": {"content": "[]"}}]}
+        with mock.patch.dict(os.environ, {"ARK_API_KEY": "K"}), \
+                mock.patch.object(config, "VISION_BACKEND", "doubao"), \
+                mock.patch.object(vision, "_post", fake_post):
+            _, cost = vision.see_with_cost([_fake_jpg()], "p")
+        self.assertEqual(cost, 0.0)
+
     def test_doubao_missing_key_raises(self):
         env = {k: v for k, v in os.environ.items() if k != "ARK_API_KEY"}
         with mock.patch.dict(os.environ, env, clear=True), \

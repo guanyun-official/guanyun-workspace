@@ -51,6 +51,9 @@ INGEST_VIDEO = os.environ.get("GY_INGEST_VIDEO", "0") == "1"
 VISION_BACKEND = os.environ.get("GY_VISION_BACKEND", "doubao")
 VISION_MODEL = os.environ.get("GY_VISION_MODEL", "doubao-seed-2-0-mini-260428")
 ARK_ENDPOINT = os.environ.get("GY_ARK_ENDPOINT", "https://ark.cn-beijing.volces.com/api/v3/chat/completions")
+# 看图成本估算费率(元/1K tokens):打标成本=实测 usage.total_tokens/1000×此率,记进运行日志→纳入月度成本硬闸。
+# 默认 0.002 是 doubao-seed-mini 量级的保守估值,按真实 ARK 账单校准用 env 覆盖(宁高估不漏计,免成本盲区)。
+VISION_COST_PER_1K_CNY = float(os.environ.get("GY_VISION_COST_PER_1K_CNY", "0.002"))
 
 # 加工环开关(M3,ADR-0006):默认关(OFF)——真需求(某模式非拼图/AI图不可)到再开。
 # 开=select_materials 后挂笔记前插 gated 加工步(决策/执行=技能,provenance/AI声明=代码焊死)。

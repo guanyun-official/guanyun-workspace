@@ -58,11 +58,13 @@ def _extract_json(text: str) -> list:
         return []
 
 
-def tag_batch(view_paths: list[str]) -> list[dict]:
-    """一次看多张图 → 标签 JSON 数组(省钱,串行一批)。后端由 vision seam 选(doubao 便宜/claude 兜底)。"""
+def tag_batch(view_paths: list[str]) -> tuple[list[dict], float]:
+    """一次看多张图 → (标签 JSON 数组, 看图成本元)。后端由 vision seam 选(doubao 便宜/claude 兜底)。
+    成本用 vision 实测 usage 估,冒泡到 run 汇总记运行日志→纳入月度成本硬闸(打标看图曾在帽外)。"""
     prompt = (f"{TAXONOMY}\n\n共 {len(view_paths)} 张图,按给你的先后顺序逐张判断,"
               f"输出与图片数等长、顺序一一对应的 JSON 数组。")
-    return _extract_json(vision.see(view_paths, prompt))
+    text, cost = vision.see_with_cost(view_paths, prompt)
+    return _extract_json(text), cost
 
 
 _VIDEO_TYPES = frozenset({"上身视频", "制作过程视频"})
@@ -120,20 +122,20 @@ def _prep_batch(files_batch: list[dict]) -> tuple[list[dict], list[str]]:
     return metas, views
 
 
-def _tag_one_batch(files_batch: list[dict]) -> list[tuple]:
+def _tag_one_batch(files_batch: list[dict]) -> tuple[list[tuple], float]:
     """一个 batch 的 prep + 看图打标(可并发调度)。**批失败隔离**(Doubao 报错跳过该批不炸整个文件夹);
-    标签空/少也不丢图(_align 补兜底)。返回 [(meta, tag)]。"""
+    标签空/少也不丢图(_align 补兜底)。返回 ([(meta, view, tag)], 本批看图成本元)。"""
     metas, views = _prep_batch(files_batch)
     if not views:
-        return []
+        return [], 0.0
     try:
-        tags = tag_batch(views)
+        tags, cost = tag_batch(views)
     except Exception as ex:                                  # noqa: BLE001  单批打标失败隔离
         print(f"  ⚠批打标失败(跳过{len(views)}张): {str(ex)[:80]}", file=sys.stderr)
-        return []
+        return [], 0.0
     if len(tags) != len(views):
         print(f"  ⚠标签数({len(tags)})≠图数({len(views)}):按序对齐,缺的兜底类型(不丢图)", file=sys.stderr)
-    return _align(metas, views, tags)
+    return _align(metas, views, tags), cost
 
 
 def run(folder: str, batch_size: int = 5, limit: int = 0, write: bool = False,
@@ -160,12 +162,14 @@ def run(folder: str, batch_size: int = 5, limit: int = 0, write: bool = False,
         files = files[:limit]
     batches = [files[k:k + batch_size] for k in range(0, len(files), batch_size)]
     out: list[dict] = []
+    total_cost = 0.0                                        # 看图成本汇总(冒泡到运行日志→月度成本硬闸)
     chunk = max(1, concurrency)                              # 每 chunk 并发 N 批,跑完统一清缓存(护磁盘)
     for i in range(0, len(batches), chunk):
         pairs: list[tuple] = []
         with ThreadPoolExecutor(max_workers=concurrency) as ex:   # 打标并发(护本机=并发度低)
-            for br in ex.map(_tag_one_batch, batches[i:i + chunk]):
+            for br, cost in ex.map(_tag_one_batch, batches[i:i + chunk]):   # 主线程汇总成本,并发安全
                 pairs.extend(br)
+                total_cost += cost
         for meta, view, tag in pairs:                       # 串行登记:gen_code 序号单调
             mtype = _valid_type(tag.get("类型", ""), meta["kind"])
             source = "AI生成" if (tag.get("来源") == "AI生成") else "实拍"
@@ -184,6 +188,10 @@ def run(folder: str, batch_size: int = 5, limit: int = 0, write: bool = False,
             out.append(row)
             print(f"  {'✓登记' if write else '·试跑'} {code} [{mtype}/{source}] {tag.get('备注','')[:36]}")
         netpan.clear_cache()                                # 每 chunk 清缓存(按需缓存不占地)
+    if write and total_cost > 0:                            # 看图成本记运行日志→月度成本硬闸真看得到打标花销
+        feishu_io.log_run(summary=f"打标看图 {len(batches)} 批 · {len(out)} 张",
+                          action="看图打标", cost=round(total_cost, 4))
+    print(f"  看图成本估算 ≈ {round(total_cost, 4)} 元（{config.VISION_BACKEND}，usage实测×费率）", file=sys.stderr)
     return out
 
 
