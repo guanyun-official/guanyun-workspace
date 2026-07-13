@@ -8,13 +8,22 @@
 """
 from __future__ import annotations
 
+import re
+
 from . import accounts, bitable, draft, feishu_io, netpan
 from .bitable import AccountFields as AF, AutoSched, MaterialFields as MF
 
 
 def _deliver_to(name: str, mtype: str) -> str:
-    """人拍完/生成后往哪丢(答"人拍完怎么给到"):单一扁平投递箱,文件名带号·类型更好认(不带也行,打标技能会自动归类=容错)。"""
-    return f"传网盘 {netpan.INBOX}/(文件名带『{name}·{mtype}』更好认;不带也行,系统会看图自动归类)"
+    """人拍完/生成后往哪丢(答"人拍完怎么给到"):单一扁平投递箱,**直接传,不用管文件名**。
+
+    **别再让人费心命名**(2026-07-14 用户戳破的那类 bug:"人想起来方便的逻辑,落实下来都是 bug"):
+    原文写「文件名带『ootd号·上身视频』更好认」——**可系统根本不读文件名**。
+    实测:我把文件命名成 `ootd号·上身图·压测新片.jpg`,系统标出来是「商品图」——因为豆包看图看到的
+    是挂在衣架上的衣服,**它判对了,是我命名错了**。分类完全由 vision 看图决定,文件名一个字都不参与。
+    这句"更好认"只会让摄影师白费功夫按规范命名。删掉,说实话。
+    """
+    return f"传网盘 {netpan.INBOX}/(直接传,不用管文件名——系统看图自动归类)"
 
 
 def _brief(name: str, acc, mtype: str, gen_skill: str) -> str:
@@ -32,7 +41,11 @@ def _brief(name: str, acc, mtype: str, gen_skill: str) -> str:
         s = ln.strip().lstrip("*- ").strip()
         if not s or s.startswith("#") or s.startswith(">") or s.startswith("|"):
             continue
-        tone = s.replace("**", "")[:80]
+        s = s.replace("**", "")
+        # **在句子边界断,别在字中间断**:原来硬截 80 字,手机上读到「…朝代/形制只当意境里一个词轻点,不」
+        # ——断在半个字上,摄影师读着一头雾水。取前两句(句号/分号为界)就够了,读得完整。
+        parts = [p for p in re.split(r"[。；;]", s) if p.strip()]
+        tone = "。".join(p.strip() for p in parts[:2])[:90]
         break
     if not tone:   # 画像没有实质内容 → 退回账号 md 的 notes(滤掉给系统看的那几段)
         notes = [x.strip() for x in (acc.strategy.get("notes") or "").split(";") if x.strip()]

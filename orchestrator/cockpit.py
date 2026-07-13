@@ -206,7 +206,10 @@ def today_card(brand: str = "巧荷", panel: dict | None = None) -> dict:
                 lines.append(f"   {s['拍摄要求']}")
             if s.get("参考"):
                 lines.append(f"   {s['参考']}")
-        lines.append(f"\n拍完丢网盘：`{netpan.INBOX}`（文件名带账号·类型更好认；不带也行，系统会看图自动归类）")
+        # 别再承诺"文件名带类型更好认"——系统**根本不读文件名**,分类全由 vision 看图决定。
+        # 实测:文件命名成「ootd号·上身图」,系统标出来是「商品图」(豆包看图判对了,是命名错了)。
+        # 让人白费功夫按规范命名 = 典型的"人想起来方便的逻辑,落实下来是 bug"。
+        lines.append(f"\n拍完丢网盘：`{netpan.INBOX}`（**直接传，不用管文件名** —— 系统看图自动归类）")
         el.append({"tag": "div", "text": {"tag": "lark_md",
                    "content": "**📷 待补拍**\n" + "\n".join(lines)}})
 

@@ -69,6 +69,10 @@ TAG_CONCURRENCY = int(os.environ.get("GY_TAG_CONCURRENCY", "4"))
 # 视频入库开关(护本机):baidu 网盘无 range/直链外部被拒(实测403/503),视频只能下整包;
 # 视频底片=GB级raw剪辑原料(实测 median 511MB/条),下载=带宽+磁盘重活。**默认关(0)**——本机不碰视频入库
 # (raw 走 video-editing 出成片,成片才入库打标);服务器/确需时 GY_INGEST_VIDEO=1(下载一次→多帧→缓存帧→删)。
+# **视频一律入库,抽关键帧打标**(2026-07-14):曾经 GY_INGEST_VIDEO=0 一刀切跳过所有视频,造成死循环——
+# 补拍单催「上身视频×3」、摄影师拍了传网盘、系统跳过不收、补拍单继续催(人拍了系统不收,还继续催他拍)。
+# 护本机的正确手段是**视频串行处理**(tag_materials 里每批 1 个、并发度 1:拉一个→抽帧→打标→删缓存),
+# 不是"拒收"。本开关保留只为服务器场景显式声明,已不影响"视频收不收"(默认就收)。
 INGEST_VIDEO = os.environ.get("GY_INGEST_VIDEO", "0") == "1"
 VISION_BACKEND = os.environ.get("GY_VISION_BACKEND", "doubao")
 VISION_MODEL = os.environ.get("GY_VISION_MODEL", "doubao-seed-2-0-mini-260428")

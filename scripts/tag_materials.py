@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -168,24 +169,43 @@ def run(folder: str, batch_size: int = 5, limit: int = 0, write: bool = False,
               f"     去重看的是**文件名**。若这些其实是新拍的片子(相机循环编号会撞名!),"
               f"改个名再传,否则会被当成旧素材静默丢掉。\n"
               f"     若确认是旧素材,把它们从待入库箱移走(箱子是中转,入库后就该清空)。", file=sys.stderr)
-    if config.INGEST_VIDEO:
-        files = all_media                                    # 服务器/确需:视频也入(下载一次→中点抽帧)
-    else:
-        vids = [e for e in all_media if media.kind(e["name"]) == "video"]
-        if vids:
-            print(f"  ⏭ 跳过 {len(vids)} 个视频(GY_INGEST_VIDEO=0 护本机;raw是剪辑原料→走成片入库)",
-                  file=sys.stderr)
-        files = [e for e in all_media if media.kind(e["name"]) == "still"]   # 本机默认只入静图
+    # **视频一律收,抽关键帧打标**(2026-07-14 用户确认的设计意图:"视频抽关键帧打标,用这个匹配;
+    # 没有加工 gate 就按这个匹配作为视频素材;有 gate 才下载下来看怎么加工")。
+    #
+    # 修的是这个死循环:原来 GY_INGEST_VIDEO=0 **直接跳过所有视频** → 补拍单催「上身视频×3」、
+    # 摄影师拍了传网盘、系统跳过不收、补拍单继续催 —— **人拍了,系统不收,然后继续催他拍**。
+    #
+    # 我一度改成"按大小拦"(小成片收、大 raw 拒),那也是错的:**拒收不是护本机的正确手段**。
+    # 真正的负载问题是 TAG_CONCURRENCY=4 → 4 个 1GB 视频**并发**下载 = 4GB 同时压盘。
+    # 正解是**串行**(见下面 `chunk`):一次只下一个,抽完帧立刻删缓存。这既实现了"抽帧打标",
+    # 又守住了"别把高负载压用户笔记本"——那条红线要的是串行,不是拒收。
+    files = all_media                                        # 静图 + 视频,一律抽帧打标
+    vids = [e for e in files if media.kind(e["name"]) == "video"]
+    if vids:
+        print(f"  🎬 {len(vids)} 个视频:中点抽关键帧 → 看图打标(**串行处理**,一次只拉一个,抽完即删缓存)",
+              file=sys.stderr)
     if limit:
         files = files[:limit]
-    batches = [files[k:k + batch_size] for k in range(0, len(files), batch_size)]
+    # **图片并发,视频串行**——护本机的正确手段是"一次只拉一个大文件",不是"拒收视频"。
+    # 图:一张几 MB,一批 5 张并发 4 批 = 峰值几十 MB,无压力。
+    # 视频:raw 底片 700MB~1GB(真查网盘:EG9A7549.MP4=1007MB)。若跟图一样批 5 并发 4,
+    # 峰值 = 20 个 GB 级文件同时下载 → 直接压爆用户笔记本的磁盘和带宽。
+    # 所以视频**每批 1 个、并发度 1**:拉一个 → 抽中点关键帧 → 看图打标 → 删缓存 → 拉下一个。
+    stills = [e for e in files if media.kind(e["name"]) == "still"]
+    videos = [e for e in files if media.kind(e["name"]) == "video"]
+    batches = [(stills[k:k + batch_size], concurrency)      # (这批文件, 该用多大并发)
+               for k in range(0, len(stills), batch_size)]
+    batches += [([v], 1) for v in videos]                    # 视频:一个一批,串行
     out: list[dict] = []
     total_cost = 0.0                                        # 看图成本汇总(冒泡到运行日志→月度成本硬闸)
     chunk = max(1, concurrency)                              # 每 chunk 并发 N 批,跑完统一清缓存(护磁盘)
     for i in range(0, len(batches), chunk):
+        group = batches[i:i + chunk]
+        # 这一组里只要有视频批(并发度=1),整组就降到串行——绝不让两个 GB 级下载撞在一起
+        par = min(concurrency, min(c for _, c in group))
         pairs: list[tuple] = []
-        with ThreadPoolExecutor(max_workers=concurrency) as ex:   # 打标并发(护本机=并发度低)
-            for br, cost in ex.map(_tag_one_batch, batches[i:i + chunk]):   # 主线程汇总成本,并发安全
+        with ThreadPoolExecutor(max_workers=max(1, par)) as ex:   # 打标并发(护本机=并发度低;视频=1)
+            for br, cost in ex.map(_tag_one_batch, [b for b, _ in group]):   # 主线程汇总成本,并发安全
                 pairs.extend(br)
                 total_cost += cost
         for meta, view, tag in pairs:                       # 串行登记:gen_code 序号单调
