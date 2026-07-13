@@ -23,6 +23,16 @@ class TestExtractJson(unittest.TestCase):
 
 
 class TestTagHelpers(unittest.TestCase):
+    def test_align_pads_missing_tags_no_drop(self):
+        # Doubao 返回标签少于图数时,不静默丢图(缺的补 {},后续 _valid_type 兜底)——防 folder2/3 那种静默0
+        from scripts.tag_materials import _align
+        metas = [{"name": "a"}, {"name": "b"}, {"name": "c"}]
+        out = _align(metas, [{"类型": "上身图"}])          # 3 张图,Doubao 只返 1 个标签
+        self.assertEqual(len(out), 3)                       # 3 张都保留
+        self.assertEqual(out[0][1], {"类型": "上身图"})
+        self.assertEqual(out[2][1], {})                    # 缺的补空,不丢
+        self.assertEqual(_align([], []), [])               # 空不炸
+
     def test_valid_type_clamps_to_12(self):
         from scripts.tag_materials import _valid_type
         self.assertEqual(_valid_type("面料·纹理特写", "still"), "面料·纹理特写")   # 12类内直取

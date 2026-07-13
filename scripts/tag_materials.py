@@ -15,6 +15,7 @@ import argparse
 import json
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -92,9 +93,56 @@ def _seen_names(mats: list[dict]) -> set[str]:
     return seen
 
 
-def run(folder: str, batch_size: int = 5, limit: int = 0, write: bool = False) -> list[dict]:
-    """自动打标一整个网盘文件夹:diff 去重 → 分批(拉+转码/抽帧 → 看图打标 → register)→ 清缓存。
-    **打标只出客观事实**(类型/来源/备注);适用账号一律留空(消费=分发选材时决定)。"""
+def _align(metas: list[dict], tags: list[dict]) -> list[tuple]:
+    """按序把标签对齐到 metas;标签少于图=缺的补 {}(_valid_type 会兜底),**绝不静默丢图**。纯函数直测。"""
+    return [(metas[i], tags[i] if i < len(tags) else {}) for i in range(len(metas))]
+
+
+def _prep_batch(files_batch: list[dict]) -> tuple[list[dict], list[str]]:
+    """拉取+转码一批(**每图隔离**:一张坏图跳过不炸全场)。返回 (metas, view_paths)。IO/CPU,在并发 worker 跑。"""
+    metas, views = [], []
+    for e in files_batch:
+        try:
+            local = netpan.pull(e["path"], netpan.CACHE)
+            kind = media.kind(local)
+            if media.needs_jpg(local):
+                view = media.to_jpg(local, str(netpan.CACHE))
+            elif kind == "video":
+                view = _keyframe(local, netpan.CACHE)
+            else:
+                view = local
+            if not Path(view).exists():                      # 转码没产出(sips 静默失败)→ 跳过,不让读空文件炸全场
+                print(f"  ⚠跳过(视图缺失/转码失败) {e['name']}", file=sys.stderr)
+                continue
+            metas.append({"name": e["name"], "ptr": netpan.pointer(e["path"]), "kind": kind})
+            views.append(view)
+        except Exception as ex:                              # noqa: BLE001  单图 prep 失败隔离,不拖垮整批
+            print(f"  ⚠跳过(prep失败) {e['name']}: {str(ex)[:60]}", file=sys.stderr)
+    return metas, views
+
+
+def _tag_one_batch(files_batch: list[dict]) -> list[tuple]:
+    """一个 batch 的 prep + 看图打标(可并发调度)。**批失败隔离**(Doubao 报错跳过该批不炸整个文件夹);
+    标签空/少也不丢图(_align 补兜底)。返回 [(meta, tag)]。"""
+    metas, views = _prep_batch(files_batch)
+    if not views:
+        return []
+    try:
+        tags = tag_batch(views)
+    except Exception as ex:                                  # noqa: BLE001  单批打标失败隔离
+        print(f"  ⚠批打标失败(跳过{len(views)}张): {str(ex)[:80]}", file=sys.stderr)
+        return []
+    if len(tags) != len(views):
+        print(f"  ⚠标签数({len(tags)})≠图数({len(views)}):按序对齐,缺的兜底类型(不丢图)", file=sys.stderr)
+    return _align(metas, tags)
+
+
+def run(folder: str, batch_size: int = 5, limit: int = 0, write: bool = False,
+        concurrency: int | None = None) -> list[dict]:
+    """自动打标一整个网盘文件夹:diff 去重 → **分批并发**(拉+转码/抽帧 → 看图打标,每图/每批隔离)→ 串行登记 → 清缓存。
+    **打标只出客观事实**(类型/来源/备注);适用账号留空(消费=分发选材时决定)。
+    并发度默认 config.TAG_CONCURRENCY(护本机负载,上线服务器调高)。**登记串行**=gen_code 序号单调 + feishu 限流。"""
+    concurrency = concurrency or config.TAG_CONCURRENCY
     mats = feishu_io.list_records(MF.TABLE)
     seen = _seen_names(mats)
     seen_codes = {bitable.text(r["fields"].get(MF.CODE)).strip() for r in mats}   # 供 gen_code 递增序号
@@ -103,29 +151,25 @@ def run(folder: str, batch_size: int = 5, limit: int = 0, write: bool = False) -
              and e["name"] not in seen]
     if limit:
         files = files[:limit]
+    batches = [files[k:k + batch_size] for k in range(0, len(files), batch_size)]
     out: list[dict] = []
-    for k in range(0, len(files), batch_size):
-        batch = files[k:k + batch_size]
-        views, metas = [], []
-        for e in batch:
-            local = netpan.pull(e["path"], netpan.CACHE)
-            kind = media.kind(local)
-            view = media.to_jpg(local, str(netpan.CACHE)) if media.needs_jpg(local) else \
-                (_keyframe(local, netpan.CACHE) if kind == "video" else local)
-            views.append(view)
-            metas.append({"name": e["name"], "ptr": netpan.pointer(e["path"]), "kind": kind})
-        tags = tag_batch(views)
-        for meta, tag in zip(metas, tags):
+    chunk = max(1, concurrency)                              # 每 chunk 并发 N 批,跑完统一清缓存(护磁盘)
+    for i in range(0, len(batches), chunk):
+        pairs: list[tuple] = []
+        with ThreadPoolExecutor(max_workers=concurrency) as ex:   # 打标并发(护本机=并发度低)
+            for br in ex.map(_tag_one_batch, batches[i:i + chunk]):
+                pairs.extend(br)
+        for meta, tag in pairs:                             # 串行登记:gen_code 序号单调
             mtype = _valid_type(tag.get("类型", ""), meta["kind"])
             source = "AI生成" if (tag.get("来源") == "AI生成") else "实拍"
-            code = ing.gen_code(mtype, meta["name"], seen_codes)   # 系统编码 <类型>-批次-序号
+            code = ing.gen_code(mtype, meta["name"], seen_codes)
             seen_codes.add(code)
             row = {"code": code, "type": mtype, "source": source, "note": tag.get("备注", "")}
             if write:
-                ing.register(code, mtype, meta["ptr"], tag.get("备注", ""), source)  # 适用账号留空
+                ing.register(code, mtype, meta["ptr"], tag.get("备注", ""), source)   # 适用账号留空
             out.append(row)
             print(f"  {'✓登记' if write else '·试跑'} {code} [{mtype}/{source}] {tag.get('备注','')[:36]}")
-        netpan.clear_cache()   # 每批处理完清缓存(按需缓存不占地)
+        netpan.clear_cache()                                # 每 chunk 清缓存(按需缓存不占地)
     return out
 
 
