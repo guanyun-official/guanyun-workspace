@@ -44,13 +44,14 @@ gate "ar_check SCORE=100" bash -c '$0 scripts/ar_check.py 2>&1 | grep -q "SCORE=
 
 # ── ② 全量(--full 才跑:check_p + 综合验收)────────────────────
 if [ "$FULL" = "1" ]; then
-  hr; echo "② 全量门(check_p1-6 + 综合验收 verify_usable)"
+  hr; echo "② 全量门(dogfood 冒烟 + check_p1-6 + 综合验收 verify_usable)"
+  gate "dogfood 冒烟(真库:账号名/link解析/去重键 人能看懂的真事)" $PY scripts/dogfood_smoke.py
   for s in scripts/check_p1.sh scripts/check_p2.sh scripts/check_p3.sh scripts/check_p4.sh scripts/check_p5.sh scripts/check_p6.sh; do
     [ -f "$s" ] && gate "$(basename "$s")" bash "$s"
   done
   gate "verify_usable 综合验收" $PY scripts/verify_usable.py
 else
-  hr; echo "② 全量门:跳过(加 --full 跑 check_p1-6 + verify_usable,交付前必跑)"
+  hr; echo "② 全量门:跳过(加 --full 跑 dogfood冒烟 + check_p1-6 + verify_usable,交付前必跑)"
 fi
 
 # ── ③ 产物审查(自 $SINCE 起改了什么)──────────────────────────

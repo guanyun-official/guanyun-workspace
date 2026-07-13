@@ -202,13 +202,26 @@ def parse_ts(v) -> datetime | None:
     return None
 
 
+def link_names(v, id_name: dict | None = None) -> str:
+    """link 字段 → 显示名(逗号连)。**三形态通吃**(dogfood 坑:search 回 id 无 text):
+    - records/search:`{link_record_ids:[id..]}` → 用 id_name({id:名})还原;
+    - list_records/get_record:`[{text,record_ids}]` / 纯文本 → id_name 取不到时回退 text。
+    id_name 一般来自 feishu_io.name_map(小表 账号表/内容类型表 的 {record_id:名})。"""
+    id_name = id_name or {}
+    resolved = ",".join(n for n in (id_name.get(i, "") for i in link_record_ids(v)) if n)
+    return resolved or text(v)
+
+
 def link_record_ids(v) -> list[str]:
-    """关联字段 → 目标 record_id 列表(飞书 link 字段回读形态:list[{record_ids:[...]}])。
-    这几个自由函数 text/parse_ts/link_record_ids = 飞书多形态 record dict 的**唯一收窄 seam**,
-    调用点统一 `bitable.text(f.get(字段常量))`;字段名走 NoteFields/MaterialFields/… 词汇常量。"""
+    """关联字段 → 目标 record_id 列表。**飞书两套 API 形态不同,必须都认**(否则 search 读 link 全空):
+    - list_records / get_record:`list[{record_ids:[...], text:..}]`
+    - records/search:`{link_record_ids:[...]}`(dict,无 text!)——只认前者会让 search 路径素材/账号全断(dogfood 实测坑)。
+    这几个自由函数 text/parse_ts/link_record_ids = 飞书多形态 record dict 的**唯一收窄 seam**。"""
+    if isinstance(v, dict):                       # records/search 形态:{'link_record_ids': [...]}
+        return list(v.get("link_record_ids") or v.get("record_ids") or [])
     out = []
-    if isinstance(v, list):
+    if isinstance(v, list):                       # list_records/get_record 形态:[{record_ids:[...]}]
         for x in v:
             if isinstance(x, dict):
-                out += x.get("record_ids", []) or []
+                out += x.get("record_ids", []) or x.get("link_record_ids", []) or []
     return out

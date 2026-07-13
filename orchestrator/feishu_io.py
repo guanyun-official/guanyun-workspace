@@ -138,6 +138,15 @@ def search_in(table_name: str, field_name: str, values, page_size: int = 100) ->
     return out
 
 
+def name_map(table_name: str, name_field: str) -> dict[str, str]:
+    """{record_id: 该行显示名} 映射(小表 账号表/内容类型表 用)。
+    **为什么需要**:records/search 返回 link 字段只给 id 不给 text(与 list_records/get_record 形态不同),
+    所以从 search 结果显示/匹配『账号名/内容类型名』必须靠这个把 id 还原成名(dogfood 实测:不还原→全空)。
+    小表(≤数十行)一次全拉,可接受。"""
+    from . import bitable
+    return {r["record_id"]: bitable.text(r["fields"].get(name_field)) for r in list_records(table_name)}
+
+
 def get_record(table_name: str, record_id: str) -> dict | None:
     """按 record_id 取**单条**(GET,不全表扫)。找不到→None。用于 approve/成片索引等按 id 取的场景。"""
     tid = config.tables()[table_name]

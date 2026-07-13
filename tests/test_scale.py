@@ -34,7 +34,8 @@ class TestScaleBenchmark(unittest.TestCase):
         self.assertGreaterEqual(n["search"], 3)   # 账号/内容类型/素材/笔记 走过滤查询(≥3)
 
     def test_today_panel_zero_full_table_scan(self):
-        """today_panel:笔记走过滤(search)、素材按 linked id 取(get_record),零全表拉。"""
+        """today_panel:笔记走过滤(search)、素材按 linked id 取(get_record),**笔记表/素材表零全拉**。
+        账号表/内容类型表是小表(name_map 还原 search 的 link 显示名 id→名),有界不累积,允许全拉。"""
         from orchestrator import cockpit, shotlist
         from orchestrator.bitable import NoteFields as NF, NoteStatus as NS, MaterialFields as MF
         from tests._search import search_mock, get_record_mock
@@ -43,17 +44,18 @@ class TestScaleBenchmark(unittest.TestCase):
         mats = [{"record_id": "m1", "fields": {MF.SOURCE: "实拍", MF.CODE: "M-1", MF.TYPE: "上身图",
                  MF.LINK: {"link": "x", "text": "x"}}}]
         base = {NF.TABLE: notes, MF.TABLE: mats}
-        n = {"list": 0}
+        scanned: list[str] = []
 
         def flist(t, **k):
-            n["list"] += 1
+            scanned.append(t)
             return base.get(t, [])
         with mock.patch.object(feishu_io, "list_records", flist), \
                 mock.patch.object(feishu_io, "search_records", search_mock(base)), \
                 mock.patch.object(feishu_io, "get_record", get_record_mock(base)), \
                 mock.patch.object(shotlist, "shot_needs", lambda b="巧荷": []):
             cockpit.today_panel("巧荷")
-        self.assertEqual(n["list"], 0, f"today_panel 应零全表扫,实际 {n['list']}")
+        big = [t for t in scanned if t in (NF.TABLE, MF.TABLE)]   # 累积大表
+        self.assertEqual(big, [], f"today_panel 不该全表扫累积大表 笔记表/素材表,实际扫了 {big}")
 
     def test_review_approved_zero_full_table_scan(self):
         """review_approved:已批准笔记走过滤、素材按 linked id 取,零全表拉。"""

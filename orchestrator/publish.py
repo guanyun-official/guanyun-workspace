@@ -104,6 +104,8 @@ def fill_publish_link(note_key: str, url: str, write: bool = False) -> dict:
     返回 {ok, title?, url?, matched, candidates?}。这样回流采集才抓得到该帖数据。"""
     if write:
         guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)   # 红线:只写测试库
+    from .bitable import AccountFields as AF
+    acc_names = feishu_io.name_map(AF.TABLE, AF.NAME)    # 账号是 link 字段:search 只回 id,还原成名才能按账号名匹配
     cands = []
     for r in feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.TO_PUBLISH, NS.PUBLISHED]):   # 待发布/已发 过滤(规模M2)
         f = r["fields"]
@@ -113,7 +115,7 @@ def fill_publish_link(note_key: str, url: str, write: bool = False) -> dict:
         if st == NS.PUBLISHED and bitable.text(f.get(NF.PUBLISH_LINK)).strip():
             continue                                                     # 已填链接的跳过
         title = bitable.text(f.get(NF.TITLE))
-        acc = bitable.text(f.get(NF.ACCOUNT))
+        acc = bitable.link_names(f.get(NF.ACCOUNT), acc_names)   # link 字段:search 回 id→还原名再匹配
         if note_key == r["record_id"] or (note_key and (note_key in title or note_key in acc)):
             cands.append((r["record_id"], title))
     if len(cands) != 1:

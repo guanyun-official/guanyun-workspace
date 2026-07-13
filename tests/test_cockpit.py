@@ -10,12 +10,15 @@ from orchestrator.bitable import NoteFields as NF, NoteStatus as NS, MaterialFie
 
 
 class TestTodayPanel(unittest.TestCase):
-    def _run(self, notes, mats):
+    def _run(self, notes, mats, acc_map=None, ct_map=None):
         from tests._search import search_mock, get_record_mock
         base = {NF.TABLE: notes, MF.TABLE: mats}
         # 过滤型 mock(按条件真过滤,治假绿)+ get_record(today_panel 只按linked id取素材)
+        # name_map mock:注入 id→名(离线,不打真库);默认空→link_names 回退 text(纯文本 fixture 仍可用)
+        nm = {("账号表", "账号名"): acc_map or {}, ("内容类型表", "内容类型名"): ct_map or {}}
         with mock.patch.object(feishu_io, "search_records", search_mock(base)), \
                 mock.patch.object(feishu_io, "get_record", get_record_mock(base)), \
+                mock.patch.object(feishu_io, "name_map", lambda t, nf: nm.get((t, nf), {})), \
                 mock.patch.object(shotlist, "shot_needs", lambda b="巧荷": [{"account": "ootd号", "类型": "上身图", "缺": 1, "投递去向": "网盘待入库"}]):
             return cockpit.today_panel("巧荷")
 
@@ -44,6 +47,17 @@ class TestTodayPanel(unittest.TestCase):
         self.assertEqual(p["待审"], [])
         self.assertEqual(p["待发"], [])
         self.assertEqual(p["待回填链接"], [])
+
+    def test_search_shape_account_resolved_to_name(self):
+        # dogfood 回归锁:search API 的账号/内容类型是 {'link_record_ids':[id]}(无text),
+        # 必须靠 name_map 还原成名——不还原则今日面板账号全空、控量键崩(实测真坑)。
+        notes = [{"record_id": "n1", "fields": {NF.STATUS: NS.TO_PUBLISH, NF.TITLE: "真形态稿",
+                  NF.ACCOUNT: {"link_record_ids": ["recAcc"]},
+                  NF.CONTENT_TYPE: {"link_record_ids": ["recCt"]}}}]
+        p = self._run(notes, [], acc_map={"recAcc": "ootd号"}, ct_map={"recCt": "视频唯美OOTD"})
+        self.assertEqual(p["待发"][0]["account"], "ootd号")      # id 还原成账号名(不是空)
+        self.assertEqual(p["待发"][0]["mode"], "视频唯美OOTD")
+        self.assertEqual(p["控量"][0]["account"], "ootd号")      # 控量键也是真名
 
     def test_quota_flags_account_at_cap(self):
         # 控量(红线):某号今日待发布达到单号日上限→控量标『逼近』,卡片出控量预警(防超发)

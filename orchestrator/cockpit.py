@@ -12,9 +12,13 @@ from datetime import date, timedelta
 
 from . import bitable, config, feishu_io, guard, publish, shotlist
 from .bitable import NoteFields as NF, NoteStatus as NS
+from .bitable import AccountFields as AF, ContentTypeFields as CTF
 
 
 _day_start_ms = bitable.day_start_ms   # 冷热分离日期窗共用(bitable 收窄 seam;测试仍可用 cockpit._day_start_ms)
+
+
+_link_names = bitable.link_names   # link 字段→显示名(三形态通吃);search 回 id 靠 name_map 还原(dogfood 坑)
 
 # 排期视图里算「待发流程中」的状态(未发未归档;想法/待拍属前置,已发/回流/暂缓已出流程)
 _SCHED_ACTIVE = frozenset({NS.NEED_COPY, NS.DRAFT_PENDING, NS.APPROVED, NS.TO_PUBLISH})
@@ -47,6 +51,8 @@ def today_panel(brand: str = "巧荷") -> dict:
     linked = [rid for r in (active + need_link_notes)
               for rid in bitable.link_record_ids(r["fields"].get(NF.LINKED_MATERIALS))]
     idx = publish._material_index(linked)
+    acc_names = feishu_io.name_map(AF.TABLE, AF.NAME)      # link 字段从 search 只回 id→靠小表 id→名还原显示
+    ct_names = feishu_io.name_map(CTF.TABLE, CTF.NAME)
     pend_review: list[dict] = []
     to_publish: list[dict] = []
     need_link: list[dict] = []
@@ -55,9 +61,9 @@ def today_panel(brand: str = "巧荷") -> dict:
         f = r["fields"]
         st = bitable.text(f.get(NF.STATUS)).strip()
         title = bitable.text(f.get(NF.TITLE))
-        acc = bitable.text(f.get(NF.ACCOUNT))
+        acc = _link_names(f.get(NF.ACCOUNT), acc_names)
         link = _note_link(r["record_id"])
-        mode = bitable.text(f.get(NF.CONTENT_TYPE))
+        mode = _link_names(f.get(NF.CONTENT_TYPE), ct_names)
         # AI声明需求 surface(人审前就看到⚠️;仍人自己勾):按挂的素材来源事实算,复用 guard 的法规规则
         mat_ids = bitable.link_record_ids(f.get(NF.LINKED_MATERIALS))
         ai_req = guard.ai_declaration_required([idx[m]["source"] for m in mat_ids if m in idx])
@@ -72,11 +78,12 @@ def today_panel(brand: str = "巧荷") -> dict:
             load[acc] = load.get(acc, 0) + 1              # 待发布=今日额度占用
     for r in need_link_notes:
         f = r["fields"]
-        need_link.append({"title": bitable.text(f.get(NF.TITLE)), "account": bitable.text(f.get(NF.ACCOUNT)),
-                          "mode": bitable.text(f.get(NF.CONTENT_TYPE)), "open": _note_link(r["record_id"])})
+        need_link.append({"title": bitable.text(f.get(NF.TITLE)),
+                          "account": _link_names(f.get(NF.ACCOUNT), acc_names),
+                          "mode": _link_names(f.get(NF.CONTENT_TYPE), ct_names), "open": _note_link(r["record_id"])})
     for r in pub_today:
-        load[bitable.text(r["fields"].get(NF.ACCOUNT))] = \
-            load.get(bitable.text(r["fields"].get(NF.ACCOUNT)), 0) + 1   # 今日已发=额度占用
+        acc = _link_names(r["fields"].get(NF.ACCOUNT), acc_names)
+        load[acc] = load.get(acc, 0) + 1                  # 今日已发=额度占用
     cap = config.PER_ACCOUNT_DAILY_PUBLISH
     quota = [{"account": a, "今日": n, "上限": cap, "逼近": n >= cap}
              for a, n in sorted(load.items()) if n]
@@ -137,10 +144,14 @@ def today_card(brand: str = "巧荷", panel: dict | None = None) -> dict:
             "elements": el}
 
 
-def _bucket_schedule(records: list[dict], today: date, days: int = 7) -> dict:
+def _bucket_schedule(records: list[dict], today: date, days: int = 7,
+                     acc_names: dict | None = None, ct_names: dict | None = None) -> dict:
     """本周排期的**纯分桶逻辑**(零网络,records/today 注入 → 直测):把『待发流程中』的笔记
     按『计划发布日』分到未来 days 天;无日期→未排期(日滴待铺);日期已过且未发→逾期(漏发提醒)。
-    素材一股脑拍→笔记增量产,这视图就是『增量显示每天的』——空日不进(见 card 只显有货日)。"""
+    素材一股脑拍→笔记增量产,这视图就是『增量显示每天的』——空日不进(见 card 只显有货日)。
+    acc_names/ct_names = id→名映射(search 的 link 字段只回 id;注入以还原账号/内容类型显示名)。"""
+    acc_names = acc_names or {}
+    ct_names = ct_names or {}
     horizon: dict[date, list[dict]] = {today + timedelta(d): [] for d in range(max(1, days))}
     unplanned: list[dict] = []
     overdue: list[dict] = []
@@ -149,9 +160,10 @@ def _bucket_schedule(records: list[dict], today: date, days: int = 7) -> dict:
         st = bitable.text(f.get(NF.STATUS)).strip()
         if st not in _SCHED_ACTIVE:
             continue
-        item = {"title": bitable.text(f.get(NF.TITLE)), "account": bitable.text(f.get(NF.ACCOUNT)),
-                "mode": bitable.text(f.get(NF.CONTENT_TYPE)), "status": st,
-                "open": _note_link(r["record_id"])}
+        item = {"title": bitable.text(f.get(NF.TITLE)),
+                "account": _link_names(f.get(NF.ACCOUNT), acc_names),      # 三形态通吃(含回退 text)
+                "mode": _link_names(f.get(NF.CONTENT_TYPE), ct_names),
+                "status": st, "open": _note_link(r["record_id"])}
         planned = bitable.parse_ts(f.get(NF.PLANNED_AT))
         if planned is None:
             unplanned.append(item)
@@ -170,7 +182,9 @@ def weekly_schedule(brand: str = "巧荷", today: date | None = None, days: int 
     """本周排期增量视图(纯读):IO 边界取笔记 → `_bucket_schedule` 纯逻辑分桶。today 默认今天(注入可测)。"""
     # 状态∈待发流程中 服务端过滤(规模M2,不全拉笔记表);_bucket_schedule 再按 _SCHED_ACTIVE 分桶(等价)
     return _bucket_schedule(feishu_io.search_in(NF.TABLE, NF.STATUS, list(_SCHED_ACTIVE)),
-                            today or date.today(), days)
+                            today or date.today(), days,
+                            acc_names=feishu_io.name_map(AF.TABLE, AF.NAME),      # search link 只回 id→还原名
+                            ct_names=feishu_io.name_map(CTF.TABLE, CTF.NAME))
 
 
 def weekly_schedule_card(brand: str = "巧荷", view: dict | None = None) -> dict:

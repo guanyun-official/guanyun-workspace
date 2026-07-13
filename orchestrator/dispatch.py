@@ -141,11 +141,17 @@ def runway_alerts(brand: str = "巧荷") -> list[dict]:
 
 def _open_slots() -> set:
     """已有『待出文案/草稿待发』在途的 (账号, 内容类型),用于去重不重复派活。
-    状态∈开态 服务端过滤(规模M2,不全拉笔记表);search 已保证状态。"""
+    状态∈开态 服务端过滤(规模M2,不全拉笔记表);search 已保证状态。
+    **账号/内容类型是 link 字段——search 只回 id 无 text**,必须靠 name_map 还原成名再比对,
+    否则去重键全变 ('','') → daily_assignments 的真名永不命中 → 每天重复派活(dogfood 实测坑)。"""
+    from .bitable import ContentTypeFields as CTF
+    acc_names = feishu_io.name_map(AF.TABLE, AF.NAME)
+    ct_names = feishu_io.name_map(CTF.TABLE, CTF.NAME)
     slots = set()
     for r in feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.NEED_COPY, NS.DRAFT_PENDING]):
         f = r["fields"]
-        slots.add((bitable.text(f.get(NF.ACCOUNT)), bitable.text(f.get(NF.CONTENT_TYPE))))
+        slots.add((bitable.link_names(f.get(NF.ACCOUNT), acc_names),
+                   bitable.link_names(f.get(NF.CONTENT_TYPE), ct_names)))
     return slots
 
 
