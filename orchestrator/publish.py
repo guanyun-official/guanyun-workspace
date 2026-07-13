@@ -44,7 +44,7 @@ def review_approved(brand: str = "巧荷", write: bool = False) -> list[dict]:
         guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)  # 红线:只写测试库
     idx = _material_index()
     out: list[dict] = []
-    for r in feishu_io.list_records(NF.TABLE):
+    for r in feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.APPROVED]):   # 已批准 服务端过滤(规模M2)
         f = r["fields"]
         if bitable.text(f.get(NF.STATUS)) != NS.APPROVED:
             continue
@@ -94,7 +94,7 @@ def fill_publish_link(note_key: str, url: str, write: bool = False) -> dict:
     if write:
         guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)   # 红线:只写测试库
     cands = []
-    for r in feishu_io.list_records(NF.TABLE):
+    for r in feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.TO_PUBLISH, NS.PUBLISHED]):   # 待发布/已发 过滤(规模M2)
         f = r["fields"]
         st = bitable.text(f.get(NF.STATUS)).strip()
         if st not in (NS.TO_PUBLISH, NS.PUBLISHED):

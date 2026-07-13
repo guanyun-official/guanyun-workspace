@@ -32,7 +32,8 @@ def today_panel(brand: str = "巧荷") -> dict:
     pend_review: list[dict] = []
     to_publish: list[dict] = []
     need_link: list[dict] = []
-    for r in feishu_io.list_records(NF.TABLE):
+    # 状态∈{草稿待发,待发布,已发} 服务端过滤(规模M2,不全拉笔记表);下面按状态分桶逻辑不变
+    for r in feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.DRAFT_PENDING, NS.TO_PUBLISH, NS.PUBLISHED]):
         f = r["fields"]
         st = bitable.text(f.get(NF.STATUS)).strip()
         title = bitable.text(f.get(NF.TITLE))
@@ -132,7 +133,9 @@ def _bucket_schedule(records: list[dict], today: date, days: int = 7) -> dict:
 
 def weekly_schedule(brand: str = "巧荷", today: date | None = None, days: int = 7) -> dict:
     """本周排期增量视图(纯读):IO 边界取笔记 → `_bucket_schedule` 纯逻辑分桶。today 默认今天(注入可测)。"""
-    return _bucket_schedule(feishu_io.list_records(NF.TABLE), today or date.today(), days)
+    # 状态∈待发流程中 服务端过滤(规模M2,不全拉笔记表);_bucket_schedule 再按 _SCHED_ACTIVE 分桶(等价)
+    return _bucket_schedule(feishu_io.search_in(NF.TABLE, NF.STATUS, list(_SCHED_ACTIVE)),
+                            today or date.today(), days)
 
 
 def weekly_schedule_card(brand: str = "巧荷", view: dict | None = None) -> dict:

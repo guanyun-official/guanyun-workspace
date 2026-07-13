@@ -18,7 +18,7 @@ class PublishedNotesFilter(unittest.TestCase):
             {"record_id": "rNoLink", "fields": {NF.STATUS: NS.PUBLISHED}},
             {"record_id": "rDraft", "fields": {NF.STATUS: NS.DRAFT_PENDING, NF.PUBLISH_LINK: "http://y"}},
         ]
-        with mock.patch.object(feishu_io, "list_records", lambda t: notes):
+        with mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: notes):
             ids = [r["record_id"] for r in collect.published_notes()]
         self.assertEqual(ids, ["rP"])  # 只 已发 + 有发布链接
 
@@ -28,7 +28,7 @@ class CollectWriteback(unittest.TestCase):
         """已发采集成功→写点赞/收藏 + **推进状态机 已发→已回流**(否则已回流是死状态、复盘无数据)。"""
         notes = [{"record_id": "rP", "fields": {NF.STATUS: NS.PUBLISHED, NF.PUBLISH_LINK: "http://x"}}]
         updates = []
-        with mock.patch.object(feishu_io, "list_records", lambda t: notes), \
+        with mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: notes), \
                 mock.patch.object(metrics, "collect", lambda url, mode: {NF.LIKED: 100, NF.COLLECTED: 20}), \
                 mock.patch.object(feishu_io, "update_record", lambda t, rid, f: updates.append((rid, f))):
             s = collect.collect_and_writeback(mode="real")
@@ -39,7 +39,7 @@ class CollectWriteback(unittest.TestCase):
         """已回流 note 每周刷新热度但状态不变(不倒退、不重复推进)。"""
         notes = [{"record_id": "rL", "fields": {NF.STATUS: NS.LOOPED_BACK, NF.PUBLISH_LINK: "http://x"}}]
         updates = []
-        with mock.patch.object(feishu_io, "list_records", lambda t: notes), \
+        with mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: notes), \
                 mock.patch.object(metrics, "collect", lambda url, mode: {NF.LIKED: 150}), \
                 mock.patch.object(feishu_io, "update_record", lambda t, rid, f: updates.append((rid, f))):
             collect.collect_and_writeback(mode="real")
@@ -49,14 +49,14 @@ class CollectWriteback(unittest.TestCase):
         """stub 采集返 {} → 不写回(零成本,不造假数据)。"""
         notes = [{"record_id": "rP", "fields": {NF.STATUS: NS.PUBLISHED, NF.PUBLISH_LINK: "http://x"}}]
         updates = []
-        with mock.patch.object(feishu_io, "list_records", lambda t: notes), \
+        with mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: notes), \
                 mock.patch.object(feishu_io, "update_record", lambda t, rid, f: updates.append((rid, f))):
             s = collect.collect_and_writeback(mode="stub")  # metrics.collect stub 返 {}
         self.assertEqual(updates, [])
         self.assertEqual(s["写回"], 0)
 
     def test_no_published_no_crash(self):
-        with mock.patch.object(feishu_io, "list_records", lambda t: []):
+        with mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: []):
             s = collect.collect_and_writeback(mode="stub")
         self.assertEqual(s, {"采集": 0, "写回": 0})
 

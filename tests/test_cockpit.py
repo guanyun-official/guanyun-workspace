@@ -13,6 +13,7 @@ class TestTodayPanel(unittest.TestCase):
     def _run(self, notes, mats):
         base = {NF.TABLE: notes, MF.TABLE: mats}
         with mock.patch.object(feishu_io, "list_records", lambda t: base.get(t, [])), \
+                mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: base.get(t, [])), \
                 mock.patch.object(shotlist, "shot_needs", lambda b="巧荷": [{"account": "ootd号", "类型": "上身图", "缺": 1, "投递去向": "网盘待入库"}]):
             return cockpit.today_panel("巧荷")
 

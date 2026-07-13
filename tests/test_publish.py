@@ -42,6 +42,7 @@ class TestReviewApproved(unittest.TestCase):
         updates = []
         base = self._base(note_fields)
         with mock.patch.object(feishu_io, "list_records", lambda t: base.get(t, [])), \
+                mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: base.get(t, [])), \
                 mock.patch.object(feishu_io, "update_record",
                                   lambda t, r, f: updates.append((r, f))):
             rows = publish.review_approved("巧荷", write=write)
@@ -95,8 +96,15 @@ class TestActionFns(unittest.TestCase):
     """聊天/卡片交互动作函数:approve(人点批准)、fill_publish_link(认领链接,多条命中返候选不瞎写)。"""
 
     def _patch(self, notes):
+        import contextlib
         updates = []
-        return updates, mock.patch.object(feishu_io, "list_records", lambda t: notes if t == NF.TABLE else []), \
+
+        @contextlib.contextmanager
+        def notes_ctx():   # approve 用 list_records(按id)、fill 用 search_records(按状态)——都 mock 到 notes
+            with mock.patch.object(feishu_io, "list_records", lambda t: notes if t == NF.TABLE else []), \
+                    mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: notes if t == NF.TABLE else []):
+                yield
+        return updates, notes_ctx(), \
             mock.patch.object(feishu_io, "update_record", lambda t, r, f: updates.append((r, f)))
 
     def test_approve_only_from_draft_pending(self):

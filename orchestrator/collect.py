@@ -24,9 +24,9 @@ def _link(v) -> str:
 def harvestable_notes() -> list[dict]:
     """可回流的 note:状态=已发(首采)或 已回流(每周刷新热度),且有发布链接。"""
     out = []
-    for r in feishu_io.list_records(NF.TABLE):
-        f = r["fields"]
-        if bitable.text(f.get(NF.STATUS)) in (NS.PUBLISHED, NS.LOOPED_BACK) and _link(f.get(NF.PUBLISH_LINK)):
+    # 状态∈{已发,已回流} 服务端过滤(规模M2,不全拉笔记表);search 已保证状态,只余按发布链接筛
+    for r in feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.PUBLISHED, NS.LOOPED_BACK]):
+        if _link(r["fields"].get(NF.PUBLISH_LINK)):
             out.append(r)
     return out
 
