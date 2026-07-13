@@ -43,6 +43,16 @@ def main() -> int:
         print(f"\n⚠️ 素材催拍({len(alerts)} 号余量不足,快补拍):")
         for al in alerts:
             print(f"  · {al['account']}:可用素材 {al['avail']} 条 ≈ {al['runway_days']} 天 < 阈值 {al['threshold']} 天")
+    # 月度成本告警(ADR-0009:BUDGET_MONTHLY_CNY 曾是零消费纸面数字,这里真接上告警)
+    from orchestrator import cost
+    warn = cost.budget_alert()
+    if warn:
+        print(f"\n{warn}")
+        try:
+            from orchestrator import alerts as _al
+            _al.send(warn)
+        except Exception:  # noqa: BLE001  告警投递失败不阻断
+            pass
     print("\n红线:调度器只派活到『待出文案』,绝不出稿即发、绝不代勾 AI 声明——出稿走 draft_one,发布/声明人手。")
     return 0
 

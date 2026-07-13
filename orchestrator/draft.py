@@ -145,10 +145,13 @@ def _split_title(draft_text: str, fallback: str) -> str:
 
 
 def generate_draft(account_name: str, brand: str = "巧荷", llm_mode: str = "stub",
-                   title_seed: str = "", clothes: str = "", content_type: str = "") -> dict:
+                   title_seed: str = "", clothes: str = "", content_type: str = "",
+                   source_text: str = "") -> dict:
     """读声明 → 加载 gen_skill few-shot(+可选真实衣服 know-how)→ 组稿 → 生成 → 组一条待审笔记字段。
     clothes=知识库衣服编号(如 GY-001):绑定后按真实产品写、防编造(官号品牌新作应绑)。
-    content_type=指定模式(一号多模式时选哪个 playbook;空=第一套)。**不写库**(纯计算)。"""
+    content_type=指定模式(一号多模式时选哪个 playbook;空=第一套)。
+    source_text=**对标源完整正文**(蹭爆款出稿时传灵感『文案』)——防搬运门比对它(不再只看标题),
+    出稿逐字搬 ≥10 连续实义字符即拒(ADR-0009 P0:红线名不副实的修复)。**不写库**(纯计算)。"""
     acc = accounts.load(account_name, brand)
     if acc is None:
         raise ValueError(f"账号声明不存在:brands/{brand}/accounts/{account_name}.md")
@@ -162,7 +165,8 @@ def generate_draft(account_name: str, brand: str = "巧荷", llm_mode: str = "st
     prompt = compose_prompt(acc, pb, skill_text, title_seed, clothes_text, keywords=keywords)
     if llm_mode == "real":
         draft_text, cost = llm.run_prompt(prompt)
-        guard.assert_no_source_leak(title_seed, draft_text)   # 防搬运出口闸(红线):出稿不得逐字搬对标seed
+        # 防搬运出口闸(红线):优先比对**完整对标源正文**(source_text),没有则退化标题seed(ADR-0009 修"只看标题")
+        guard.assert_no_source_leak(source_text or title_seed, draft_text)
     else:
         draft_text, cost = _stub_draft(acc, pb, gen_skill, bool(skill_text), title_seed), 0.0
     ctype = pb.get("content_type") or pb.get("id") or ""

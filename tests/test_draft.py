@@ -410,6 +410,15 @@ class NoSourceLeakGate(unittest.TestCase):
             r = draft.generate_draft("ootd号", llm_mode="real", title_seed=seed)     # 原创→放行
             self.assertTrue(r["draft_text"].strip())
 
+    def test_draft_real_blocks_leaking_source_body(self):
+        """防搬运门比对 source_text(对标源完整正文),不再只看标题(ADR-0009 修"红线名不副实")。"""
+        from unittest import mock
+        from orchestrator import llm, guard
+        body = "爆款正文里一段独特的长句子必须超过十个连续实义字符才会触发防搬运门判定"
+        with mock.patch.object(llm, "run_prompt", lambda p: (f"我方稿开头{body}结尾", 0.0)):
+            with self.assertRaises(guard.GuardError):
+                draft.generate_draft("ootd号", llm_mode="real", source_text=body)   # 逐字搬正文→拦
+
 
 class KeywordInjection(unittest.TestCase):
     """iter27:关键词库接进出稿(选题/SEO,曾是哑数据没喂回生成)。软注入、调性优先;real 才注入(stub 离线)。"""

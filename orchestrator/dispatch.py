@@ -73,6 +73,7 @@ def pending_ideas(brand: str = "巧荷") -> list[dict]:
             continue                                          # 无效灵感跳过
         out.append({"record_id": r["record_id"], "标题": title,
                     "可借鉴": bitable.text(f.get(IF.MERITS)).strip(),
+                    "文案": bitable.text(f.get(IF.BODY)).strip(),   # 防搬运源正文:出稿传 draft_one(source_text=)
                     "爆款源": bitable.text(f.get(IF.LINK)).strip()})
     return out
 

@@ -113,6 +113,7 @@ class InspirationFields:
     TABLE = "灵感库"
     TITLE = "标题"
     MERITS = "优点"           # 可借鉴优点
+    BODY = "文案"             # 爆款正文——防搬运门比对源(出稿逐字搬这个即拒);出稿时传 generate_draft(source_text=)
     LINK = "链接"             # 爆款源链接
     CONVERTED = "转化为笔记"   # link 字段(写 record_id 列表);非空=已转化,跳过
 
