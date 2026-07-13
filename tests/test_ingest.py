@@ -69,6 +69,16 @@ class TestIngest(unittest.TestCase):
         self.assertNotIn("适用账号", created)                                      # 打标不管消费,留空
         self.assertNotIn("生成参数", created)                                      # 实拍不填生成参数
 
+    def test_register_forces_ai_source_by_location(self):
+        # ★合规:落点在 02-AI生成/ → 强制 AI生成(不管传入 source),漏标AI是硬伤,来源由落点定不靠视觉
+        from unittest import mock
+        import scripts.ingest as ing
+        from orchestrator import feishu_io
+        created = {}
+        with mock.patch.object(feishu_io, "create_record", lambda t, f: created.update(f) or "r"):
+            ing.register("SP-1", "商品图", "baidupan:/巧荷素材/02-AI生成/x.jpg", source="实拍")   # 传实拍
+        self.assertEqual(created["来源"], "AI生成")                                          # 落点覆盖→AI生成
+
     def test_register_ai_records_gen_params(self):
         # AI 素材:来源=AI生成 且填生成参数(provenance 细节)
         from unittest import mock

@@ -121,6 +121,10 @@ def register(code: str, mtype: str, link_path: str, note: str = "",
     - 链接(url)= 能点开的分享链(投手一点直达);相对路径(text)= 系统耐久指针(baidupan:/...),寻址用。
     - 生成参数(text)只在 source=AI生成 时填(provenance 细节);拍摄人可空。
     accounts=适用账号 record_id 列表——**打标时应留空**(None),消费在分发选材时决定并回填。"""
+    # ★合规:来源由落点/元数据定,不靠视觉猜★(漏判AI→漏标AI声明是合规硬伤)。
+    # 素材落在 02-AI生成/ 目录 或 带生成参数 → 强制 AI生成(就低不就高,宁可让人往下摘)。
+    if "02-AI生成" in link_path or "/AI生成/" in link_path or gen_params:
+        source = MSrc.AI
     fields = {
         MF.CODE: code,
         MF.TYPE: mtype,
