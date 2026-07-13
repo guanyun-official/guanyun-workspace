@@ -67,5 +67,48 @@ class TestTodayCard(unittest.TestCase):
         self.assertIn("无待办", str(card["elements"]))
 
 
+class TestWeeklySchedule(unittest.TestCase):
+    @staticmethod
+    def _ms(y, m, d):
+        from datetime import datetime
+        return int(datetime(y, m, d, 9, 0).timestamp() * 1000)   # 9:00 本地,回读同一天
+
+    def test_bucket_by_planned_date(self):
+        from datetime import date
+        today = date(2026, 7, 13)
+        notes = [
+            {"record_id": "a", "fields": {NF.STATUS: NS.TO_PUBLISH, NF.TITLE: "今天",
+                                          NF.ACCOUNT: "ootd号", NF.PLANNED_AT: self._ms(2026, 7, 13)}},
+            {"record_id": "b", "fields": {NF.STATUS: NS.DRAFT_PENDING, NF.TITLE: "后天",
+                                          NF.ACCOUNT: "图文号1", NF.PLANNED_AT: self._ms(2026, 7, 15)}},
+            {"record_id": "c", "fields": {NF.STATUS: NS.APPROVED, NF.TITLE: "没排期", NF.ACCOUNT: "ootd号"}},
+            {"record_id": "d", "fields": {NF.STATUS: NS.TO_PUBLISH, NF.TITLE: "逾期未发",
+                                          NF.ACCOUNT: "ootd号", NF.PLANNED_AT: self._ms(2026, 7, 10)}},
+            {"record_id": "e", "fields": {NF.STATUS: NS.PUBLISHED, NF.TITLE: "已发不算",
+                                          NF.ACCOUNT: "ootd号", NF.PLANNED_AT: self._ms(2026, 7, 13)}},
+        ]
+        v = cockpit._bucket_schedule(notes, today, days=7)
+        by_date = {d["date"]: [n["title"] for n in d["notes"]] for d in v["days"]}
+        self.assertIn("今天", by_date["07-13"])                       # 计划发布日=今天→今天桶
+        self.assertIn("后天", by_date["07-15"])                       # +2 天桶
+        self.assertEqual([n["title"] for n in v["未排期"]], ["没排期"])  # 无计划发布日=未排期
+        self.assertEqual([n["title"] for n in v["逾期"]], ["逾期未发"])  # 过期且未发
+        self.assertEqual(len(v["days"]), 7)                           # 未来7天骨架
+        allx = [n for d in v["days"] for n in d["notes"]] + v["未排期"] + v["逾期"]
+        self.assertNotIn("已发不算", [n["title"] for n in allx])        # 已发不入排期
+
+    def test_card_only_shows_stocked_days(self):
+        view = {"days": [
+                    {"date": "07-13", "weekday": "一",
+                     "notes": [{"title": "甲", "account": "ootd号", "mode": "", "open": "https://b/x"}]},
+                    {"date": "07-14", "weekday": "二", "notes": []}],
+                "未排期": [{"title": "乙", "account": "图文号1", "mode": "", "open": ""}], "逾期": []}
+        blob = str(cockpit.weekly_schedule_card("巧荷", view=view)["elements"])
+        self.assertIn("07-13 周一", blob)
+        self.assertIn("[甲](https://b/x)", blob)                      # 可点标题
+        self.assertNotIn("07-14", blob)                              # 空日不占版面(增量)
+        self.assertIn("未排期", blob)
+
+
 if __name__ == "__main__":
     unittest.main()

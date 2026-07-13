@@ -8,8 +8,13 @@
 """
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 from . import bitable, config, feishu_io, publish, shotlist
 from .bitable import NoteFields as NF, NoteStatus as NS
+
+# 排期视图里算「待发流程中」的状态(未发未归档;想法/待拍属前置,已发/回流/暂缓已出流程)
+_SCHED_ACTIVE = frozenset({NS.NEED_COPY, NS.DRAFT_PENDING, NS.APPROVED, NS.TO_PUBLISH})
 
 
 def _note_link(record_id: str) -> str:
@@ -87,4 +92,66 @@ def today_card(brand: str = "巧荷", panel: dict | None = None) -> dict:
     return {"config": {"wide_screen_mode": True},
             "header": {"template": "wathet",
                        "title": {"tag": "plain_text", "content": f"📮 {brand} · 今日面板（{config.ENV_NAME}）"}},
+            "elements": el}
+
+
+def _bucket_schedule(records: list[dict], today: date, days: int = 7) -> dict:
+    """本周排期的**纯分桶逻辑**(零网络,records/today 注入 → 直测):把『待发流程中』的笔记
+    按『计划发布日』分到未来 days 天;无日期→未排期(日滴待铺);日期已过且未发→逾期(漏发提醒)。
+    素材一股脑拍→笔记增量产,这视图就是『增量显示每天的』——空日不进(见 card 只显有货日)。"""
+    horizon: dict[date, list[dict]] = {today + timedelta(d): [] for d in range(max(1, days))}
+    unplanned: list[dict] = []
+    overdue: list[dict] = []
+    for r in records:
+        f = r["fields"]
+        st = bitable.text(f.get(NF.STATUS)).strip()
+        if st not in _SCHED_ACTIVE:
+            continue
+        item = {"title": bitable.text(f.get(NF.TITLE)), "account": bitable.text(f.get(NF.ACCOUNT)),
+                "mode": bitable.text(f.get(NF.CONTENT_TYPE)), "status": st,
+                "open": _note_link(r["record_id"])}
+        planned = bitable.parse_ts(f.get(NF.PLANNED_AT))
+        if planned is None:
+            unplanned.append(item)
+        elif planned.date() in horizon:
+            horizon[planned.date()].append(item)
+        elif planned.date() < today:
+            overdue.append(item)
+        # 超出 horizon(>days 天后)→ 本周视图先不显示
+    dow = "一二三四五六日"
+    out_days = [{"date": f"{d:%m-%d}", "weekday": dow[d.weekday()], "notes": horizon[d]}
+                for d in sorted(horizon)]
+    return {"days": out_days, "未排期": unplanned, "逾期": overdue}
+
+
+def weekly_schedule(brand: str = "巧荷", today: date | None = None, days: int = 7) -> dict:
+    """本周排期增量视图(纯读):IO 边界取笔记 → `_bucket_schedule` 纯逻辑分桶。today 默认今天(注入可测)。"""
+    return _bucket_schedule(feishu_io.list_records(NF.TABLE), today or date.today(), days)
+
+
+def weekly_schedule_card(brand: str = "巧荷", view: dict | None = None) -> dict:
+    """本周排期 → 飞书卡片。只显有货的日(增量)+ 逾期 + 未排期(待铺发布日)。纯函数(view 可注入直测)。"""
+    v = view if view is not None else weekly_schedule(brand)
+    el: list[dict] = []
+    for day in v["days"]:
+        if not day["notes"]:
+            continue   # 空日不占版面(增量:只显有货日)
+        lines = [f"· {n['account']}{' · ' + n['mode'] if n['mode'] else ''} {_title_link(n)}"
+                 for n in day["notes"]]
+        el.append({"tag": "div", "text": {"tag": "lark_md",
+                   "content": f"**{day['date']} 周{day['weekday']}**\n" + "\n".join(lines)}})
+    for icon, key, hint in (("⏰", "逾期", "逾期未发"), ("🗂", "未排期", "待铺发布日")):
+        if v[key]:
+            el.append({"tag": "hr"})
+            lines = [f"· {n['account']}{' · ' + n['mode'] if n['mode'] else ''} {_title_link(n)}"
+                     for n in v[key]]
+            el.append({"tag": "div", "text": {"tag": "lark_md",
+                       "content": f"**{icon} {key}**（{len(v[key])}条·{hint}）\n" + "\n".join(lines)}})
+    if not el:
+        el.append({"tag": "div", "text": {"tag": "lark_md", "content": "本周无排期笔记。"}})
+    el.append({"tag": "note", "elements": [{"tag": "lark_md",
+               "content": "在 base 给笔记填『计划发布日』即排进对应日；未排期=日滴待铺"}]})
+    return {"config": {"wide_screen_mode": True},
+            "header": {"template": "turquoise",
+                       "title": {"tag": "plain_text", "content": f"🗓 {brand} · 本周排期（{config.ENV_NAME}）"}},
             "elements": el}
