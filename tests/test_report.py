@@ -37,6 +37,21 @@ class TestWeeklySummary(unittest.TestCase):
         self.assertEqual(s["ranked"], [])
         self.assertIn("暂无", report.format_weekly(s))
 
+    def test_zero_likes_gives_no_conclusion(self):
+        """**零数据不许编结论**(2026-07-14 走运营流程发现)。真跑出的周报写着:
+            「👉 本周最有效:『视频唯美OOTD』——可加权/多产这类」
+            「🏆 单条最佳:「OOTD｜栀子入素」赞 0」
+        ——而它只有 1 条、均赞 0.0。**0 赞的"最有效"、0 赞的"最佳"**。运营看了会说:
+        "就一条,还 0 赞,你让我多产?" 系统刚上线时回流还没数据(赞全 0),周报照样瞎推荐,
+        运营照做就被误导。宁可说"数据不够",也不能编。"""
+        notes = [{"fields": {NF.STATUS: NS.PUBLISHED, NF.PLAYBOOK: "视频唯美OOTD",
+                             NF.TITLE: "刚发还没人赞", NF.LIKED: 0}}]
+        txt = report.format_weekly(report.weekly_summary([n["fields"] for n in notes]))
+        self.assertNotIn("本周最有效", txt, "零赞时不许下「哪类更有效」的结论")
+        self.assertNotIn("单条最佳", txt, "0 赞的「最佳」是荒谬的")
+        self.assertIn("给不出", txt)          # 诚实说给不出结论
+        self.assertIn("回填", txt)            # 并告诉人多半是没回填真链接
+
 
 if __name__ == "__main__":
     unittest.main()

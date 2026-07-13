@@ -41,11 +41,29 @@ def format_weekly(summary: dict) -> str:
             wow_s = f" 周环比{wow:+.0f}%" if isinstance(wow, (int, float)) else ""
             lines.append(f"  · {r['playbook']}：共{r['条数']}条 均赞{r['均赞']}"
                          f"（本周{r['本周']['条数']}条·均赞{r['本周']['均赞']}{wow_s}）")
-        best = ranked[0]
-        lines.append(f"\n👉 本周最有效：『{best['playbook']}』——可加权/多产这类。")
-    if summary.get("top"):
-        t = summary["top"]
-        lines.append(f"🏆 单条最佳：「{t['title']}」赞{t['liked']}（{t['playbook'] or '—'}）")
+        # **数据不够就别下结论**(2026-07-14 走运营流程发现):真跑出的周报写着
+        #   「👉 本周最有效:『视频唯美OOTD』——可加权/多产这类」
+        #   「🏆 单条最佳:「OOTD｜栀子入素」赞 0」
+        # ——**只有 1 条,均赞 0.0**。0 赞的"最有效"、0 赞的"最佳"。运营看了会说:
+        # "就一条,还 0 赞,你让我多产?" 系统在**用零数据编结论**:刚上线时回流还没数据
+        # (赞数全 0),周报照样瞎推荐,运营照做就被误导。宁可说"数据不够",也不能编。
+        # 判据是「**有没有任何赞数据**」,不是「本周有没有」——刚发的帖子还没进本周窗口时,
+        # 历史数据仍然能支撑结论。零赞才是真的给不出结论。
+        total_liked = sum(int(r.get("总赞") or 0) for r in ranked)
+        total_posts = sum(int(r.get("条数") or 0) for r in ranked)
+        if total_liked <= 0:
+            lines.append("\n⚠️ 本周所有帖子的赞数都是 0 —— **给不出「哪类更有效」的结论**。"
+                         "\n   多半是回流还没数据：发完的帖子要在 base 回填**真实的小红书链接**，"
+                         "系统才采得到互动数。（也可能真是刚发、还没人赞）")
+        elif total_posts < 3:
+            lines.append(f"\n⚠️ 本周只有 {total_posts} 条有数据 —— **样本太小，先别据此调整策略**，"
+                         "再攒几条看趋势。")
+        else:
+            best = ranked[0]
+            lines.append(f"\n👉 本周最有效：『{best['playbook']}』——可加权/多产这类。")
+    top = summary.get("top")
+    if top and int(top.get("liked") or 0) > 0:      # 0 赞的"最佳"是荒谬的,别报
+        lines.append(f"🏆 单条最佳：「{top['title']}」赞{top['liked']}（{top['playbook'] or '—'}）")
     if summary.get("shot_needs"):
         lines.append(f"\n📷 需补拍 {len(summary['shot_needs'])} 项：")
         for n in summary["shot_needs"][:6]:
