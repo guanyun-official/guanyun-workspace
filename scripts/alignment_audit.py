@@ -335,8 +335,43 @@ def audit_empty_gates() -> None:
 #
 #    机器能查的那部分,查死;查不了的部分,由 loop 强制"每轮真渲染 + 以人的眼睛读一遍"。
 # ══════════════════════════════════════════════════════════════════════════════
-AGENT_ONLY = ["SKILL.md", "skills/", "brands/", "orchestrator/", "scripts/", "record_id",
-              "rec\w{10,}", "fld\w{8,}", "tbl\w{10,}", "playbook_id", "gen_skill"]
+# **给 agent 看的东西,不许出现在人面产物里**。三类,一个都不许:
+#   · 代码库路径/技能名  —— 摄影师在片场,打不开也不该打开 SKILL.md
+#   · **环境变量名**     —— 2026-07-14 人眼审现场抓到:我上一轮刚从补拍单里删掉 SKILL.md 路径,
+#                          转头就在**周报**里塞了句"要真拿数据得 `GY_METRICS_MODE=real`"。
+#                          运营在手机上收到周报,看到一串环境变量 —— 他不敲终端,这句话对他毫无意义,
+#                          而且**这件事根本不是他能做的**(改环境变量是部署侧的事)。
+#                          审查器当时没抓到,因为 AGENT_ONLY 里没有"环境变量名"这个模式。
+#   · record_id/field_id —— 内部主键,人看不懂
+AGENT_ONLY = [
+    ("SKILL.md", "代码库文件"), ("skills/", "代码库路径"), ("brands/", "代码库路径"),
+    ("orchestrator/", "代码库路径"), ("scripts/", "代码库路径"),
+    (r"\bGY_[A-Z0-9_]{3,}", "**环境变量名**(改它是部署侧的事,不是运营能做的)"),
+    (r"\b[A-Z][A-Z0-9_]{5,}=[a-z]", "**环境变量赋值**(给运维/agent 看的,不是给人的)"),
+    ("record_id", "内部主键"), (r"\brec\w{10,}", "内部主键"),
+    (r"\bfld\w{8,}", "内部字段ID"), (r"\btbl\w{10,}", "内部表ID"),
+    ("playbook_id", "内部标识"), ("gen_skill", "内部技能名"),
+]
+
+
+def _scan_agent_only(surface: str, text: str, reader: str) -> int:
+    """人面产物里扫"给 agent 看的东西"。surface=产物名,reader=它的读者是谁。
+
+    **先剥掉 URL 再扫**(2026-07-14 我自己踩的假阳性):第一版直接扫全文,把 base 深链里的
+    `?table=tblsice…&record=recvphd…` 抓成"给错读者"——**可那正是运营点标题直达 base 那一行的机制**:
+    record_id 藏在可点链接里,人根本看不见,更不需要看懂。这不是给错读者,是正常深链。
+    **假阳性比漏报更毒**:检查每次都红 → 人开始无视它(狼来了)→ 这道门就废了。
+    所以:URL **里面**的内部 ID 放行;URL **外面**的(以及任何地方的代码路径/环境变量)一律不许。
+    """
+    naked = re.sub(r"https?://\S+", "«链接»", text)      # 深链整段替掉:里面的 id 是机制,不是给人读的
+    n = 0
+    for pat, why in AGENT_ONLY:
+        m = re.search(pat, naked)
+        if m:
+            bad("人面·给错读者", f"{surface}里出现「{m.group(0)}」",
+                f"{why}。**{surface}的读者是{reader}** —— 给错读者 = 让人白费功夫,或干脆看不懂")
+            n += 1
+    return n
 
 
 def audit_human_surface() -> None:
@@ -348,25 +383,16 @@ def audit_human_surface() -> None:
     p = cockpit.today_panel("巧荷")
     card = cockpit.today_card("巧荷", panel=p)
     blob = json.dumps(card, ensure_ascii=False)
+    needs = shotlist.shot_needs("巧荷")
 
-    # (a) 人面产物里不许出现给 agent 看的东西(文件路径/技能名/record_id/field_id)
-    for pat in AGENT_ONLY:
-        for m in re.finditer(pat, blob):
-            if pat in ("brands/", "orchestrator/", "scripts/") or "SKILL" in pat or "skills/" in pat:
-                bad("人面·给错读者", f"今日卡片里出现「{m.group(0)}」",
-                    "这是**给 agent 看的代码库路径/技能名**。运营在手机上收到卡片,他打不开也不该打开。"
-                    "人面产物的读者是人,不是 agent")
-                found += 1
-                break
-
-    # (b) 补拍单同理(它的读者是**拿相机的人**)
-    for g in shotlist.shot_needs("巧荷"):
-        txt = f"{g.get('拍摄要求','')} {g.get('参考','')} {g.get('投递去向','')}"
-        for tok in ("SKILL.md", "skills/", "brands/", "orchestrator/"):
-            if tok in txt:
-                bad("人面·给错读者", f"补拍单里出现「{tok}」",
-                    "补拍单的读者是**摄影师**,他在片场。给他代码库路径 = 让他白费功夫")
-                found += 1
+    # (a)(b) **三个人面产物全扫**(之前只扫了卡片和补拍单,**漏了周报** —— 环境变量就是从那儿漏出去的)
+    found += _scan_agent_only("今日卡片", blob, "运营(手机上,不敲终端)")
+    for g in needs:
+        found += _scan_agent_only("补拍单", f"{g.get('拍摄要求','')} {g.get('参考','')} "
+                                            f"{g.get('投递去向','')}", "摄影师(在片场)")
+    wk_txt = report.format_weekly(report.weekly_summary(
+        [r["fields"] for r in feishu_io.list_records(NF.TABLE)], needs=needs))
+    found += _scan_agent_only("周报", wk_txt, "运营(周一看,不敲终端)")
 
     # (c) 黑洞:某个在途状态的稿,在**任何**人面视图里都不出现 → 人以为它发出去了
     surfaced = {n["title"] for k in ("待审", "待发", "待回填链接", "已暂停", "卡住") for n in p.get(k, [])}
@@ -397,9 +423,8 @@ def audit_human_surface() -> None:
                     "硬截字数会断在半个词上,人读着一头雾水。要在句子边界断")
                 found += 1
 
-    # (f) 零数据不许编结论(周报曾用 0 赞的稿说「本周最有效,可加权多产这类」)
-    wk = report.format_weekly(report.weekly_summary(
-        [r["fields"] for r in feishu_io.list_records(NF.TABLE)]))
+    # (f) 零数据不许编结论(周报曾用 0 赞的稿说「本周最有效,可加权多产这类」)。复用上面已算的 wk_txt。
+    wk = wk_txt
     if ("最有效" in wk or "单条最佳" in wk) and "赞0" in wk:
         bad("人面·零数据编结论", "周报用 0 赞的数据下了「最有效/最佳」的结论",
             "运营会说:'就一条,还 0 赞,你让我多产?' 宁可说'数据不够',也不能编")

@@ -62,9 +62,16 @@ class TestWeeklySummary(unittest.TestCase):
                   NF.LIKED: 0, NF.PUBLISH_LINK: {"link": "https://www.xiaohongshu.com/explore/x",
                                                  "text": "x"}}]
         txt = report.format_weekly(report.weekly_summary(notes))
-        self.assertIn("链接已经填了", txt)
-        self.assertIn("回流没采到", txt)
-        self.assertNotIn("去 base 把小红书链接填进", txt, "链接已经填了,别再教人去填")
+        # **锁行为,不锁措辞**(我今天已经在这上面栽过一次:上一版测试断言周报里必须出现「回填」二字,
+        # 一改措辞就红——它在保护我的用词,不是保护正确性)。
+        # 真行为有三条:
+        self.assertIn("链接已经填了", txt)                                  # ① 承认他已经填了
+        self.assertNotIn("去 base 把小红书链接填进", txt, "链接已经填了,别再教人去填")   # ② 别教他重做
+        # ③ **别把技术标识符甩给运营**:他不敲终端,改环境变量根本不是他能做的事。
+        #    (2026-07-14 人眼审现场抓到:我上一版在这句里塞了 `GY_METRICS_MODE=real`。)
+        import re as _re
+        self.assertIsNone(_re.search(r"\bGY_[A-Z0-9_]{3,}", txt),
+                          "周报的读者是运营(不敲终端),不许出现环境变量名")
 
 
 if __name__ == "__main__":
