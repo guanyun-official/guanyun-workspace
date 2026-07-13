@@ -69,7 +69,11 @@ class TestTodayPanel(unittest.TestCase):
                       NF.TITLE: "别号一条", NF.ACCOUNT: "图文号1"}})
         p = self._run(notes, [])
         q = {x["account"]: x for x in p["控量"]}
-        self.assertEqual(q["ootd号"]["今日"], cap)
+        # 「已发」和「排队」必须分开报(原来合成一个数还叫「今日」→ 卡片写「今日 4/3 已达上限」,
+        # 可运营今天一条都没发,那 4 全是排队数;数字没错,话在骗人)
+        self.assertEqual(q["ootd号"]["今日已发"], 0)     # 一条都没发出去
+        self.assertEqual(q["ootd号"]["排队待发"], cap)   # 全是排队的
+        self.assertEqual(q["ootd号"]["占用"], cap)       # 两者相加才是额度占用(防超发)
         self.assertTrue(q["ootd号"]["逼近"])            # 达上限→逼近
         self.assertFalse(q["图文号1"]["逼近"])           # 1条<上限→不逼近
         card = str(cockpit.today_card("巧荷", panel=p)["elements"])
@@ -92,8 +96,10 @@ class TestTodayPanel(unittest.TestCase):
             {"record_id": "t1", "fields": {NF.STATUS: NS.TO_PUBLISH, NF.TITLE: "待发", NF.ACCOUNT: "ootd号"}},
         ]
         p = self._run(notes, [])
-        q = {x["account"]: x["今日"] for x in p["控量"]}
-        self.assertEqual(q["ootd号"], 2)                            # 今日已发1 + 待发布1(老发被排除)
+        q = {x["account"]: x for x in p["控量"]}
+        self.assertEqual(q["ootd号"]["今日已发"], 1)                  # 今日真发出去 1 条(老发被日期窗排除)
+        self.assertEqual(q["ootd号"]["排队待发"], 1)                  # 排队 1 条
+        self.assertEqual(q["ootd号"]["占用"], 2)                     # 额度占用=两者相加
         self.assertEqual([n["title"] for n in p["待回填链接"]], ["已发缺链接"])   # 仅缺链接的
         self.assertEqual([n["title"] for n in p["待发"]], ["待发"])
 

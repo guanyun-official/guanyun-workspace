@@ -65,7 +65,9 @@ class TestReviewApproved(unittest.TestCase):
         rows, updates = self._run(note)
         self.assertTrue(rows[0]["ai_required"])
         self.assertFalse(rows[0]["advanced"])                       # 未勾→不推进
-        self.assertIn("需先勾AI声明", rows[0]["verdict"])
+        # verdict 直接带出 GuardError 原文:人一眼知道是被**哪道门**拦的(AI声明 / 控量),
+        # 而不是只看到一句笼统的"不给过"(两道门都会拦在这一步,不说清人只能去猜)。
+        self.assertIn("AI声明门", rows[0]["verdict"])
         self.assertEqual(updates, [])                               # 留已批准,不动
 
     def test_ai_material_checked_advances(self):

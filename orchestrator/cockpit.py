@@ -12,7 +12,7 @@ from datetime import date, timedelta
 
 from . import bitable, config, feishu_io, guard, publish, shotlist
 from .bitable import NoteFields as NF, NoteStatus as NS
-from .bitable import AccountFields as AF, ContentTypeFields as CTF
+from .bitable import AccountFields as AF, AutoSched, ContentTypeFields as CTF
 
 
 _day_start_ms = bitable.day_start_ms   # 冷热分离日期窗共用(bitable 收窄 seam;测试仍可用 cockpit._day_start_ms)
@@ -47,16 +47,28 @@ def today_panel(brand: str = "巧荷") -> dict:
     pub_today = feishu_io.search_records(NF.TABLE, [                                        # 今日已发(控量额度)
         _pub, {"field_name": NF.PUBLISHED_AT, "operator": "isGreater", "value": ["ExactDate", day0]}],
         conjunction="and")
-    # 素材只取 在途+待回填 引用的(今日已发只计数,不需素材细节)
-    linked = [rid for r in (active + need_link_notes)
+    approved = feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.APPROVED])   # 过渡态(在途,小):可能卡在门前
+    # 素材只取 在途+待回填+已批准 引用的(今日已发只计数,不需素材细节)。
+    # **已批准的素材必须一起取**:否则判它要不要 AI 声明时 idx 里查不到来源 → 一律算成"不需要" → 漏判红线。
+    linked = [rid for r in (active + need_link_notes + approved)
               for rid in bitable.link_record_ids(r["fields"].get(NF.LINKED_MATERIALS))]
     idx = publish._material_index(linked)
     acc_names = feishu_io.name_map(AF.TABLE, AF.NAME)      # link 字段从 search 只回 id→靠小表 id→名还原显示
     ct_names = feishu_io.name_map(CTF.TABLE, CTF.NAME)
+    # **暂停号的稿不进运营待办**(2026-07-14 运营视角实测):官号 base 里「自动排产=暂停」,
+    # 可它的稿照样躺在待审区要人审——运营的心智是"官号我关了",卡片却让他审官号,纯干扰。
+    # 不是隐瞒:单独归到『已暂停』,卡片底部一行提示,人想看点 base。
+    paused = {bitable.text(r["fields"].get(AF.NAME)).strip()
+              for r in feishu_io.list_records(AF.TABLE)
+              if bitable.text(r["fields"].get(AutoSched.FIELD)).strip() == AutoSched.PAUSED}
     pend_review: list[dict] = []
     to_publish: list[dict] = []
     need_link: list[dict] = []
-    load: dict[str, int] = {}   # 控量(红线):每号今日 待发布+今日已发 计数,逼近单号日上限就标红
+    paused_notes: list[dict] = []      # 暂停号的在途稿:不要人管,只提一句
+    # 控量(红线):**已发**和**排队**分开记——两者相加才是额度占用(防超发),但对人要分开讲清楚,
+    # 否则卡片上「今日 4/3 已达上限」会让今天一条没发的运营懵掉(那 4 其实是排队数)。
+    published: dict[str, int] = {}   # 今日真发出去的(实际发布日=今天)
+    queued: dict[str, int] = {}      # 排队待发的(占额度,但还没发)
     for r in active:
         f = r["fields"]
         st = bitable.text(f.get(NF.STATUS)).strip()
@@ -67,15 +79,24 @@ def today_panel(brand: str = "巧荷") -> dict:
         # AI声明需求 surface(人审前就看到⚠️;仍人自己勾):按挂的素材来源事实算,复用 guard 的法规规则
         mat_ids = bitable.link_record_ids(f.get(NF.LINKED_MATERIALS))
         ai_req = guard.ai_declaration_required([idx[m]["source"] for m in mat_ids if m in idx])
-        if st == NS.DRAFT_PENDING:
+        qc = bitable.text(f.get(NF.QC)).strip()   # 质检结果(零素材/篇幅不达规格/混入制作说明…)顶到人眼前
+        # **实时兜底:零素材**(2026-07-14 走运营流程发现)——落库的『质检』只在**出稿那一刻**算,
+        # 历史稿/人在 base 手建的稿根本没有质检值。而真跑遇到的「OOTD｜栀子入素」就是一条**待发、
+        # 零素材**的稿:运营点开 base 准备发小红书,一张图都没有,发不出去,而卡片毫无警告。
+        # 所以人面必须实时判一次——不能只信落库的那个字段。
+        if not mat_ids and "零素材" not in qc:
+            qc = ("零素材:一张图/视频都没挂,小红书发不出去——去 base 关联素材" + ("；" + qc if qc else ""))
+        if acc in paused:                        # 暂停号的稿不进待办(运营已经把这个号关了)
+            paused_notes.append({"title": title, "account": acc, "mode": mode, "open": link, "质检": qc})
+        elif st == NS.DRAFT_PENDING:
             pend_review.append({"title": title, "account": acc, "mode": mode, "open": link,
-                                "需AI声明": ai_req})
+                                "需AI声明": ai_req, "质检": qc})
         elif st == NS.TO_PUBLISH:
             mats = publish.note_materials(f, idx)
             to_publish.append({"title": title, "account": acc, "mode": mode, "open": link,
-                               "需AI声明": ai_req,
+                               "需AI声明": ai_req, "质检": qc,
                                "materials": [{"code": m["code"], "link": m["取用链接"]} for m in mats]})
-            load[acc] = load.get(acc, 0) + 1              # 待发布=今日额度占用
+            queued[acc] = queued.get(acc, 0) + 1          # 排队待发(占额度,但**还没发**)
     for r in need_link_notes:
         f = r["fields"]
         need_link.append({"title": bitable.text(f.get(NF.TITLE)),
@@ -83,12 +104,47 @@ def today_panel(brand: str = "巧荷") -> dict:
                           "mode": _link_names(f.get(NF.CONTENT_TYPE), ct_names), "open": _note_link(r["record_id"])})
     for r in pub_today:
         acc = _link_names(r["fields"].get(NF.ACCOUNT), acc_names)
-        load[acc] = load.get(acc, 0) + 1                  # 今日已发=额度占用
+        published[acc] = published.get(acc, 0) + 1        # **今日真发出去的**(实际发布日=今天)
+
+    # **卡住的稿**(2026-07-14 走运营流程发现的黑洞):『已批准』是**过渡态**——系统本该把它推进到
+    # 『待发布』,但被门拦下时(AI声明未勾 / 控量已满)它就**停在这儿**。而 today_panel 原来只看
+    # 『草稿待发』和『待发布』两个状态 → 这条稿**在人面上彻底消失**:运营批准完就再也看不到它,
+    # 会以为发出去了。门拦住不等于事情办完了——**拦住 + 告诉人为什么 + 告诉人该干什么**,才算数。
+    stuck: list[dict] = []
+    for r in approved:
+        f = r["fields"]
+        acc = _link_names(f.get(NF.ACCOUNT), acc_names)
+        mat_ids = bitable.link_record_ids(f.get(NF.LINKED_MATERIALS))
+        ai_req = guard.ai_declaration_required([idx[m]["source"] for m in mat_ids if m in idx])
+        why = ""
+        if not mat_ids:
+            why = "一张图/视频都没挂,小红书发不出去——先去 base 关联素材"
+        elif ai_req and not f.get(NF.AI_DECLARED):
+            why = "含 AI 合成素材,发前你得先在 base 勾『AI声明』"
+        elif published.get(acc, 0) + queued.get(acc, 0) >= config.PER_ACCOUNT_DAILY_PUBLISH:
+            why = (f"该号今日额度满了(已发 {published.get(acc, 0)} + 排队 {queued.get(acc, 0)} "
+                   f"≥ 上限 {config.PER_ACCOUNT_DAILY_PUBLISH})——先发掉排队的,或明天再说")
+        if why:
+            stuck.append({"title": bitable.text(f.get(NF.TITLE)), "account": acc,
+                          "mode": _link_names(f.get(NF.CONTENT_TYPE), ct_names),
+                          "open": _note_link(r["record_id"]), "卡住原因": why})
     cap = config.PER_ACCOUNT_DAILY_PUBLISH
-    quota = [{"account": a, "今日": n, "上限": cap, "逼近": n >= cap}
-             for a, n in sorted(load.items()) if n]
+    # **把"已发"和"排队"拆开说**(2026-07-14 运营视角实测):原来两者相加塞进一个数、还叫「今日」,
+    # 卡片上写「ootd号:今日 4/3 已达上限」——可 ootd号今天**一条都没发**,那 4 是排队待发的稿数。
+    # 数字没错(占额度防超发的逻辑是对的),但**话在骗人**:人读到的是"我今天发了4条"。
+    # 现在分开:今日已发 X 条 + 排队 Y 条 = 占用 Z/上限。人一眼知道自己到底发没发。
+    quota = [{"account": a,
+              "今日已发": published.get(a, 0),
+              "排队待发": queued.get(a, 0),
+              "占用": published.get(a, 0) + queued.get(a, 0),
+              "上限": cap,
+              "逼近": published.get(a, 0) + queued.get(a, 0) >= cap}
+             for a in sorted(set(published) | set(queued))
+             if published.get(a, 0) + queued.get(a, 0)]
     return {"待审": pend_review, "待发": to_publish, "待回填链接": need_link,
-            "控量": quota, "要补拍": shotlist.shot_needs(brand)}
+            "控量": quota, "要补拍": shotlist.shot_needs(brand),
+            "已暂停": paused_notes,   # 暂停号的在途稿:不要人管,卡片底部提一句就够(不隐瞒也不干扰)
+            "卡住": stuck}            # 批了却被门拦下的稿:**必须让人看见**,否则批完就消失=黑洞
 
 
 def _title_link(n: dict) -> str:
@@ -108,18 +164,33 @@ def today_card(brand: str = "巧荷", panel: dict | None = None) -> dict:
         for n in p[bucket]:
             key = (n["account"], n.get("mode", ""))
             mark = " ⚠️AI声明" if n.get("需AI声明") else ""   # surface:含AI合成素材,发前须人勾AI声明
-            blocks.setdefault(key, []).append(f"{icon} {_title_link(n)}{mark}")
+            line = f"{icon} {_title_link(n)}{mark}"
+            # **质检警告必须出现在卡片上**(2026-07-14 运营视角实测的代价):零素材的废稿(小红书没图
+            # 发不了)、篇幅不达技能规格的短稿,原来静静躺在待审区,卡片一个字提示都没有——人得点进去
+            # 才发现是废稿。算了不给人看 = 等于没检。
+            if n.get("质检"):
+                line += f"\n     ⚠️ {n['质检']}"
+            blocks.setdefault(key, []).append(line)
 
     el: list[dict] = []
     for (acc, mode), lines in sorted(blocks.items()):
         head = f"**{acc}{' · ' + mode if mode else ''}**"
         el.append({"tag": "div", "text": {"tag": "lark_md", "content": head + "\n" + "\n".join(lines)}})
 
+    # **卡住的稿**:你批了,但系统被门拦住没敢往下推。不喊出来 = 稿子在人面上消失 = 你以为发了其实没发。
+    if p.get("卡住"):
+        el.append({"tag": "hr"})
+        lines = [f"· {_title_link(n)}（{n['account']}）\n     ↳ {n['卡住原因']}" for n in p["卡住"]]
+        el.append({"tag": "div", "text": {"tag": "lark_md",
+                   "content": "**🛑 你批了、但发不出去的**（卡在门前，需要你处理）\n" + "\n".join(lines)}})
+
     # 控量预警(红线):今日额度占用逼近单号日上限→标红,防超发(assert_publish_quota 曾是死码,这里给人看)
     hot = [q for q in p.get("控量", []) if q["逼近"]]
     if hot:
         el.append({"tag": "hr"})
-        lines = [f"· {q['account']}：今日 {q['今日']}/{q['上限']} 已达上限，别再排/发了" for q in hot]
+        # 话要说得让人一眼懂自己到底发没发:「今日已发 X 条 + 排队 Y 条 = 占满 Z/上限」
+        lines = [f"· {q['account']}：今日已发 {q['今日已发']} 条 + 排队待发 {q['排队待发']} 条 "
+                 f"= 占用 {q['占用']}/{q['上限']}，别再排新的了" for q in hot]
         el.append({"tag": "div", "text": {"tag": "lark_md",
                    "content": f"**🚦 控量预警**（红线：单号日发 ≤ {config.PER_ACCOUNT_DAILY_PUBLISH}）\n" + "\n".join(lines)}})
 
@@ -131,6 +202,14 @@ def today_card(brand: str = "巧荷", panel: dict | None = None) -> dict:
         el.append({"tag": "hr"})
         lines = [f"· {acc}：{'、'.join(items)}" for acc, items in sorted(shoot.items())]
         el.append({"tag": "div", "text": {"tag": "lark_md", "content": "**📷 待补拍**（拍完丢网盘待入库箱）\n" + "\n".join(lines)}})
+
+    # 暂停号:它的稿不进待办(运营已经把号关了),但也别偷偷藏起来——底部提一句,想看点 base
+    if p.get("已暂停"):
+        el.append({"tag": "hr"})
+        accs = sorted({n["account"] for n in p["已暂停"]})
+        el.append({"tag": "div", "text": {"tag": "lark_md",
+                   "content": f"**⏸ 已暂停的号**（base 里「自动排产=暂停」，不用管）\n"
+                              f"· {'、'.join(accs)}：还有 {len(p['已暂停'])} 条旧稿在库里"}})
 
     if not el:
         el.append({"tag": "div", "text": {"tag": "lark_md", "content": "✅ 今日无待办：没要审的、没要发的、库存也够。"}})

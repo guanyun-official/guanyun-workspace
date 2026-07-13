@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 from . import accounts, bitable, draft, feishu_io, netpan
-from .bitable import AccountFields as AF, MaterialFields as MF
+from .bitable import AccountFields as AF, AutoSched, MaterialFields as MF
 
 
 def _deliver_to(name: str, mtype: str) -> str:
@@ -27,12 +27,19 @@ def shot_needs(brand: str = "巧荷") -> list[dict]:
     """拍摄需求单:每号×素材类型,库存(已拍可用)< 目标缓冲 才提。
     返回 [{account, 类型, 缺, 已有, 目标, 拍摄要求, 参考}](缺=目标-已有,>0 才在单里)。"""
     accs = {n: a for n, a in accounts.load_all(brand).items() if not a.error}
+    acc_rows = feishu_io.list_records(AF.TABLE)
+    # **暂停号不催拍**(2026-07-14 运营视角实测):官号 base 里「自动排产=暂停」,补拍单却还在催
+    # 运营去拍官号的上身视频×4——号都关了还让人去拍?纯干扰,人会开始无视这张单(狼来了)。
+    # base 的「自动排产」是运营开关的唯一真相(md 只是默认值),这里必须听它。
+    paused = {bitable.text(r["fields"].get(AF.NAME)).strip()
+              for r in acc_rows
+              if bitable.text(r["fields"].get(AutoSched.FIELD)).strip() == AutoSched.PAUSED}
+    accs = {n: a for n, a in accs.items() if n not in paused}
     # 全局需要的素材类型 → 一次按类型服务端过滤取素材(规模M4,不全拉素材表)
     needed = sorted({mt for a in accs.values()
                      for pb in a.playbooks() for mt in (pb.get("material_needs") or [])})
-    mats = feishu_io.search_in(MF.TABLE, MF.TYPE, needed)
-    acc_id = {bitable.text(r["fields"].get(AF.NAME)).strip(): r["record_id"]
-              for r in feishu_io.list_records(AF.TABLE)}
+    mats = feishu_io.search_in(MF.TABLE, MF.TYPE, needed) if needed else []
+    acc_id = {bitable.text(r["fields"].get(AF.NAME)).strip(): r["record_id"] for r in acc_rows}
     out: list[dict] = []
     for name, acc in sorted(accs.items()):
         if acc.error:

@@ -70,10 +70,6 @@
       "type": "attachment"
     },
     {
-      "field_name": "被引用次数",
-      "type": "formula"
-    },
-    {
       "field_name": "适用账号",
       "type": "link",
       "link_table": "tblBAkf3a9OBlOwP"

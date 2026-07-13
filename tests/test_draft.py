@@ -188,12 +188,14 @@ class SelectAndAttachMaterials(unittest.TestCase):
         self.assertNotIn(NF.LINKED_MATERIALS, cap["fields"])  # 无候选不挂,不炸
 
     def test_prefers_least_cited_to_spread(self):
-        """#36 去重:同类型多候选,按被引用次数升序『少用优先』→ 素材分散,减少跨号/跨条撞图。"""
+        """#36 去重:同类型多候选,按被引用次数升序『少用优先』→ 素材分散,减少跨号/跨条撞图。
+        **真被引用次数 = 数反向链接**(『被引用次数』formula 恒返 0、已从库里删除)。"""
         from unittest import mock
         from orchestrator import feishu_io
-        mats = [  # 表序上 recHot 在前,但它被引用多;应让 recCold 先
-            {"record_id": "recHot", "fields": {"类型": "上身图", "拍摄状态": "已拍", "被引用次数": 5}},
-            {"record_id": "recCold", "fields": {"类型": "上身图", "拍摄状态": "已拍", "被引用次数": 0}},
+        mats = [  # 表序上 recHot 在前,但它已被 5 篇笔记引用;应让没用过的 recCold 先
+            {"record_id": "recHot", "fields": {"类型": "上身图", "拍摄状态": "已拍",
+                                               "笔记表-关联素材": [{"record_ids": ["n1", "n2", "n3", "n4", "n5"]}]}},
+            {"record_id": "recCold", "fields": {"类型": "上身图", "拍摄状态": "已拍"}},   # 无反向链接=没用过
         ]
         with mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: mats):
             self.assertEqual(draft.select_materials(["上身图"], limit=1), ["recCold"])  # 少用的先
@@ -205,9 +207,10 @@ class MaterialHitsPure(unittest.TestCase):
     真正会错的 6 条过滤 + 排序在纯函数里直接喂字面 records 断言,不必 patch list_records。"""
 
     def test_type_shot_and_least_cited_order(self):
-        mats = [
-            {"record_id": "recHot", "fields": {"类型": "上身图", "拍摄状态": "已拍", "被引用次数": 5}},
-            {"record_id": "recCold", "fields": {"类型": "上身图", "拍摄状态": "已拍", "被引用次数": 0}},
+        mats = [   # 真形态:被引用次数 = 反向链接『笔记表-关联素材』的条数(那个 formula 字段已删)
+            {"record_id": "recHot", "fields": {"类型": "上身图", "拍摄状态": "已拍",
+                                               "笔记表-关联素材": [{"record_ids": ["n1", "n2", "n3", "n4", "n5"]}]}},
+            {"record_id": "recCold", "fields": {"类型": "上身图", "拍摄状态": "已拍"}},        # 没用过
             {"record_id": "recTodo", "fields": {"类型": "上身图", "拍摄状态": "待拍"}},        # 未拍→排除
             {"record_id": "recWrong", "fields": {"类型": "上身视频", "拍摄状态": "已拍"}},     # 类型不符→排除
         ]
@@ -361,10 +364,16 @@ class DraftAdvancesInflightNote(unittest.TestCase):
         from unittest import mock
         from orchestrator import feishu_io
         r = draft.generate_draft("ootd号", llm_mode="stub")   # 视频唯美OOTD
+        # **真形态**:search API 回的 link 字段是 {'link_record_ids': [...]}(没有 text)。
+        # 原来这里写的是裸字符串 "ootd号" —— 一个**真实世界不存在的形态**。假 mock 让测试常绿,
+        # 而生产里 _find_inflight_note 用 text() 读永远读出空串 → 在途永远找不到 → 每次出稿新建一行 →
+        # 运营卡片待审区堆了 5 条同号同模式的重复稿。mock 比真数据"干净",bug 就是这么活下来的。
         base = {"账号表": [{"record_id": "recACC", "fields": {"账号名": "ootd号"}}],
                 "内容类型表": [{"record_id": "recCT", "fields": {"内容类型名": "视频唯美OOTD"}}],
-                "笔记表": [{"record_id": "recPH", "fields": {NF.STATUS: NS.NEED_COPY,
-                          NF.ACCOUNT: "ootd号", NF.CONTENT_TYPE: "视频唯美OOTD"}}]}   # 派活占位在途
+                "笔记表": [{"record_id": "recPH", "fields": {
+                    NF.STATUS: NS.NEED_COPY,
+                    NF.ACCOUNT: {"link_record_ids": ["recACC"]},
+                    NF.CONTENT_TYPE: {"link_record_ids": ["recCT"]}}}]}   # 派活占位在途
         upd, created = {}, []
         with mock.patch.object(feishu_io, "list_records", lambda t: base.get(t, [])), \
                 mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: base.get(t, [])), \
@@ -571,16 +580,17 @@ class TestZeroMaterialAndSpread(unittest.TestCase):
         后果:所有素材 cited 全 0 → 排序 stable → **永远返回表序前 3 条** → 133 条上身图只用前 3 条,
         3 个号同一天出稿全撞同一批图。真被引用次数必须**数反向链接**,别信那个 formula。"""
         from orchestrator.draft import _cited_count
-        # 真库形态(get_record 返回的 DuplexLink):4 篇笔记引用了它,formula 却是 0
+        # 真库形态(get_record 返回的 DuplexLink):4 篇笔记引用了它,formula 却报 0。
+        # 该 formula 字段已从库里删除;这里仍留着它,是回归锁——**哪天它以任何形式回来,也不许信它**。
         real_fields = {
             "素材编号": "ST-260702-001",
-            "被引用次数": 0,                      # ← 坏 formula,真库就是这么返回的
+            "被引用次数": 0,                      # ← 坏 formula,真库当时就是这么返回的
             "笔记表-关联素材": [{"record_ids": ["recA", "recB", "recC", "recD"],
                                  "table_id": "tblsiceNwWpidwAG", "text": ""}],
         }
         self.assertEqual(_cited_count(real_fields), 4, "被引用次数必须数反向链接,不能信坏 formula")
 
-        never_used = {"素材编号": "ST-260702-004", "被引用次数": 0}   # 没反向链接 = 真没被用过
+        never_used = {"素材编号": "ST-260702-004"}   # 没反向链接 = 真没被用过
         self.assertEqual(_cited_count(never_used), 0)
 
     def test_least_cited_wins_so_materials_spread(self):

@@ -256,6 +256,7 @@ def generate_draft(account_name: str, brand: str = "巧荷", llm_mode: str = "st
         draft_text, cost = _stub_draft(acc, pb, gen_skill, bool(skill_text), title_seed), 0.0
     ctype = pb.get("content_type") or pb.get("id") or ""
     title = _split_title(draft_text, title_seed or f"{ctype}·草稿")
+    flags = quality_flags(draft_text, pb, None if mat_rows is None else len(mat_rows))
     note_fields = {
         NF.TITLE: title,
         NF.ACCOUNT: account_name,
@@ -263,6 +264,10 @@ def generate_draft(account_name: str, brand: str = "巧荷", llm_mode: str = "st
         NF.PLAYBOOK: pb.get("id") or "",
         NF.DRAFT: draft_text,
         NF.STATUS: NS.DRAFT_PENDING,  # 草稿待发=待人审;绝不越过审核门,绝不代勾 AI 声明
+        # **质检必须落库**:算出来不写库 = 运营在 base/卡片上都看不见 = 等于没检。
+        # 真实代价(2026-07-14 运营视角实测):官号两条零素材废稿(小红书没图发不了)静静躺在
+        # 待审区,卡片上一个字的提示都没有——人得点进去才发现是废稿。
+        NF.QC: "；".join(flags) if flags else "",
     }
     return {
         "account": account_name,
@@ -282,9 +287,9 @@ def generate_draft(account_name: str, brand: str = "巧荷", llm_mode: str = "st
         "draft_text": draft_text,
         "cost": cost,
         "prompt": prompt,
-        # 按**本模式技能自己的规格**质检(playbook.body_len)+ 零素材(发不出去)——不再守那道够不着的平台天花板
-        "quality_flags": quality_flags(draft_text, pb,
-                                       None if mat_rows is None else len(mat_rows)),
+        # 按**本模式技能自己的规格**质检(playbook.body_len)+ 零素材(发不出去)——不再守那道够不着的平台天花板。
+        # 同一份 flags 已写进 note_fields[质检] 落库 → 运营在 base 和今日卡片上都看得见。
+        "quality_flags": flags,
         "note_fields": note_fields,
     }
 
@@ -380,39 +385,42 @@ def _cited_count(fields: dict) -> int:
     """这条素材被多少篇笔记引用过 → `#36 少用优先` 的排序依据(分散选材,防撞图)。
 
     **数反向链接,不信 formula**(dogfood 2026-07-14 真跑抓的死机制):
-    『被引用次数』是 formula 字段,但**活库里它的 property=null——公式压根没配,恒返回 0**。
-    真跑实证:ST-260702-001 的反向链接『笔记表-关联素材』已经挂了 4 篇笔记,formula 仍报 0。
-    后果:所有素材 cited 全 0 → 排序 stable → **永远返回表序前 3 条** → 素材池 133 条上身图
-    只有前 3 条被用过、其余 130 条一次没用;3 个号同一天出稿全撞同一批图。
-    "少用优先防撞图"这个机制**整个是死的**,而且没有任何门发现得了(绿门测的是排序逻辑,不是数据源)。
+    旧实现读『被引用次数』formula 字段——**它恒返回 0**(COUNTA/COUNT 对 DuplexLink 在飞书算不出来;
+    真库实证:ST-260702-001 反向链接已挂 4 篇笔记,formula 仍报 0;282 条素材里 13 条被真引用过的全报错)。
+    后果:所有素材 cited 全 0 → 排序 stable → **永远返回表序前 3 条** → 133 条上身图只用前 3 条,
+    3 个号同一天出稿全撞同一批图。"少用优先防撞图"这个机制**整个是死的**,而绿门永远抓不到
+    (它测的是排序逻辑,不是数据源)。该 formula 字段已从测试库删除(既坏又冗余)。
 
-    改成数反向 link(link 字段是真实数据,不依赖飞书 UI 里有没有人配对公式);formula 只当兜底。
+    现在数反向 link:link 是真实数据,不依赖飞书公式引擎。
     """
     from . import bitable
     from .bitable import MaterialFields as MF
-    n = len(bitable.link_record_ids(fields.get(MF.BACKLINK)))
-    if n:
-        return n
-    v = fields.get(MF.CITED)                 # 兜底:哪天真把 formula 配上了,也认
-    if isinstance(v, list):
-        v = v[0] if v else 0
-    if isinstance(v, dict):
-        v = v.get("value") or v.get("text") or 0
-    try:
-        return int(float(v or 0))
-    except (TypeError, ValueError):
-        return 0
+    return len(bitable.link_record_ids(fields.get(MF.BACKLINK)))
 
 
 def _find_inflight_note(account_name: str, content_type_name: str) -> str:
     """找该 (账号, 内容类型) 在途的 Note(待出文案/草稿待发)record_id;无则空。
-    出稿据此**推进**派活的『待出文案』为『草稿待发』(状态机一条内容一行),不新建重复行。"""
-    from . import feishu_io, bitable
+    出稿据此**推进**派活的『待出文案』为『草稿待发』(状态机一条内容一行),不新建重复行。
+
+    **必须用 record_id 比对,不能用 text()**(dogfood 2026-07-14,从运营卡片上看出来的):
+    这里读的是 `search` API 的返回,而 search 的 link 字段形态是 `{'link_record_ids': [...]}`——**没有 text**
+    (list/get 才有 `[{record_ids, text}]`)。原来用 `bitable.text(f.get(NF.ACCOUNT))` 比对账号名 →
+    永远读出空串 → 永远不等于账号名 → **在途笔记永远找不到 → 每次出稿都新建一行**。
+    后果直接砸在人脸上:运营今日卡片的待审区堆了 **5 条同号同模式的重复稿**(全是"粉纱+光"),
+    人打开第一反应是"我审哪条?"。绿门/exit 0 全过——只有真去看那张卡片才发现。
+    (同一形态 bug 上轮修过 cockpit/dispatch/publish,唯独漏了这里。)
+    """
+    from . import bitable, feishu_io
+    from .bitable import AccountFields as AF, ContentTypeFields as CTF
+    acc_ids = set(_resolve_link(AF.TABLE, AF.NAME, account_name))
+    ct_ids = set(_resolve_link(CTF.TABLE, CTF.NAME, content_type_name))
+    if not acc_ids:                      # 号都解析不出来,别乱认在途(宁可新建也不改错行)
+        return ""
     # 状态∈开态 服务端过滤(规模M2,不全拉笔记表);search 已保证状态,只余按号×模式内存筛
     for r in feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.NEED_COPY, NS.DRAFT_PENDING]):
         f = r["fields"]
-        if (bitable.text(f.get(NF.ACCOUNT)) == account_name
-                and bitable.text(f.get(NF.CONTENT_TYPE)) == content_type_name):
+        if (acc_ids & set(bitable.link_record_ids(f.get(NF.ACCOUNT)))
+                and (not ct_ids or ct_ids & set(bitable.link_record_ids(f.get(NF.CONTENT_TYPE))))):
             return r["record_id"]
     return ""
 

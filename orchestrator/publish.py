@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 from . import bitable, config, feishu_io, guard, netpan
-from .bitable import NoteFields as NF, NoteStatus as NS, MaterialFields as MF
+from .bitable import AccountFields as AF, NoteFields as NF, NoteStatus as NS, MaterialFields as MF
 
 
 def _mat_info(r: dict) -> dict:
@@ -57,6 +57,12 @@ def review_approved(brand: str = "巧荷", write: bool = False) -> list[dict]:
     linked = [rid for r in approved
               for rid in bitable.link_record_ids(r["fields"].get(NF.LINKED_MATERIALS))]
     idx = _material_index(linked)   # 只取被批准笔记引用的素材(规模M4,不全拉素材表)
+    # **控量门装在这儿**(2026-07-14 运营视角实测):`guard.assert_publish_quota` 造好了却是**死码**——
+    # 全仓没有任何一处调用它,cockpit 的注释甚至自认"曾是死码,这里给人看",只在卡片上事后预警。
+    # 后果:系统可以无限往『待发布』堆稿,运营卡片上真出现「排队待发 4 条 = 占用 4/3」——**已经超了**。
+    # 红线名不副实=门造好了没装在门框上。这里是**系统自己**推进状态的唯一入口(人在 base 手动改状态
+    # 拦不住,那是人的自由),所以门必须装在这:超额就不推进,把稿留在『已批准』,并告诉人为什么。
+    load = _account_load()   # 按**账号 record_id** 计额度(record_id 才是真身份;查名字要全表拉账号表)
     out: list[dict] = []
     for r in approved:
         f = r["fields"]
@@ -64,18 +70,46 @@ def review_approved(brand: str = "巧荷", write: bool = False) -> list[dict]:
         sources = [m["source"] for m in mats]
         ai_req = guard.ai_declaration_required(sources)
         declared = bool(f.get(NF.AI_DECLARED))
+        acc_ids = bitable.link_record_ids(f.get(NF.ACCOUNT))
+        used = max((load.get(a, 0) for a in acc_ids), default=0)
         entry = {"note_id": r["record_id"], "title": bitable.text(f.get(NF.TITLE)),
+                 "account_ids": acc_ids,       # 显示名由调用方(publish_ready/卡片)按需还原,这里不查表
                  "ai_required": ai_req, "declared": declared, "advanced": False, "materials": mats}
         try:
+            # 三道门,顺序是"先看能不能发,再看该不该发":
+            guard.assert_has_material(len(mats), bitable.text(f.get(NF.TITLE)))  # 零素材=物理发不了
             guard.assert_ai_declared(f, ai_required=ai_req)   # 实拍免勾 / 含AI未勾→抛
+            guard.assert_publish_quota(used)                  # 控量红线:该号今日额度已满→不推进
             entry["verdict"] = "可发·无需AI声明(全实拍)" if not ai_req else "可发·已勾AI声明"
             if write:
                 feishu_io.update_record(NF.TABLE, r["record_id"], {NF.STATUS: NS.TO_PUBLISH})
                 entry["advanced"] = True
-        except guard.GuardError:
-            entry["verdict"] = "⚠️需先勾AI声明(含AI合成素材)"
+                for a in acc_ids:
+                    load[a] = load.get(a, 0) + 1              # 本轮刚占的额度也算上(别一次批爆)
+        except guard.GuardError as e:
+            entry["verdict"] = f"⚠️{e}"                       # AI声明未勾 / 控量已满——都说清是哪道门
         out.append(entry)
     return out
+
+
+def _account_load() -> dict[str, int]:
+    """每个账号(**按 record_id**)当前已占的今日额度 = 今日已发 + 已在『待发布』排队(都占额度,防超发)。
+
+    按 record_id 不按名字:record_id 是 link 字段里现成的真身份,**查名字得全表拉账号表**(规模基准:
+    review_approved 必须零全表扫)。名字只是给人看的,由调用方按需还原。
+    冷热分离:只拉今日已发(服务端日期窗)+ 待发布(在途,小),绝不整拉笔记表。"""
+    from datetime import date
+    day0 = str(bitable.day_start_ms(date.today()))
+    load: dict[str, int] = {}
+    rows = feishu_io.search_records(NF.TABLE, [
+        {"field_name": NF.STATUS, "operator": "is", "value": [NS.PUBLISHED]},
+        {"field_name": NF.PUBLISHED_AT, "operator": "isGreater", "value": ["ExactDate", day0]}],
+        conjunction="and")
+    rows += feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.TO_PUBLISH])
+    for r in rows:
+        for a in bitable.link_record_ids(r["fields"].get(NF.ACCOUNT)):
+            load[a] = load.get(a, 0) + 1
+    return load
 
 
 # ── 聊天/卡片交互的『动作函数』(ADR-0005):按钮点一下的、聊天填字的,都收口到这里 ──

@@ -46,6 +46,17 @@ def assert_ai_declared(fields: dict, *, ai_required: bool = True) -> None:
         raise GuardError(f"AI声明门:「{fields.get(NF.CODE, '?')}」含 AI 合成素材但未勾 AI声明,拒绝进入待发布")
 
 
+def assert_has_material(material_count: int, code: str = "?") -> None:
+    """**零素材门**:一张图/视频都没挂的稿,**物理上发不出去**(小红书图文/视频都必须有媒体)。
+
+    2026-07-14 走运营流程发现:『待发布』队列里 **5 条稿全是零素材**——运营打开卡片准备发,
+    点进 base 一张图都没有,今天一条都发不了。根因是进入『待发布』的路径上**根本没有素材检查**:
+    发不出去的稿被放进了待发区,让运营到最后一步才发现。
+    拦在门外,而不是放进去再让人扑空。"""
+    if material_count <= 0:
+        raise GuardError(f"零素材门:「{code}」一张图/视频都没挂,小红书发不出去——先去 base 关联素材")
+
+
 def assert_publish_quota(published_today_for_account: int) -> None:
     """单号每日发布上限(平台风控红线)。推进器只在组装发布包时预检。"""
     if published_today_for_account >= config.PER_ACCOUNT_DAILY_PUBLISH:
