@@ -52,8 +52,9 @@ BLOCK="$MARK_BEGIN
 PATH=$CRON_PATH
 # 每日 08:00 轻调度器派活(#8):每号每模式落一条『待出文案』待人/系统出稿,已在途去重。绝不自动发布、绝不代勾AI声明。
 0 8 * * * cd $ROOT && $PY -m scripts.daily_dispatch --write >> logs/cron.log 2>&1
-# 每日 07:30 网盘投递箱自动打标入库(人往 /巧荷素材/待入库 丢素材 → 自动拉+转码/抽帧+claude看图打标+register,永久分享链接+系统编码)。省钱批量、去重不重标、绝不自动发布。
-30 7 * * * cd $ROOT && $PY -m scripts.tag_materials --from-netpan /巧荷素材/待入库 --write >> logs/cron.log 2>&1
+# 网盘投递箱自动打标入库(人往 /巧荷素材/待入库 丢素材 → 自动拉+转码/抽帧+claude看图打标+register,永久分享链接+系统编码)。
+# ⚠️ 默认关闭(本机不挂):上线服务器时,取消下一行注释即启用(每日 07:30)。省钱批量、去重不重标、绝不自动发布。
+#30 7 * * * cd $ROOT && $PY -m scripts.tag_materials --from-netpan /巧荷素材/待入库 --write >> logs/cron.log 2>&1
 # 每周一08:30 真跑综合验收(反'设计到位真跑没到位':verify_usable 逐条过全流程全模式全红线,非0退出=未完全可用记日志)
 30 8 * * 1 cd $ROOT && $PY scripts/verify_usable.py --alert >> logs/verify.log 2>&1
 # 每日 23:30 备份运营库(误删可恢复;数据安全底线)
