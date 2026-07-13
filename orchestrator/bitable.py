@@ -180,6 +180,11 @@ def text(v) -> str:
     return str(v or "")
 
 
+def day_start_ms(d) -> int:
+    """某日 0 点的毫秒时间戳(飞书日期窗服务端过滤 value=['ExactDate', str(ms)] 用;冷热分离查询共用)。"""
+    return int(datetime(d.year, d.month, d.day).timestamp() * 1000)
+
+
 def parse_ts(v) -> datetime | None:
     """日期字段 → datetime。容错 int(毫秒)/数字串/list[dict]/dict(lookup·公式形态)。"""
     if isinstance(v, list):

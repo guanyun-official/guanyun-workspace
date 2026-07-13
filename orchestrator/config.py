@@ -11,6 +11,18 @@ WORKSPACE = Path(__file__).resolve().parents[1]
 PROD_BASE = "N9IVbi6pTatJG5sqyTTcc0vSn4g"
 TEST_BASE = "ZhzJbfkOsafwevsWkW8cfoILnfb"
 
+# 多品牌接口留出(目前仅巧荷):brand → 各环境 Base token 注册表。
+# 短期决策"一品牌一 Base 一进程"(进程起时 LARK_APP_TOKEN 选 Base、--brand 选 brands/<brand>/ 数据),
+# 故此处只需登记合法 Base,供 guard.assert_base_allowed 的白名单;**加第 2 品牌 = 加一行**(建好其 Base 后填 token)。
+BRAND_BASES: dict[str, dict[str, str]] = {
+    "巧荷": {"prod": PROD_BASE, "test": TEST_BASE},
+}
+
+
+def known_bases(env: str) -> set[str]:
+    """某环境(test/prod)所有已登记品牌的 Base token 集合(guard 白名单据此;多品牌唯一扩展点)。"""
+    return {b[env] for b in BRAND_BASES.values() if b.get(env)}
+
 
 def _load_env() -> None:
     p = WORKSPACE / ".env"
@@ -32,6 +44,7 @@ ENV_NAME = "test" if BASE_TOKEN == TEST_BASE else ("prod" if BASE_TOKEN == PROD_
 
 # 阈值(可 env 覆盖)
 PER_ACCOUNT_DAILY_PUBLISH = int(os.environ.get("GY_ACCOUNT_DAILY_PUB", "3"))  # 单号每日发布上限(红线)
+COLLECT_REFRESH_DAYS = int(os.environ.get("GY_COLLECT_REFRESH_DAYS", "30"))  # 回流刷新窗:超此天数的已回流帖热度已定,不再重刷(冷热分离,防累积态全拉)
 REVIEW_OVERDUE_HOURS = int(os.environ.get("GY_REVIEW_OVERDUE_H", "24"))     # 待审超时催审
 METRICS_CLOSE_DAYS = int(os.environ.get("GY_METRICS_CLOSE_DAYS", "7"))      # 已发 N 天后回流收口
 BUDGET_MONTHLY_CNY = float(os.environ.get("GY_BUDGET_MONTHLY_CNY", "300"))  # 月度 LLM 成本告警阈值

@@ -18,15 +18,14 @@ class GuardError(RuntimeError):
 
 
 def assert_base_allowed(base_token: str, test_mode: bool) -> None:
-    """TEST_MODE 下只许写测试 Base;写生产必须显式 TEST_MODE=0 且 token 等于已知生产。"""
+    """TEST_MODE 下只许写**已登记品牌的测试 Base**;写生产必须显式 TEST_MODE=0 且 token 属已登记生产 Base。
+    白名单走 config.known_bases(多品牌注册表):目前仅巧荷,加品牌=注册表加一行即自动放行其 Base(接口已留)。"""
     if not base_token:
         raise GuardError("Base 守卫:LARK_APP_TOKEN 为空")
-    if test_mode:
-        if base_token != config.TEST_BASE:
-            raise GuardError(f"Base 守卫:TEST_MODE=1 只允许写测试 Base,当前 {base_token[:8]}…被拒")
-        return
-    if base_token != config.PROD_BASE:
-        raise GuardError(f"Base 守卫:TEST_MODE=0 仅允许已知生产 Base,当前 {base_token[:8]}…被拒")
+    env = "test" if test_mode else "prod"
+    if base_token not in config.known_bases(env):
+        raise GuardError(f"Base 守卫:TEST_MODE={'1' if test_mode else '0'} 只允许已登记品牌的{env} Base,"
+                         f"当前 {base_token[:8]}…被拒(加品牌请在 config.BRAND_BASES 登记)")
 
 
 def ai_declaration_required(material_sources) -> bool:

@@ -62,6 +62,27 @@ class TestTodayPanel(unittest.TestCase):
         self.assertIn("控量预警", card)                 # 逼近号在卡片标红
         self.assertIn("ootd号", card)
 
+    def test_hot_cold_split_date_window_and_isempty(self):
+        # 冷热分离:今日已发(日期窗)计控量、老发被排除、已发缺链接进待回填(不整拉累积已发)
+        from datetime import date
+        today0 = cockpit._day_start_ms(date.today())
+        notes = [
+            {"record_id": "p1", "fields": {NF.STATUS: NS.PUBLISHED, NF.TITLE: "今发有链接", NF.ACCOUNT: "ootd号",
+                                           NF.PUBLISH_LINK: {"link": "https://x", "text": "x"},
+                                           NF.PUBLISHED_AT: today0 + 3_600_000}},        # 今日→计控量
+            {"record_id": "p2", "fields": {NF.STATUS: NS.PUBLISHED, NF.TITLE: "30天前老发", NF.ACCOUNT: "ootd号",
+                                           NF.PUBLISH_LINK: {"link": "https://y", "text": "y"},
+                                           NF.PUBLISHED_AT: today0 - 30 * 86_400_000}},   # 老→日期窗排除
+            {"record_id": "p3", "fields": {NF.STATUS: NS.PUBLISHED, NF.TITLE: "已发缺链接",
+                                           NF.ACCOUNT: "图文号1"}},                        # 缺链接→待回填
+            {"record_id": "t1", "fields": {NF.STATUS: NS.TO_PUBLISH, NF.TITLE: "待发", NF.ACCOUNT: "ootd号"}},
+        ]
+        p = self._run(notes, [])
+        q = {x["account"]: x["今日"] for x in p["控量"]}
+        self.assertEqual(q["ootd号"], 2)                            # 今日已发1 + 待发布1(老发被排除)
+        self.assertEqual([n["title"] for n in p["待回填链接"]], ["已发缺链接"])   # 仅缺链接的
+        self.assertEqual([n["title"] for n in p["待发"]], ["待发"])
+
     def test_surfaces_ai_declaration_needed(self):
         # M3:含AI合成素材的待审稿 surface『需AI声明』(人审前就看到⚠️;仍人自己勾)
         notes = [

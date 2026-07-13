@@ -13,6 +13,9 @@ from datetime import date, timedelta
 from . import bitable, config, feishu_io, guard, publish, shotlist
 from .bitable import NoteFields as NF, NoteStatus as NS
 
+
+_day_start_ms = bitable.day_start_ms   # 冷热分离日期窗共用(bitable 收窄 seam;测试仍可用 cockpit._day_start_ms)
+
 # 排期视图里算「待发流程中」的状态(未发未归档;想法/待拍属前置,已发/回流/暂缓已出流程)
 _SCHED_ACTIVE = frozenset({NS.NEED_COPY, NS.DRAFT_PENDING, NS.APPROVED, NS.TO_PUBLISH})
 
@@ -26,19 +29,29 @@ def _note_link(record_id: str) -> str:
 
 
 def today_panel(brand: str = "巧荷") -> dict:
-    """今日面板:一次读全笔记表+素材,分出 待审/待发/待回填链接/要补拍。纯读。
-    每条笔记带 base 深链(飞书里一点直达该行操作)——面向『聊天优先、引导到 base』。"""
-    # 状态∈{草稿待发,待发布,已发} 服务端过滤(规模M2,不全拉笔记表);再只取这些笔记引用的素材(规模M4,不全拉素材表)
-    notes = feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.DRAFT_PENDING, NS.TO_PUBLISH, NS.PUBLISHED])
-    linked = [rid for r in notes
+    """今日面板:分出 待审/待发/待回填链接/控量/要补拍。纯读。每条笔记带 base 深链(引导到 base 操作)。
+    **冷热分离(规模M4)**:已发是累积态,绝不整表拉——
+    - 热(在途,本就小):草稿待发+待发布 走 search_in;
+    - 待回填链接:状态=已发 AND 发布链接 isEmpty(服务端复合过滤,实测真跑);
+    - 今日已发(控量额度):状态=已发 AND 实际发布日≥今天0点(服务端日期窗)。
+    万级已发时只拉命中的少数行,不再随历史线性膨胀。"""
+    day0 = str(_day_start_ms(date.today()))
+    _pub = {"field_name": NF.STATUS, "operator": "is", "value": [NS.PUBLISHED]}
+    active = feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.DRAFT_PENDING, NS.TO_PUBLISH])   # 在途,小
+    need_link_notes = feishu_io.search_records(NF.TABLE, [                                  # 已发缺链接(待回填)
+        _pub, {"field_name": NF.PUBLISH_LINK, "operator": "isEmpty", "value": []}], conjunction="and")
+    pub_today = feishu_io.search_records(NF.TABLE, [                                        # 今日已发(控量额度)
+        _pub, {"field_name": NF.PUBLISHED_AT, "operator": "isGreater", "value": ["ExactDate", day0]}],
+        conjunction="and")
+    # 素材只取 在途+待回填 引用的(今日已发只计数,不需素材细节)
+    linked = [rid for r in (active + need_link_notes)
               for rid in bitable.link_record_ids(r["fields"].get(NF.LINKED_MATERIALS))]
     idx = publish._material_index(linked)
     pend_review: list[dict] = []
     to_publish: list[dict] = []
     need_link: list[dict] = []
     load: dict[str, int] = {}   # 控量(红线):每号今日 待发布+今日已发 计数,逼近单号日上限就标红
-    today = date.today()
-    for r in notes:
+    for r in active:
         f = r["fields"]
         st = bitable.text(f.get(NF.STATUS)).strip()
         title = bitable.text(f.get(NF.TITLE))
@@ -57,12 +70,13 @@ def today_panel(brand: str = "巧荷") -> dict:
                                "需AI声明": ai_req,
                                "materials": [{"code": m["code"], "link": m["取用链接"]} for m in mats]})
             load[acc] = load.get(acc, 0) + 1              # 待发布=今日额度占用
-        elif st == NS.PUBLISHED:
-            pub = bitable.parse_ts(f.get(NF.PUBLISHED_AT))
-            if pub and pub.date() == today:
-                load[acc] = load.get(acc, 0) + 1          # 今日已发=额度占用
-            if not bitable.text(f.get(NF.PUBLISH_LINK)).strip():
-                need_link.append({"title": title, "account": acc, "mode": mode, "open": link})
+    for r in need_link_notes:
+        f = r["fields"]
+        need_link.append({"title": bitable.text(f.get(NF.TITLE)), "account": bitable.text(f.get(NF.ACCOUNT)),
+                          "mode": bitable.text(f.get(NF.CONTENT_TYPE)), "open": _note_link(r["record_id"])})
+    for r in pub_today:
+        load[bitable.text(r["fields"].get(NF.ACCOUNT))] = \
+            load.get(bitable.text(r["fields"].get(NF.ACCOUNT)), 0) + 1   # 今日已发=额度占用
     cap = config.PER_ACCOUNT_DAILY_PUBLISH
     quota = [{"account": a, "今日": n, "上限": cap, "逼近": n >= cap}
              for a, n in sorted(load.items()) if n]

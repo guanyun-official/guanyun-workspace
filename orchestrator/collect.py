@@ -9,6 +9,8 @@
 """
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 from . import bitable, config, feishu_io, guard, metrics
 from .bitable import NoteFields as NF, NoteStatus as NS
 
@@ -21,14 +23,20 @@ def _link(v) -> str:
     return bitable.text(v).strip()
 
 
-def harvestable_notes() -> list[dict]:
-    """可回流的 note:状态=已发(首采)或 已回流(每周刷新热度),且有发布链接。"""
-    out = []
-    # 状态∈{已发,已回流} 服务端过滤(规模M2,不全拉笔记表);search 已保证状态,只余按发布链接筛
-    for r in feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.PUBLISHED, NS.LOOPED_BACK]):
-        if _link(r["fields"].get(NF.PUBLISH_LINK)):
-            out.append(r)
-    return out
+def harvestable_notes(refresh_days: int | None = None) -> list[dict]:
+    """可回流的 note:状态=已发(首采)或 已回流(刷新热度),且有发布链接。
+    **冷热分离(规模M4)**:已回流是累积态(每帖终身停这),无限重刷=硬墙。分两路:
+    - 首采:状态=已发——采到即转已回流,是过渡态、本身只一个采集周期的量,全取(无日期条件,不漏新帖);
+    - 刷新:状态=已回流 且 实际发布日≥近 refresh_days 天——老帖热度已定不再重刷(服务端日期窗,实测真跑)。
+    老已回流帖(超窗/无发布日)自然沉降出热集,不再随历史线性膨胀。"""
+    refresh_days = config.COLLECT_REFRESH_DAYS if refresh_days is None else refresh_days
+    since = str(bitable.day_start_ms(date.today() - timedelta(days=refresh_days)))
+    fresh = feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.PUBLISHED])            # 首采:过渡态,小
+    refresh = feishu_io.search_records(NF.TABLE, [                              # 刷新:仅近窗已回流
+        {"field_name": NF.STATUS, "operator": "is", "value": [NS.LOOPED_BACK]},
+        {"field_name": NF.PUBLISHED_AT, "operator": "isGreater", "value": ["ExactDate", since]}],
+        conjunction="and")
+    return [r for r in fresh + refresh if _link(r["fields"].get(NF.PUBLISH_LINK))]
 
 
 def published_notes() -> list[dict]:
