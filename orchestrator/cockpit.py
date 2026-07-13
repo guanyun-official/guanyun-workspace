@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from . import bitable, config, feishu_io, guard, publish, shotlist
+from . import bitable, config, feishu_io, guard, netpan, publish, shotlist
 from .bitable import NoteFields as NF, NoteStatus as NS
 from .bitable import AccountFields as AF, AutoSched, ContentTypeFields as CTF
 
@@ -194,14 +194,21 @@ def today_card(brand: str = "巧荷", panel: dict | None = None) -> dict:
         el.append({"tag": "div", "text": {"tag": "lark_md",
                    "content": f"**🚦 控量预警**（红线：单号日发 ≤ {config.PER_ACCOUNT_DAILY_PUBLISH}）\n" + "\n".join(lines)}})
 
-    # 补拍:按账号归拢一行(拍完丢投递箱,细节 base 看)
-    shoot: dict[str, list[str]] = {}
-    for s in p["要补拍"]:
-        shoot.setdefault(s["account"], []).append(f"{s['类型']}×{s['缺']}")
-    if shoot:
+    # 补拍:**带上"怎么拍"和"照着什么拍"**(2026-07-14 运营视角实测)——原来卡片上只有干巴巴一行
+    # 「ootd号:上身视频×3」,而调性和参考画面只存在于 shot_list 这个 CLI 里。**运营不敲终端**,
+    # 他手机上收到卡片,只知道"要拍3条",不知道怎么拍、照着什么拍 → 补拍单的人面是断的。
+    if p["要补拍"]:
         el.append({"tag": "hr"})
-        lines = [f"· {acc}：{'、'.join(items)}" for acc, items in sorted(shoot.items())]
-        el.append({"tag": "div", "text": {"tag": "lark_md", "content": "**📷 待补拍**（拍完丢网盘待入库箱）\n" + "\n".join(lines)}})
+        lines = []
+        for s in p["要补拍"]:
+            lines.append(f"· **{s['account']}**：{s['类型']} × {s['缺']} 条")
+            if s.get("拍摄要求"):
+                lines.append(f"   {s['拍摄要求']}")
+            if s.get("参考"):
+                lines.append(f"   {s['参考']}")
+        lines.append(f"\n拍完丢网盘：`{netpan.INBOX}`（文件名带账号·类型更好认；不带也行，系统会看图自动归类）")
+        el.append({"tag": "div", "text": {"tag": "lark_md",
+                   "content": "**📷 待补拍**\n" + "\n".join(lines)}})
 
     # 暂停号:它的稿不进待办(运营已经把号关了),但也别偷偷藏起来——底部提一句,想看点 base
     if p.get("已暂停"):

@@ -335,7 +335,38 @@ def _material_hits(records: list[dict], material_needs: list[str], account_rec_i
     # #36 少用优先:按被引用次数升序(stable,同分保持原序)→ 素材天然分散,减少跨号/跨条撞图
     # 整条 fields 传进去:真被引用次数要**数反向链接**,formula『被引用次数』在活库里是空公式恒为 0。
     cands.sort(key=lambda m: _cited_count(m["fields"]))
-    return [m["record_id"] for m in cands[:limit]]
+    return [m["record_id"] for m in _spread_by_scene(cands, limit)]
+
+
+def _scene_key(fields: dict) -> str:
+    """画面指纹:豆包 vision 标(『备注』)的前 24 字。同一组连拍的备注几乎逐字相同,指纹就撞上。"""
+    from . import bitable
+    from .bitable import MaterialFields as MF
+    return bitable.text(fields.get(MF.NOTE)).strip()[:24]
+
+
+def _spread_by_scene(cands: list[dict], limit: int) -> list[dict]:
+    """**一条笔记里的几张图,画面别重样**(2026-07-14 运营视角实测)。
+
+    真跑出的一条图文稿挂了 3 张图,vision 标是:
+      「粉色上衣、白色纱裙、坐大理石楼梯旁、暖光、手触脸颊」
+      「粉色上衣、白色纱裙、坐大理石楼梯旁、暖光、手触脸颊」  ← 逐字一样
+      「粉色上衣、白色纱裙、坐大理石楼梯旁、暖光、手比V」     ← 还是一样
+    ——同一组连拍被整组选中。运营一眼看出来:"3 张图长得一样,发出去像凑数。"
+    选材原来只看『类型 + 少用优先』,**完全不看画面是不是重样**。
+
+    做法:先每个画面指纹各取一张(优先铺开场景),不够 limit 再回头补同指纹的
+    (库存不足时宁可重样也别少给图——少给图就发不出去,那是更硬的伤)。
+    """
+    first, rest, seen = [], [], set()
+    for m in cands:
+        k = _scene_key(m["fields"])
+        if k and k in seen:
+            rest.append(m)                # 同一组连拍,先放一边
+        else:
+            seen.add(k)
+            first.append(m)
+    return (first + rest)[:limit]         # 画面各异的优先;不够再用同场景的补齐
 
 
 def select_material_rows(material_needs: list[str], account_rec_id: str = "", limit: int = 3,

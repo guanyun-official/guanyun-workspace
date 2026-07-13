@@ -293,7 +293,7 @@ def L0_L9_cockpit():
 def L10_L11_shot_cost():
     from orchestrator import config, cost, shotlist
     section("L10/L11", "拍摄需求单 + 成本预算(真库)")
-    gaps = shotlist.shot_list("巧荷")
+    gaps = shotlist.shot_needs("巧荷")
     ck("L10", f"补拍单出得来({len(gaps)} 项缺口)", True)
     for g in gaps:
         ck("L10", f"缺口有账号+类型+投递去向(人照着就能去拍)「{g['account']}/{g['类型']}」",

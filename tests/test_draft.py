@@ -604,6 +604,31 @@ class TestZeroMaterialAndSpread(unittest.TestCase):
         self.assertEqual(got, ["recCold"], "被引用 4 次的还排在没用过的前面 → 撞图会复发")
 
 
+class TestSceneSpread(unittest.TestCase):
+    """一条稿里的几张图,画面别重样(2026-07-14 运营视角实测:真跑出的图文稿挂了 3 张同组连拍,
+    vision 标逐字雷同——运营一眼看出"3 张图长得一样,发出去像凑数")。"""
+
+    def test_same_scene_burst_is_spread_out(self):
+        from orchestrator import draft
+        burst = "真人穿着粉色新中式上衣、白色纱裙，坐在酒店黑色大理石楼梯旁地面，室内暖光"
+        other = "真人穿着浅蓝色带刺绣的新中式上衣、白色阔腿裤，站在铺有花纹地毯的弧形楼梯上"
+        mats = [   # 表序上连拍在前,应该被打散:先给不同场景的
+            {"record_id": "b1", "fields": {"类型": "上身图", "拍摄状态": "已拍", "备注": burst}},
+            {"record_id": "b2", "fields": {"类型": "上身图", "拍摄状态": "已拍", "备注": burst}},
+            {"record_id": "o1", "fields": {"类型": "上身图", "拍摄状态": "已拍", "备注": other}},
+        ]
+        got = draft._material_hits(mats, ["上身图"], limit=2)
+        self.assertEqual(got, ["b1", "o1"], "同组连拍应打散,先铺开不同场景")
+
+    def test_falls_back_to_same_scene_when_stock_thin(self):
+        """库存不够时宁可重样也别少给图——少给图 = 零素材 = 根本发不出去,那是更硬的伤。"""
+        from orchestrator import draft
+        burst = "同一组连拍的画面描述"
+        mats = [{"record_id": f"b{i}", "fields": {"类型": "上身图", "拍摄状态": "已拍", "备注": burst}}
+                for i in range(3)]
+        self.assertEqual(len(draft._material_hits(mats, ["上身图"], limit=3)), 3)
+
+
 class TestMaterialFacts(unittest.TestCase):
     """出稿的**事实底座**:选中素材的 vision 标(『备注』)进 prompt,文案才是『配』画面写的不是编的。"""
 
