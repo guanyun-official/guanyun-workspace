@@ -22,17 +22,21 @@ def is_local_source(s: dict) -> bool:
 
 
 def shadowed_skills(local_names, installed_resolve) -> list[str]:
-    """**静默遮蔽探针**(dogfood 2026-07-14 用户戳出的"唯一真源"缺口)。
+    """**双源遮蔽哨兵**(dogfood 2026-07-14 用户戳出"技能到底在哪?不是要唯一真源吗"后加的)。
 
-    `draft.load_gen_skill` 的查找顺序是 `local-skills/<name>` → `skills/<name>`——**local 优先**。
-    今天没事:`skills/writing-ootd-caption` 的 symlink 就指回 `local-skills/` 自己(同一份文件,单源)。
-    陷阱在将来:**哪天 qiaohe-skill 仓里加了同名技能**,lock 把它装进 `skills/<name>`(指向技能仓),
-    可 `load_gen_skill` 仍然优先读 workspace 的 `local-skills/<name>` → **跑的技能 ≠ 锁记录/装进来的那份**,
-    而 `installed_drift` 只比"远程仓 HEAD vs lock sha",**这种同名遮蔽它一个字都不报**。双源漂移就从这进来。
+    归一前:巧荷特化技能一半住 workspace 的 `local-skills/`(writing-* / tagging-material),
+    一半住技能仓(qiaohe-amateur-miner / qiaohe-video-script / video-editing…)——同类资产两个家。
+    而 `load_gen_skill` 查找顺序是 `local-skills/` → `skills/`(**local 优先**):技能仓一旦出现同名技能,
+    workspace 那份会**静默盖住**它(跑的技能 ≠ 锁记录/装进来的那份),而 `installed_drift` 只比
+    "远程仓 HEAD vs lock sha",这种同名遮蔽一个字都不报。双源漂移的入口就在这。
 
-    判据:某技能同时存在于 local-skills/,且 `skills/<name>` 解析到的真身**不在 local-skills 底下**
-    → 两份不同的真身抢同一个名字,load_gen_skill 静默选了 local 那份 → 报冲突,别让它悄悄发生。
+    **已根治**(2026-07-14):4 个技能收编进 qiaohe-skill,`local-skills/` 整个删除,
+    `load_gen_skill` 只查 `skills/` 一个路径 → 遮蔽从物理上不可能发生。
+    本函数留作**回归哨兵**:谁要是把 `local-skills/` 加回来、又和 skills/ 里的同名技能是两份真身,当场报。
+    正常态下 local_names 为空([]),返回 []。
 
+    判据:某名字同时在 local-skills/ 有目录,且 `skills/<name>` 解析到的真身**不在 local-skills 底下**
+    → 两份不同真身抢一个名字 → 报。
     installed_resolve(name) -> 真身绝对路径(str)或 None(没装)。纯逻辑,文件系统 IO 由调用方注入(可零环境单测)。
     """
     errs: list[str] = []
@@ -43,7 +47,8 @@ def shadowed_skills(local_names, installed_resolve) -> list[str]:
         if "/local-skills/" in str(target).replace("\\", "/"):
             continue                                   # symlink 指回 local-skills 自己 → 同一份文件,单源
         errs.append(f"技能「{name}」双源遮蔽:local-skills/ 和 skills/(→{target})是两份不同真身,"
-                    "load_gen_skill 优先读 local-skills 那份 → 跑的技能≠装的技能。定一个真源,删另一个。")
+                    "load_gen_skill 只查 skills/,local-skills 那份是死的却在误导人。"
+                    "技能唯一真源=qiaohe-skill 仓,删掉 local-skills/。")
     return errs
 
 

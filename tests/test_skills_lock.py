@@ -134,8 +134,20 @@ class TestShadowedSkills(unittest.TestCase):
         from orchestrator.skills_lock import shadowed_skills
         self.assertEqual(shadowed_skills(["tagging-material"], lambda n: None), [])
 
+    def test_workspace_hides_no_skills(self):
+        """**唯一真源哨兵**(真文件系统,不是靠我说):workspace 不许再藏技能。
+
+        2026-07-14 归一:4 个巧荷写作/打标技能收编进 qiaohe-skill,local-skills/ 整个删除,
+        load_gen_skill 只查 skills/。谁把 local-skills/ 加回来,这条当场红——遮蔽的入口就是从那开。
+        """
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[1]
+        self.assertFalse((root / "local-skills").exists(),
+                         "workspace 又藏技能了(local-skills/)。技能唯一真源=qiaohe-skill 仓,"
+                         "别开第二个家——load_gen_skill 只查 skills/,local 那份是死的却会误导人。")
+
     def test_real_workspace_has_no_shadowing_now(self):
-        """真文件系统跑一遍:当前 workspace **实际上**没有双源遮蔽(不是靠我说,是真查)。"""
+        """真文件系统跑一遍哨兵:当前 workspace 无双源遮蔽(local-skills 已不存在 → names 空 → 无冲突)。"""
         from pathlib import Path
         from orchestrator.skills_lock import shadowed_skills
         root = Path(__file__).resolve().parents[1]
@@ -147,6 +159,15 @@ class TestShadowedSkills(unittest.TestCase):
             return str(p.resolve()) if p.exists() else None
 
         self.assertEqual(shadowed_skills(names, resolve), [])
+
+    def test_every_gen_skill_resolves_from_single_source(self):
+        """全号×全模式的 gen_skill 都必须能从 **skills/(唯一真源)** 载到——归一别把技能弄丢了。"""
+        from orchestrator import accounts, draft
+        for name, acc in sorted(accounts.load_all("巧荷").items()):
+            for pb in acc.playbooks():
+                gs = accounts.gen_skill_of(pb)
+                self.assertTrue(draft.load_gen_skill(gs),
+                                f"{name}/{pb.get('content_type')} 的 gen_skill「{gs}」在 skills/ 里载不到")
 
 
 if __name__ == "__main__":

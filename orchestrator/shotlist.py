@@ -51,5 +51,5 @@ def shot_needs(brand: str = "巧荷") -> list[dict]:
             out.append({"account": name, "类型": mtype, "缺": target - avail, "已有": avail,
                         "目标": target, "拍摄要求": _brief(name, acc, mtype, gen_skill),
                         "投递去向": _deliver_to(name, mtype),
-                        "参考": f"local-skills/{gen_skill}/SKILL.md 真实帖 + brands/{brand}/accounts/{name}.md 画像"})
+                        "参考": f"skills/{gen_skill}/SKILL.md 真实帖 + brands/{brand}/accounts/{name}.md 画像"})
     return out

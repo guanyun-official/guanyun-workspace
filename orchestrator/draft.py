@@ -19,14 +19,17 @@ from .bitable import AccountFields as AF, NoteFields as NF, NoteStatus as NS
 
 def load_gen_skill(name: str) -> str:
     """加载 gen_skill 的 SKILL.md 正文(含该号真实帖 few-shot)。
-    先 local-skills/<name>(号/模式特化),再 skills/<name>(装好的通用能力);都无则空串。"""
+
+    **只查 `skills/`(install_skills.sh 按 skills.lock.json 装出来的 symlink)——技能唯一真源 = qiaohe-skill 仓。**
+    原来是 `local-skills/` → `skills/` 两处查、local 优先(2026-07-14 归一前):巧荷特化技能一半住 workspace
+    的 local-skills、一半住技能仓,同类资产两个家;更坑的是**技能仓一旦出现同名技能就会被 local 静默盖住**
+    (跑的技能 ≠ 锁记录/装进来的那份),而 installed_drift 只比远程 HEAD,这种遮蔽一个字都不报。
+    归一后只有一个查找路径,遮蔽从根上不存在(skills_lock.shadowed_skills 留作回归哨兵,防有人再把它加回来)。
+    """
     if not name:
         return ""
-    for base in (config.WORKSPACE / "local-skills", config.WORKSPACE / "skills"):
-        p = base / name / "SKILL.md"
-        if p.exists():
-            return p.read_text(encoding="utf-8")
-    return ""
+    p = config.WORKSPACE / "skills" / name / "SKILL.md"
+    return p.read_text(encoding="utf-8") if p.exists() else ""
 
 
 def load_clothes(clothes_code: str, brand: str = "巧荷") -> str:

@@ -135,7 +135,7 @@ def main() -> int:
     for d in done:
         print(f"  · {d['素材编号']}（{d['形态']}）  {d['链接指针']}")
     if done:
-        print("\n下一步:agent 按 local-skills/tagging-material 看这些素材→打标→ingest.register 落素材表。")
+        print("\n下一步:agent 按 skills/tagging-material 看这些素材→打标→ingest.register 落素材表。")
     else:
         print("\n(无新素材;都入过库了)")
     return 0

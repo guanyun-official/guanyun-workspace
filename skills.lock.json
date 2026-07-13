@@ -1,12 +1,12 @@
 {
- "_note": "技能安装清单(docs/PLAN.md §P1 / 审查 C1)。scripts/install_skills.sh 按此把技能 symlink 进 skills/(不入库)。技能目录:qiaohe-skill 在仓库根,视频技能已收编进 qiaohe-skill 根。升级技能 = 源仓库拉新 → 更新 sha → 重跑 install。",
+ "_note": "技能安装清单(docs/PLAN.md §P1 / 审查 C1)。scripts/install_skills.sh 按此把技能 symlink 进 skills/(不入库)。**技能唯一真源 = qiaohe-skill 仓**(2026-07-14 归一:原 workspace/local-skills 的 4 个巧荷写作/打标技能已收编进技能仓,workspace 不再藏技能)。升级技能 = 源仓库拉新 → 更新 sha → 重跑 install。",
  "sources": [
   {
    "name": "qiaohe-skill",
    "repo": "https://github.com/guanyun-official/qiaohe-skill.git",
    "local": "~/Githubs/qiaohe-skill",
    "ref": "main",
-   "sha": "73e393e00ec1b8e0ed1030e7e7d32cffa1b23449",
+   "sha": "af6921f89c99c2020141036ac95a1eb653dee225",
    "skills": [
     "content-writing",
     "feishu-requirement-manager",
@@ -27,19 +27,10 @@
     "xhs-collector",
     "video-editing",
     "video-previz",
-    "video-storyboard"
-   ],
-   "install": "symlink"
-  },
-  {
-   "name": "local-skills",
-   "local": "/Users/bamboo/Githubs/guanyun-workspace/local-skills",
-   "ref": "workspace-native",
-   "sha": "local",
-   "skills": [
+    "video-storyboard",
+    "writing-ootd-caption",
     "writing-amateur-ootd",
     "writing-brand-newpiece",
-    "writing-ootd-caption",
     "tagging-material"
    ],
    "install": "symlink"
