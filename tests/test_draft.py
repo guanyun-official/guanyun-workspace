@@ -455,5 +455,20 @@ class FieldValueHelpers(unittest.TestCase):
         self.assertIn("主页链接", bitable.URL_FIELDS)      # 账号表.主页链接=URL(实测URLFieldConvFail)
 
 
+class TestQualityFlags(unittest.TestCase):
+    """#42 出稿即评轻量闸:客观质检标记(不阻塞,顶给人审)。"""
+    def test_flags_common_problems(self):
+        from orchestrator.draft import quality_flags
+        self.assertEqual(quality_flags(""), ["空稿"])
+        self.assertIn("无#标签", quality_flags("标题\n\n正文没标签"))
+        self.assertTrue(any("标题" in f for f in quality_flags("这标题非常非常非常非常非常非常长超过二十字了\n\n正文 #x")))
+        self.assertTrue(any("占位" in f for f in quality_flags("stub 占位草稿 #x")))
+
+    def test_clean_draft_no_flags(self):
+        from orchestrator.draft import quality_flags
+        good = "藕荷色对襟上衣\n\n今天穿这套去园林拍照超好看,面料是真丝提花...\n\n#新中式 #汉服 #ootd"
+        self.assertEqual(quality_flags(good), [])
+
+
 if __name__ == "__main__":
     unittest.main()

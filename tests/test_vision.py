@@ -63,6 +63,32 @@ class TestVision(unittest.TestCase):
             with self.assertRaises(vision.VisionError):
                 vision.see([], "x")
 
+    def test_post_retries_then_succeeds(self):
+        # #41 失败恢复:瞬时网络错(Broken pipe)退避重试,后续成功不抛
+        class FakeResp:
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def read(self): return b'{"ok": 1}'
+        calls = {"n": 0}
+
+        def flaky(req, timeout=120):
+            calls["n"] += 1
+            if calls["n"] < 2:
+                raise OSError("Broken pipe")
+            return FakeResp()
+        with mock.patch.object(vision.urllib.request, "urlopen", flaky), \
+                mock.patch.object(vision.time, "sleep", lambda s: None):
+            self.assertEqual(vision._post("https://x", {}, {"a": 1}), {"ok": 1})
+        self.assertEqual(calls["n"], 2)                     # 第1次失败→重试第2次成功
+
+    def test_post_raises_after_exhausting_retries(self):
+        def always_fail(req, timeout=120):
+            raise OSError("Connection reset by peer")
+        with mock.patch.object(vision.urllib.request, "urlopen", always_fail), \
+                mock.patch.object(vision.time, "sleep", lambda s: None):
+            with self.assertRaises(vision.VisionError):
+                vision._post("https://x", {}, {"a": 1}, retries=2)
+
     def test_data_uri_downscales_large_to_jpeg(self):
         # 大图→降采样到≤1536px再编码jpeg(防专业大图base64过大→ARK Broken pipe)
         import base64 as b64

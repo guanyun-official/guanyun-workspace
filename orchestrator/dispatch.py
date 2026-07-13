@@ -18,6 +18,7 @@ SOURCING_HINT = {
     "shoot_then_drip": "从已拍素材池挑素材直接出稿",
     "curated": "等新品/文物到位再策展出稿",
     "trend_imitate": "先跑爆款雷达(explosive-teardown / qiaohe-amateur-miner)找对标爆款→反推要拍什么→提醒拍→再出稿",
+    "trend_insert": "蹭热点插队:抓当天爆款→反推选题→急稿(注:插队优先级排序未实现,见 ADR-0008;当前与常规稿同池)",
 }
 
 
@@ -97,6 +98,8 @@ def run_day(brand: str = "巧荷", llm_mode: str = "stub", write: bool = False) 
                                      content_type=a["content_type"])
             rid = draft.create_draft_note(r)   # upsert 待出文案→草稿待发 + 挂货对板素材
             entry.update(note_id=rid, title=r["title"], status=NS.DRAFT_PENDING)
+            if r.get("quality_flags"):
+                entry["质检"] = r["quality_flags"]   # #42 出稿即评:问题顶给人重点看(不阻塞)
         except Exception as e:  # noqa: BLE001  单号失败不拖垮整天,记下继续
             entry.update(status="✗失败", error=str(e)[:120])
         out.append(entry)

@@ -11,6 +11,7 @@ import base64
 import json
 import os
 import subprocess
+import time
 import urllib.request
 from pathlib import Path
 
@@ -71,15 +72,22 @@ def _doubao(image_paths: list[str], prompt: str) -> str:
         raise VisionError(f"ARK 返回异常: {str(resp)[:200]}") from e
 
 
-def _post(url: str, headers: dict, body: dict) -> dict:
-    """HTTP POST 的**唯一真网络 seam**(tests mock 此函数)。urllib:key 留进程内不进 argv。"""
-    req = urllib.request.Request(url, data=json.dumps(body).encode("utf-8"),
-                                 headers=headers, method="POST")
-    try:
-        with urllib.request.urlopen(req, timeout=120) as r:   # noqa: S310 (固定 https 端点)
-            return json.loads(r.read().decode("utf-8"))
-    except Exception as e:  # noqa: BLE001  网络/解析异常统一成 VisionError(面向告警)
-        raise VisionError(f"ARK 请求失败: {str(e)[:200]}") from e
+def _post(url: str, headers: dict, body: dict, retries: int = 3) -> dict:
+    """HTTP POST 的**唯一真网络 seam**(tests mock 此函数)。urllib:key 留进程内不进 argv。
+    **重试退避**(#41 失败恢复):Broken pipe/Connection reset 等瞬时网络错重试 retries 次,退避 1.5s×次;
+    最终仍失败才抛 VisionError(_tag_one_batch 再把该批隔离跳过,不炸整个文件夹)。"""
+    payload = json.dumps(body).encode("utf-8")
+    last = None
+    for attempt in range(max(1, retries)):
+        try:
+            req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=120) as r:   # noqa: S310 (固定 https 端点)
+                return json.loads(r.read().decode("utf-8"))
+        except Exception as e:  # noqa: BLE001  瞬时网络错→退避重试;耗尽→VisionError
+            last = e
+            if attempt < retries - 1:
+                time.sleep(1.5 * (attempt + 1))
+    raise VisionError(f"ARK 请求失败(重试{retries}次): {str(last)[:200]}")
 
 
 def _claude(image_paths: list[str], prompt: str) -> str:

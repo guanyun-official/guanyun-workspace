@@ -115,6 +115,27 @@ def _stub_draft(acc, pb: dict, gen_skill: str, skill_loaded: bool, title_seed: s
             "——由 --llm real 生成正式稿(walking skeleton 结构验证用,不可发)。")
 
 
+def quality_flags(draft_text: str) -> list[str]:
+    """出稿即评轻量闸(#42 evaluator):对生成草稿做客观质检,返回问题标记(空列表=通过)。
+    **不阻塞**(仍进草稿待发人审),把问题顶给人重点看。纯函数直测——真正的把关在人审,这里只是"先替人扫一眼"。"""
+    flags: list[str] = []
+    t = (draft_text or "").strip()
+    if not t:
+        return ["空稿"]
+    lines = [ln.strip() for ln in t.splitlines() if ln.strip()]
+    if lines and len(lines[0]) > 20:
+        flags.append(f"标题{len(lines[0])}字>20(小红书上限)")
+    if len(t) > 1000:
+        flags.append(f"全文{len(t)}字>1000(小红书上限)")
+    if "stub" in t.lower() or "占位" in t:
+        flags.append("含占位/stub(疑似未真生成)")
+    if "#" not in t:
+        flags.append("无#标签")
+    if len(lines) > 3 and len(set(lines)) < len(lines) * 0.6:
+        flags.append("多行重复(疑似生成异常)")
+    return flags
+
+
 def _split_title(draft_text: str, fallback: str) -> str:
     """草稿首行非空即标题(real 模式 prompt 要求第一行是标题);全空则用 fallback。"""
     for line in draft_text.splitlines():
@@ -167,6 +188,7 @@ def generate_draft(account_name: str, brand: str = "巧荷", llm_mode: str = "st
         "draft_text": draft_text,
         "cost": cost,
         "prompt": prompt,
+        "quality_flags": quality_flags(draft_text),   # #42 出稿即评:问题标记顶给人审(空=通过)
         "note_fields": note_fields,
     }
 

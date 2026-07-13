@@ -43,5 +43,30 @@ class TestSimpleDecide(unittest.TestCase):
         self.assertFalse(compose.simple_decide(["a"], mode="搭配图")["加工"])   # <2 不拼
 
 
+class TestComposeProvenance(unittest.TestCase):
+    """#44:成片来源在 execute 里由 derive_source 端到端决定(合规红线锁,不靠钩子自觉)。"""
+    def _run(self, sources):
+        from unittest import mock
+        import scripts.ingest as ing
+        from orchestrator import netpan
+        cap = {}
+        with mock.patch.object(compose, "_resolve", lambda ids: (["/tmp/a.jpg", "/tmp/b.jpg"], sources)), \
+                mock.patch.object(compose, "grid_compose", lambda imgs, out, **k: out), \
+                mock.patch.object(ing, "store_produced",
+                                  lambda lp, mt, source="", note="", **k: cap.update(source=source) or ("recX", "ptr")), \
+                mock.patch.object(netpan, "clear_cache", lambda *a, **k: 0.0):
+            rid = compose.compose_execute({"kind": "拼图", "inputs": ["m1", "m2"]})
+        return rid, cap.get("source")
+
+    def test_any_ai_input_makes_composite_ai(self):
+        rid, source = self._run(["实拍", "AI生成"])
+        self.assertEqual(rid, "recX")
+        self.assertEqual(source, "AI生成")        # 任一输入AI→成片AI生成(须声明)
+
+    def test_all_real_makes_composite_real(self):
+        _, source = self._run(["实拍", "实拍"])
+        self.assertEqual(source, "实拍")          # 纯实拍拼→成片实拍(免声明)
+
+
 if __name__ == "__main__":
     unittest.main()

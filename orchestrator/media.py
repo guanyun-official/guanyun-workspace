@@ -64,18 +64,49 @@ def _duration(video: str) -> float:
         return 0.0
 
 
-def video_keyframe(video: str, out_dir: str | None = None, frac: float = 0.5) -> str:
-    """抽一帧代表帧给打标看:seek 到时长的 frac 处(默认中点,比固定1秒更能代表内容)。
-    拿不到时长→退化 1 秒处。返回 jpg 路径(抽不出→返回原视频路径,调用方自行兜底/跳过)。
-    注:视频下载是重活(ADR:baidu 无 range 只能下整包),本函数只管"已在本地的视频"抽帧。"""
+def _extract_frame(video: str, at: float, dst: Path) -> bool:
+    """ffmpeg 抽单帧到 dst,成功返 True。"""
+    subprocess.run(["ffmpeg", "-y", "-ss", str(max(0.0, at)), "-i", video, "-frames:v", "1", str(dst)],
+                   capture_output=True, text=True, timeout=120)
+    return dst.exists()
+
+
+def video_keyframe(video: str, out_dir: str | None = None, n: int = 3) -> str:
+    """抽 n 帧(均匀分布,默认首/中/尾)**横向拼成一张**给打标看——单帧可能抽到黑帧/特写不代表整片;
+    多帧拼一张=保持"1视图1标签"批模型不破,却让 Doubao 看到整片脉络。返回拼图 jpg 路径。
+    n≤1 或拿不到时长→退化单帧(中点/1秒处);全抽失败→返回原视频路径(调用方兜底/跳过)。
+    注:视频下载是重活(ADR-0007:baidu 无 range 只能下整包),本函数只管"已在本地的视频"抽帧。"""
     od = Path(out_dir) if out_dir else Path(video).parent
     od.mkdir(parents=True, exist_ok=True)
-    out = od / (Path(video).stem + "_frame.jpg")
+    stem = Path(video).stem
     dur = _duration(video)
-    at = max(0.0, dur * frac) if dur > 0 else 1.0
-    subprocess.run(["ffmpeg", "-y", "-ss", str(at), "-i", video, "-frames:v", "1", str(out)],
-                   capture_output=True, text=True, timeout=120)
-    return str(out) if out.exists() else video
+    if n <= 1 or dur <= 0:                                    # 退化单帧(中点,拿不到时长用1秒)
+        one = od / f"{stem}_frame.jpg"
+        return str(one) if _extract_frame(video, dur * 0.5 if dur > 0 else 1.0, one) else video
+    frames = []
+    for i in range(n):                                       # 均匀取 n 帧(避开首尾极端)
+        fp = od / f"{stem}_f{i}.jpg"
+        if _extract_frame(video, dur * (i + 1) / (n + 1), fp):
+            frames.append(fp)
+    if not frames:
+        return video
+    if len(frames) == 1:
+        return str(frames[0])
+    try:                                                    # 横向等高拼接成一张
+        from PIL import Image
+        imgs = [Image.open(str(f)).convert("RGB") for f in frames]
+        h = min(im.height for im in imgs)
+        imgs = [im.resize((max(1, int(im.width * h / im.height)), h)) for im in imgs]
+        strip = Image.new("RGB", (sum(im.width for im in imgs), h), (255, 255, 255))
+        x = 0
+        for im in imgs:
+            strip.paste(im, (x, 0))
+            x += im.width
+        out = od / f"{stem}_frames.jpg"
+        strip.save(str(out), "JPEG", quality=85)
+        return str(out)
+    except Exception:  # noqa: BLE001  拼接失败→退回第一帧(仍可打标)
+        return str(frames[0])
 
 
 def to_jpg(path: str, out_dir: str | None = None) -> str:
