@@ -32,6 +32,13 @@ def processing_enabled() -> bool:
     return config.PROCESSING_ENABLED
 
 
+def default_hooks():
+    """加工环开时的默认技能钩子:decide=保守规则、execute=拼图(compose,确定性可真跑)。
+    真需求可换更强钩子(剪辑→video-editing skill、AI生成→ARK image-gen)。懒导入 compose(默认关时不拉 PIL)。"""
+    from . import compose
+    return compose.simple_decide, compose.compose_execute
+
+
 def maybe_process(material_ids: list[str], *, account: str = "", mode: str = "", clothes: str = "",
                   decide: Callable | None = None, execute: Callable | None = None) -> list[str]:
     """gated 加工步(select_materials 之后、挂笔记之前)。**默认关或缺技能钩子 → 原样返回原始素材**(现状链)。
