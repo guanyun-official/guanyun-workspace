@@ -455,6 +455,42 @@ def audit_skill_shadowing() -> None:
         ok("技能唯一真源 = qiaohe-skill 仓(workspace 无 local-skills/,无遮蔽)")
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# ⑩ 幂等:所有"修复/同步"类写操作,跑两遍必须结果一样 —— 否则它不是修复,是破坏
+#
+#    2026-07-14 真跑 L14 抓到的:`restore()` **不幂等** —— 把备份里每条都无脑 create 一遍,
+#    完全不看库里有没有。关键词库 32 条 → 真删 1 条(31)→ 跑一次 restore → **38 条**
+#    (凭空多 7 条重复),而被误删的那条**始终没回来**。
+#    **在还有数据的表上跑一次,整张表就翻倍污染 —— 它不是"恢复",是"复制粘贴"。**
+#    而当时 test_restore.py 有 3 个测试、全绿 —— 它们**全在测最容易测的纯函数**(字段级 link 解析),
+#    **真正会毁数据的那个行为(会不会重复插)一个字没测**。
+#
+#    规矩:凡是会写库的"修复/同步"操作,**必须有幂等回归锁**(tests/test_idempotent.py)。
+# ══════════════════════════════════════════════════════════════════════════════
+REPAIR_OPS = {
+    "restore": "从备份恢复(只补缺的,不许重灌已有的)",
+    "stamp_published_at": "补『实际发布日』(已有日期的绝不能再动,否则 cron 每天刷成今天、历史全乱)",
+    "harvest_trends": "落灵感库(同一批热点投两遍,第二遍必须全被去重)",
+    "mark_idea_converted": "灵感转化回填(重复调用=覆盖同一个值,不产生新记录)",
+}
+
+
+def audit_idempotency() -> None:
+    print("\n── ⑩ 幂等(修复类写操作跑两遍必须一样,否则是破坏)" + "─" * 12)
+    lock = ROOT / "tests" / "test_idempotent.py"
+    if not lock.exists():
+        bad("幂等", "tests/test_idempotent.py 不存在",
+            "所有'修复/同步'类写操作必须有幂等回归锁 —— restore 不幂等曾把整张表翻倍污染")
+        return
+    src = lock.read_text(encoding="utf-8") + (ROOT / "tests" / "test_restore.py").read_text(encoding="utf-8")
+    for fn, why in REPAIR_OPS.items():
+        if fn not in src:
+            bad("幂等·无锁", f"{fn}() 是写库的修复操作,却**没有幂等回归锁**",
+                f"{why}。不幂等的'修复'= 破坏(restore 就跑一次翻倍污染过整张表)")
+        else:
+            ok(f"{fn}() 有幂等锁")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--offline", action="store_true", help="只查代码,不触真库")
@@ -470,6 +506,7 @@ def main() -> int:
     audit_default_traps()
     audit_fake_fixtures()
     audit_skill_shadowing()
+    audit_idempotency()
     if not a.offline:
         audit_views()
         audit_empty_gates()
@@ -483,7 +520,7 @@ def main() -> int:
         print("\n  规矩:**要么真做出来,要么删掉**。别留着骗人。")
         print("═" * 70)
         return 1
-    print("  ✅ 全体系对齐 —— 没有死码/死配置/空壳/名不副实/默认值陷阱/空门/假形态mock/人面缺陷")
+    print("  ✅ 全体系对齐 —— 没有死码/死配置/空壳/名不副实/默认值陷阱/空门/假形态mock/人面缺陷/不幂等的修复")
     print("═" * 70)
     return 0
 
