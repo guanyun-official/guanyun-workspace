@@ -120,6 +120,16 @@ def search_records(table_name: str, conditions: list[dict], conjunction: str = "
         token = d.get("page_token")
 
 
+def search_in(table_name: str, field_name: str, values, page_size: int = 100) -> list[dict]:
+    """便捷:『field ∈ values』服务端过滤(飞书 is 单选只收单值 → 每值一条件、conjunction=or 合并)。
+    真跑验证与 list_records+内存筛等价。**空 values → 返回 []**(∈空集=无命中,不退化全表)。"""
+    vals = [v for v in (values or []) if v]
+    if not vals:
+        return []
+    conds = [{"field_name": field_name, "operator": "is", "value": [v]} for v in vals]
+    return search_records(table_name, conds, conjunction="or", page_size=page_size)
+
+
 def update_record(table_name: str, record_id: str, fields: dict) -> None:
     _guard_write()
     tid = config.tables()[table_name]

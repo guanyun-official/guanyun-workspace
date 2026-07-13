@@ -237,12 +237,13 @@ def _material_hits(records: list[dict], material_needs: list[str], account_rec_i
 
 def select_materials(material_needs: list[str], account_rec_id: str = "", limit: int = 3,
                      clothes: str = "", content: str = "") -> list[str]:
-    """#32 选素材:从素材表读候选(**IO 边界**)→ 交纯过滤谓词 `_material_hits` 决策。
-    IO 与选择分离——真正会错的过滤逻辑在 `_material_hits` 里可直测,这里只负责取数。"""
+    """#32 选素材:**类型∈material_needs 服务端过滤**(只拉相关类型行,不全表拉,规模M2)→ 交纯谓词
+    `_material_hits` 决策。等价:_material_hits 仍再筛 ①类型 ②已拍 + ③④⑤⑥,喂预过滤行结果不变
+    (只少拉无关类型);空 needs → search_in 返 [] → 无候选(与原 _material_hits 空 needs 语义一致)。"""
     from . import feishu_io
     from .bitable import MaterialFields as MF
-    return _material_hits(feishu_io.list_records(MF.TABLE), material_needs,
-                          account_rec_id, limit, clothes, content)
+    rows = feishu_io.search_in(MF.TABLE, MF.TYPE, material_needs)   # 类型∈needs 下推
+    return _material_hits(rows, material_needs, account_rec_id, limit, clothes, content)
 
 
 def _cited_count(v) -> int:
@@ -261,11 +262,9 @@ def _find_inflight_note(account_name: str, content_type_name: str) -> str:
     """找该 (账号, 内容类型) 在途的 Note(待出文案/草稿待发)record_id;无则空。
     出稿据此**推进**派活的『待出文案』为『草稿待发』(状态机一条内容一行),不新建重复行。"""
     from . import feishu_io, bitable
-    open_status = {NS.NEED_COPY, NS.DRAFT_PENDING}
-    for r in feishu_io.list_records(NF.TABLE):
+    # 状态∈开态 服务端过滤(规模M2,不全拉笔记表);search 已保证状态,只余按号×模式内存筛
+    for r in feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.NEED_COPY, NS.DRAFT_PENDING]):
         f = r["fields"]
-        if bitable.text(f.get(NF.STATUS)) not in open_status:
-            continue
         if (bitable.text(f.get(NF.ACCOUNT)) == account_name
                 and bitable.text(f.get(NF.CONTENT_TYPE)) == content_type_name):
             return r["record_id"]

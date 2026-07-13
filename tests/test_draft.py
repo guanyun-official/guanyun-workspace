@@ -130,7 +130,7 @@ class SelectAndAttachMaterials(unittest.TestCase):
             {"record_id": "recImg", "fields": {"类型": "上身图", "拍摄状态": "已拍"}},
             {"record_id": "recTodo", "fields": {"类型": "上身视频", "拍摄状态": "待拍"}},
         ]
-        with mock.patch.object(feishu_io, "list_records", lambda t: mats):
+        with mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: mats):
             ids = draft.select_materials(["上身视频"])
         self.assertEqual(ids, ["recV"])  # 只 上身视频 且 已拍
 
@@ -145,7 +145,7 @@ class SelectAndAttachMaterials(unittest.TestCase):
                                                  "适用账号": [{"record_ids": ["recX"]}]}},
             {"record_id": "recUntagged", "fields": {"类型": "上身视频", "拍摄状态": "已拍"}},
         ]
-        with mock.patch.object(feishu_io, "list_records", lambda t: mats):
+        with mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: mats):
             ids = draft.select_materials(["上身视频"], account_rec_id="recOOTD")
         self.assertIn("recOwn", ids)
         self.assertIn("recUntagged", ids)
@@ -160,6 +160,7 @@ class SelectAndAttachMaterials(unittest.TestCase):
                 "素材表": [{"record_id": "recV", "fields": {"类型": "上身视频", "拍摄状态": "已拍"}}]}
         cap = {}
         with mock.patch.object(feishu_io, "list_records", lambda t: fake.get(t, [])), \
+                mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: fake.get(t, [])), \
                 mock.patch.object(feishu_io, "create_record",
                                   lambda table, fields: cap.update(fields=fields) or "recN"):
             draft.create_draft_note(r)
@@ -172,6 +173,7 @@ class SelectAndAttachMaterials(unittest.TestCase):
         cap = {}
         with mock.patch.object(feishu_io, "list_records",
                                lambda t: {"账号表": [{"record_id": "recA", "fields": {"账号名": "ootd号"}}]}.get(t, [])), \
+                mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: []), \
                 mock.patch.object(feishu_io, "create_record",
                                   lambda table, fields: cap.update(fields=fields) or "recN"):
             draft.create_draft_note(r)
@@ -185,7 +187,7 @@ class SelectAndAttachMaterials(unittest.TestCase):
             {"record_id": "recHot", "fields": {"类型": "上身图", "拍摄状态": "已拍", "被引用次数": 5}},
             {"record_id": "recCold", "fields": {"类型": "上身图", "拍摄状态": "已拍", "被引用次数": 0}},
         ]
-        with mock.patch.object(feishu_io, "list_records", lambda t: mats):
+        with mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: mats):
             self.assertEqual(draft.select_materials(["上身图"], limit=1), ["recCold"])  # 少用的先
             self.assertEqual(draft.select_materials(["上身图"], limit=2), ["recCold", "recHot"])
 
@@ -241,7 +243,7 @@ class IngestToSelectRoundtrip(unittest.TestCase):
         self.assertNotIn("关联衣服", captured)                # §4:素材不挂衣服
         # 这条素材喂给 select_materials 应被 ootd号 选中
         mat_rec = {"record_id": "recNEW", "fields": captured}
-        with mock.patch.object(feishu_io, "list_records", lambda t: [mat_rec]):
+        with mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: [mat_rec]):
             ids = draft.select_materials(["上身视频"], account_rec_id="recOOTD")
         self.assertEqual(ids, ["recNEW"])
 
@@ -278,7 +280,7 @@ class ClothesConsistentMaterials(unittest.TestCase):
             {"record_id": "recB", "fields": {"类型": "形象图", "拍摄状态": "已拍",
                                              "素材编号": "SC-紫藤-01", "备注": "GY-003 紫藤形象图"}},
         ]
-        with mock.patch.object(feishu_io, "list_records", lambda t: mats):
+        with mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: mats):
             self.assertEqual(draft.select_materials(["形象图"], clothes="GY-001"), ["recA"])  # 只 GY-001
             self.assertEqual(draft.select_materials(["形象图"], clothes="GY-003"), ["recB"])  # 只 GY-003(备注标)
             self.assertEqual(draft.select_materials(["形象图"], clothes="GY-999"), [])          # 无匹配→0,不挂错
@@ -288,7 +290,7 @@ class ClothesConsistentMaterials(unittest.TestCase):
         from unittest import mock
         from orchestrator import feishu_io
         mats = [{"record_id": "recX", "fields": {"类型": "上身图", "拍摄状态": "已拍", "素材编号": "SC-x"}}]
-        with mock.patch.object(feishu_io, "list_records", lambda t: mats):
+        with mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: mats):
             self.assertEqual(draft.select_materials(["上身图"]), ["recX"])
 
     def test_create_note_brand_mismatch_attaches_no_materials(self):
@@ -338,7 +340,7 @@ class ContentAddressing(unittest.TestCase):
             {"record_id": "rBacklit", "fields": {"类型": "上身图", "拍摄状态": "已拍",
                                                  "素材编号": "SC-02", "备注": "侧身逆光·意境"}},
         ]
-        with mock.patch.object(feishu_io, "list_records", lambda t: mats):
+        with mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: mats):
             self.assertEqual(draft.select_materials(["上身图"], content="逆光"), ["rBacklit"])  # 按内容寻址
             self.assertEqual(draft.select_materials(["上身图"], content="没有的场景"), [])         # 无匹配→空
 
@@ -357,6 +359,7 @@ class DraftAdvancesInflightNote(unittest.TestCase):
                           NF.ACCOUNT: "ootd号", NF.CONTENT_TYPE: "视频唯美OOTD"}}]}   # 派活占位在途
         upd, created = {}, []
         with mock.patch.object(feishu_io, "list_records", lambda t: base.get(t, [])), \
+                mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: base.get(t, [])), \
                 mock.patch.object(feishu_io, "update_record", lambda table, rid, f: upd.update(rid=rid, fields=f)), \
                 mock.patch.object(feishu_io, "create_record", lambda table, f: created.append(f) or "recNEW"):
             rid = draft.create_draft_note(r)
@@ -371,6 +374,7 @@ class DraftAdvancesInflightNote(unittest.TestCase):
         base = {"账号表": [{"record_id": "recACC", "fields": {"账号名": "ootd号"}}],
                 "内容类型表": [{"record_id": "recCT", "fields": {"内容类型名": "视频唯美OOTD"}}]}  # 笔记表空
         with mock.patch.object(feishu_io, "list_records", lambda t: base.get(t, [])), \
+                mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: base.get(t, [])), \
                 mock.patch.object(feishu_io, "create_record", lambda table, f: "recNEW"):
             self.assertEqual(draft.create_draft_note(r), "recNEW")   # 无在途→新建
 

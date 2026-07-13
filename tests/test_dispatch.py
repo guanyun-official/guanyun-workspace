@@ -51,7 +51,8 @@ class DailyAssignments(unittest.TestCase):
         from unittest import mock
         from orchestrator import feishu_io
         fake = {"账号表": [{"record_id": "recA", "fields": {"账号名": "ootd号"}}], "素材表": []}  # 0可用素材
-        with mock.patch.object(feishu_io, "list_records", lambda t: fake.get(t, [])):
+        with mock.patch.object(feishu_io, "list_records", lambda t: fake.get(t, [])), \
+                mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: fake.get(t, [])):
             alerts = dispatch.runway_alerts("巧荷")
         self.assertIn("ootd号", {a["account"] for a in alerts})   # 0素材<runway_alert_days→催拍
 
@@ -144,6 +145,7 @@ class DispatchRedline(unittest.TestCase):
         existing = [{"record_id": "r0", "fields": {NF.STATUS: NS.NEED_COPY,
                      NF.ACCOUNT: "ootd号", NF.CONTENT_TYPE: "视频唯美OOTD"}}]
         with mock.patch.object(feishu_io, "list_records", lambda t: existing), \
+                mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: existing), \
                 mock.patch.object(feishu_io, "create_record",
                                   lambda table, fields: created.append(fields) or "recNew"):
             rows = dispatch.dispatch("巧荷", write=True)

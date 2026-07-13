@@ -64,7 +64,7 @@ class BadDataDegrades(unittest.TestCase):
             {"record_id": "r2", "fields": {"类型": None, "拍摄状态": 123}},   # None/数字
             {"record_id": "r3", "fields": {"类型": "上身视频", "拍摄状态": "待拍"}},  # 类型对但没拍
         ]
-        with mock.patch.object(feishu_io, "list_records", lambda t: garbage):
+        with mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: garbage):
             self.assertEqual(draft.select_materials(["上身视频"]), [])  # 无一命中『已拍』,空,不崩
 
     def test_metrics_num_eats_garbage(self):
