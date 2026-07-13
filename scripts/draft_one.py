@@ -56,7 +56,7 @@ def main() -> int:
     rid = draft.create_draft_note(r)
     from orchestrator import feishu_io
     feishu_io.log_run(summary=f"出稿 {a.account}/{r['content_type']}", action="出稿",
-                      skill=r["gen_skill"], note_ref=rid, cost=r["cost"])   # 记运行日志(复盘/成本追踪据此)
+                      skill=r["gen_skill"], note_ref=rid, table="笔记表", cost=r["cost"])   # 记运行日志(复盘/成本追踪据此)
     print(f"✅ 已写测试库笔记表 record_id={rid}(状态=草稿待发,待人审;发布/AI声明人手)")
     return 0
 

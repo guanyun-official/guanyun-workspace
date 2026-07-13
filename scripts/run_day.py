@@ -35,7 +35,7 @@ def main() -> int:
                 else (r.get("error") and f"✗ {r['error']}") or r.get("status", ""))
         print(f"  {r['account']:20} {r['content_type']:12} 技能={r['gen_skill']:22} 素材={r['material_needs']}  {tail}")
     if a.write:
-        feishu_io.log_run(summary=f"跑一天 出稿{len(ok)}条 失败{len(bad)}({a.llm})", action="跑一天")
+        feishu_io.log_run(summary=f"跑一天 出稿{len(ok)}条 失败{len(bad)}({a.llm})", action="跑一天", table="笔记表")
         print(f"\n✅ 落库 {len(ok)} 条『草稿待发』(失败 {len(bad)})。人打开飞书笔记表筛『草稿待发』即可审。")
         print("红线:止于草稿待发——发布与 AI 声明永远人手(见 asserting-ai-disclosure)。")
     else:

@@ -42,7 +42,7 @@ def main() -> int:
         print("   防搬运红线比对的就是原帖正文——没正文=门无从比对。")
         print("   **从这些灵感出稿会被红线直接拒**。请补上正文(json 里加 \"文案\" 字段),或去灵感库手填『文案』。")
     if a.write and res["新增"]:
-        feishu_io.log_run(summary=f"找热点落灵感库 {len(res['新增'])} 条", action="找热点")
+        feishu_io.log_run(summary=f"找热点落灵感库 {len(res['新增'])} 条", action="找热点", table="灵感库")
         print("\n下一步:daily_dispatch 会列成『爆款模仿待办』,draft_one --title-seed 承接出稿。")
     elif not a.write:
         print("\n(干跑:未写库。加 --write 落灵感库)")

@@ -27,7 +27,7 @@ def main() -> int:
     if a.write:
         from orchestrator import feishu_io
         n_new = sum(1 for r in rows if not r.get("skipped"))
-        feishu_io.log_run(summary=f"派活 {n_new} 条(跳过在途 {len(rows)-n_new})", action="派活")  # 记运行日志
+        feishu_io.log_run(summary=f"派活 {n_new} 条(跳过在途 {len(rows)-n_new})", action="派活", table="笔记表")  # 记运行日志
     print(f"今天派活 {len(rows)} 条(号×模式):")
     for r in rows:
         tag = r.get("skipped") or (f"→待出文案 {r.get('note_id')}" if a.write else "(干跑)")

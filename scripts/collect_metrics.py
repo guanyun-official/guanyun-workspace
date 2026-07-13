@@ -40,7 +40,7 @@ def main() -> int:
               "GY_METRICS_MODE=real 或加 --real", file=sys.stderr)
     s = collect.collect_and_writeback(mode=mode, limit=a.limit)
     if real:
-        feishu_io.log_run(summary=f"回流 采集{s['采集']}写回{s['写回']}", action="回流")   # 记运行日志(复盘据此)
+        feishu_io.log_run(summary=f"回流 采集{s['采集']}写回{s['写回']}", action="回流", table="笔记表")   # 记运行日志(复盘据此)
         if s["采集"] > 0 and s["写回"] == 0:   # 有已发却全采不到=疑登录态过期/取数挂→告警私聊
             from orchestrator import alerts
             alerts.send(f"回流全失败:{s['采集']} 条已发采集写回 0,疑登录态过期或取数挂", title="巧荷回流⚠️")

@@ -36,7 +36,7 @@ def main() -> int:
             print(f"      取素材 {m['code']}({m['type']}/{m['source']}){seg}  → {m['取用链接'] or '(无链接)'}")
     if a.write:
         n = sum(1 for r in rows if r["advanced"])
-        feishu_io.log_run(summary=f"发布就绪 推进{n}条待发布(AI声明自动判定)", action="发布就绪")
+        feishu_io.log_run(summary=f"发布就绪 推进{n}条待发布(AI声明自动判定)", action="发布就绪", table="笔记表")
         print(f"\n✅ 推进 {n} 条→待发布(人手发布+打勾即完成)。含AI未勾的留在已批准,请先勾AI声明。")
     else:
         print("\n(只报告。加 --write 把『可发』的推进待发布)")

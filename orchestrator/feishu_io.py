@@ -179,9 +179,17 @@ def delete_record(table_name: str, record_id: str) -> None:
 
 
 def log_run(summary: str, action: str, result: str = "成功", *, skill: str = "", note_ref: str = "",
-            table: str = "笔记表", detail: str = "", cost: float | None = None) -> None:
+            table: str, detail: str = "", cost: float | None = None) -> None:
     """写运行日志表。日志失败只打印不阻断主流程。
-    cost 给定则写结构化 成本_元 数值字段(M3);月成本核算优先读它,弃脆弱的 detail 解析。"""
+    cost 给定则写结构化 成本_元 数值字段(M3);月成本核算优先读它,弃脆弱的 detail 解析。
+
+    **table 必填,没有默认值**(2026-07-14 全体系对齐审查):原来它默认 `"笔记表"`,而 9 个调用点
+    **一个都没传** → 全部静默落进默认值。于是日志里写着:
+        动作=自动打标  摘要=自动打标入库 1 条 · /巧荷素材/待入库  **涉及表=笔记表**  ← 假的,是素材表
+        动作=找热点    摘要=找热点落灵感库 N 条                **涉及表=笔记表**  ← 假的,是灵感库
+    **出事时排障,日志会告诉你"打标在操作笔记表"——它在撒谎。**
+    默认值就是陷阱:它把"忘了传"变成"静默记错"。去掉默认值,调用点必须说清自己在动哪张表。
+    """
     try:
         fields = {
             RLF.SUMMARY: summary,

@@ -228,7 +228,7 @@ def run(folder: str, batch_size: int = 5, limit: int = 0, write: bool = False,
         netpan.clear_cache()                                # 每 chunk 清缓存(按需缓存不占地)
     if write and total_cost > 0:                            # 看图成本记运行日志→月度成本硬闸真看得到打标花销
         feishu_io.log_run(summary=f"打标看图 {len(batches)} 批 · {len(out)} 张",
-                          action="看图打标", cost=round(total_cost, 4))
+                          action="看图打标", table="素材表", cost=round(total_cost, 4))
     print(f"  看图成本估算 ≈ {round(total_cost, 4)} 元（{config.VISION_BACKEND}，usage实测×费率）", file=sys.stderr)
     return out
 
@@ -265,7 +265,7 @@ def reset_legacy(write: bool = False) -> list[dict]:
         backup.main()   # 删前全表备份(误删可恢复;备份读回自证)
         for row in legacy:
             feishu_io.delete_record(MF.TABLE, row["record_id"])
-        feishu_io.log_run(summary=f"重标清除老打标行 {len(legacy)} 条(相对路径空,已备份)", action="重标清除")
+        feishu_io.log_run(summary=f"重标清除老打标行 {len(legacy)} 条(相对路径空,已备份)", action="重标清除", table="素材表")
     return legacy
 
 
@@ -296,7 +296,7 @@ def main() -> int:
     res = run(a.from_netpan, a.batch_size, a.limit, a.write)
     print(f"\n{'✅ 入库' if a.write else '试跑'} {len(res)} 条" + ("(加 --write 真入库)" if not a.write else ""))
     if a.write and res:
-        feishu_io.log_run(summary=f"自动打标入库 {len(res)} 条 · {a.from_netpan}", action="自动打标")
+        feishu_io.log_run(summary=f"自动打标入库 {len(res)} 条 · {a.from_netpan}", action="自动打标", table="素材表")
     return 0
 
 
