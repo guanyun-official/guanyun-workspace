@@ -29,18 +29,44 @@ class TestTagHelpers(unittest.TestCase):
         self.assertEqual(_valid_type("胡编的类型", "video"), "上身视频")           # 越界→按形态兜底
         self.assertEqual(_valid_type("", "still"), "上身图")                       # 空→兜底
 
-    def test_legacy_rows_selects_empty_relpath(self):
-        # 老打标行(相对路径空)才选中重标;字段归位后入的新行(有相对路径)不动
+    def test_legacy_rows_selects_empty_relpath_and_old_type(self):
+        # 老打标行=相对路径空 且 类型∈旧3类;新行(有相对路径)、人工新建的非旧类型行 都不选(防误删)
         from scripts.tag_materials import _legacy_rows
         mats = [
             {"record_id": "r1", "fields": {"素材编号": "XX-260702-001", "类型": "形象图",
-                                           "链接": {"text": "a.jpg"}}},
+                                           "链接": {"text": "a.jpg"}}},                       # 老行:选中
             {"record_id": "r2", "fields": {"素材编号": "ST-260702-001", "类型": "上身图",
-                                           "相对路径": "baidupan:/x/b.jpg", "链接": {"text": "b.jpg"}}},
+                                           "相对路径": "baidupan:/x/b.jpg", "链接": {"text": "b.jpg"}}},  # 新行:不选
+            {"record_id": "r3", "fields": {"素材编号": "ML-1", "类型": "面料·纹理特写",
+                                           "链接": {"text": "c.jpg"}}},                        # 人工新建(无relpath但非旧类型):不误删
         ]
         got = _legacy_rows(mats)
         self.assertEqual([g["record_id"] for g in got], ["r1"])
         self.assertEqual(got[0]["file"], "a.jpg")
+
+    def test_reset_legacy_write_backs_up_then_deletes_only_legacy(self):
+        # 真删路径 mock 冒烟(gap#4):删前过红线闸+全表备份;只删 legacy 的 record_id;人工非旧类型行不删
+        from unittest import mock
+        import scripts.tag_materials as t
+        import scripts.backup_tables as backup
+        from orchestrator import feishu_io, guard
+        mats = [
+            {"record_id": "r1", "fields": {"素材编号": "XX-1", "类型": "形象图", "链接": {"text": "a.jpg"}}},
+            {"record_id": "r2", "fields": {"素材编号": "ST-1", "类型": "上身图",
+                                           "相对路径": "baidupan:/x/b.jpg", "链接": {"text": "b.jpg"}}},
+            {"record_id": "r3", "fields": {"素材编号": "ML-1", "类型": "面料·纹理特写", "链接": {"text": "c.jpg"}}},
+        ]
+        deleted, calls = [], []
+        with mock.patch.object(feishu_io, "list_records", lambda *a, **k: mats), \
+                mock.patch.object(guard, "assert_base_allowed", lambda *a, **k: calls.append("guard")), \
+                mock.patch.object(backup, "main", lambda: calls.append("backup")), \
+                mock.patch.object(feishu_io, "delete_record", lambda tbl, rid: deleted.append(rid)), \
+                mock.patch.object(feishu_io, "log_run", lambda *a, **k: None):
+            legacy = t.reset_legacy(write=True)
+        self.assertEqual([row["record_id"] for row in legacy], ["r1"])   # 只 r1 是 legacy
+        self.assertEqual(deleted, ["r1"])                                # 真删的只有 r1(r3人工行不删)
+        self.assertIn("guard", calls)                                    # 删前过 base 红线闸(只测试库)
+        self.assertIn("backup", calls)                                   # 删前全表备份(误删可恢复)
 
 
 if __name__ == "__main__":

@@ -129,14 +129,20 @@ def run(folder: str, batch_size: int = 5, limit: int = 0, write: bool = False) -
     return out
 
 
+_LEGACY_TYPES = frozenset({"上身图", "上身视频", "形象图"})   # 字段归位前只用过这 3 类
+
+
 def _legacy_rows(mats: list[dict]) -> list[dict]:
-    """老打标行 = 字段归位前(旧 register)入库的行,特征:相对路径为空。
-    这些正是本轮要重标的(旧 3 类/字段没归位);删掉后重跑 tagger 会以真实 12 类+字段归位重新入库。
-    纯谓词(零 IO,records 注入)→ 可直测。"""
+    """老打标行 = 字段归位前(旧 register)入库的行:相对路径为空 **且** 类型是旧 3 类之一。
+    加类型判据防误伤"人在飞书 UI 手动新建的行"(那些也没相对路径,但类型多是别的/或该保留)。
+    这些正是本轮要重标的;删掉后重跑 tagger 会以真实 12 类+字段归位重新入库。
+    三重保底:dry-run 先列出给人过目 + --write 前全表备份 + 只测试库。纯谓词(零 IO,records 注入)→ 可直测。"""
     out = []
     for r in mats:
         f = r["fields"]
-        if not bitable.text(f.get(MF.REL_PATH)).strip():   # 相对路径空 = 旧 register 入的
+        no_relpath = not bitable.text(f.get(MF.REL_PATH)).strip()      # 相对路径空 = 旧 register 入的
+        old_type = bitable.text(f.get(MF.TYPE)).strip() in _LEGACY_TYPES
+        if no_relpath and old_type:
             out.append({"record_id": r["record_id"], "code": bitable.text(f.get(MF.CODE)),
                         "type": bitable.text(f.get(MF.TYPE)), "file": bitable.text(f.get(MF.LINK))})
     return out

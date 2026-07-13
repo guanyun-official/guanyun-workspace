@@ -49,6 +49,8 @@ class TestTodayPanel(unittest.TestCase):
                                            NF.LINKED_MATERIALS: [{"record_ids": ["mAI"]}]}},
             {"record_id": "n2", "fields": {NF.STATUS: NS.DRAFT_PENDING, NF.TITLE: "全实拍稿", NF.ACCOUNT: "ootd号",
                                            NF.LINKED_MATERIALS: [{"record_ids": ["mReal"]}]}},
+            {"record_id": "n3", "fields": {NF.STATUS: NS.DRAFT_PENDING, NF.TITLE: "混合稿", NF.ACCOUNT: "ootd号",
+                                           NF.LINKED_MATERIALS: [{"record_ids": ["mReal", "mAI"]}]}},
         ]
         mats = [
             {"record_id": "mAI", "fields": {MF.SOURCE: "AI生成", MF.CODE: "ML-1", MF.TYPE: "面料·纹理特写",
@@ -60,6 +62,7 @@ class TestTodayPanel(unittest.TestCase):
         flags = {n["title"]: n["需AI声明"] for n in p["待审"]}
         self.assertTrue(flags["含AI稿"])          # 含AI素材→需声明
         self.assertFalse(flags["全实拍稿"])        # 全实拍→免声明
+        self.assertTrue(flags["混合稿"])           # 实拍+AI混挂→只要有一条AI就需声明(不漏标)
         self.assertIn("⚠️AI声明", str(cockpit.today_card("巧荷", panel=p)["elements"]))   # 卡片渲染⚠️
 
 

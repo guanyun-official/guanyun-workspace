@@ -2,12 +2,17 @@
 import os
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from orchestrator import config, vision  # noqa: E402
+
+
+def _proc(returncode=0, stdout="", stderr=""):
+    return types.SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
 
 
 def _fake_jpg() -> str:
@@ -57,6 +62,35 @@ class TestVision(unittest.TestCase):
         with mock.patch.object(config, "VISION_BACKEND", "bogus"):
             with self.assertRaises(vision.VisionError):
                 vision.see([], "x")
+
+    def test_data_uri_mime_by_extension(self):
+        d = Path(tempfile.mkdtemp())
+        png = d / "b.png"
+        png.write_bytes(b"\x89PNG\r\n\x1a\n")
+        self.assertTrue(vision._data_uri(str(png)).startswith("data:image/png;base64,"))   # PNG 不再贴 jpeg
+        jpg = d / "c.jpg"
+        jpg.write_bytes(b"\xff\xd8\xff")
+        self.assertTrue(vision._data_uri(str(jpg)).startswith("data:image/jpeg;base64,"))
+
+    def test_claude_backend_parses_result(self):
+        out_json = '{"result": "[{\\"类型\\":\\"上身图\\",\\"来源\\":\\"实拍\\"}]"}'
+        with mock.patch.object(config, "VISION_BACKEND", "claude"), \
+                mock.patch.object(vision.subprocess, "run", lambda *a, **k: _proc(0, out_json)):
+            out = vision.see(["/x/a.jpg"], "p")
+        self.assertIn("上身图", out)
+
+    def test_claude_nonzero_exit_raises(self):
+        # _claude 错误语义与 _doubao 一致:非零退出→VisionError(不静默吞错→批次静默漏标)
+        with mock.patch.object(config, "VISION_BACKEND", "claude"), \
+                mock.patch.object(vision.subprocess, "run", lambda *a, **k: _proc(1, "", "boom")):
+            with self.assertRaises(vision.VisionError):
+                vision.see(["/x/a.jpg"], "p")
+
+    def test_claude_no_json_raises(self):
+        with mock.patch.object(config, "VISION_BACKEND", "claude"), \
+                mock.patch.object(vision.subprocess, "run", lambda *a, **k: _proc(0, "乱码无json")):
+            with self.assertRaises(vision.VisionError):
+                vision.see(["/x/a.jpg"], "p")
 
 
 if __name__ == "__main__":

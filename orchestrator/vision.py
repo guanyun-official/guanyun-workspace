@@ -31,9 +31,15 @@ def see(image_paths: list[str], prompt: str) -> str:
     raise VisionError(f"未知看图后端 GY_VISION_BACKEND={backend!r}(doubao|claude)")
 
 
+_MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp",
+         ".heic": "image/heic", ".heif": "image/heif"}
+
+
 def _data_uri(path: str) -> str:
-    """本地图 → data URI(ARK 收 image_url,本地图无公网 URL 时用 base64 内联)。"""
-    return "data:image/jpeg;base64," + base64.b64encode(Path(path).read_bytes()).decode()
+    """本地图 → data URI(ARK 收 image_url,本地图无公网 URL 时用 base64 内联)。
+    MIME **按扩展名**定,别一律 jpeg——PNG/WebP 不经转码直达,贴错 MIME 换严格后端会静默解析失败。"""
+    mime = _MIME.get(Path(path).suffix.lower(), "image/jpeg")
+    return f"data:{mime};base64," + base64.b64encode(Path(path).read_bytes()).decode()
 
 
 def _doubao(image_paths: list[str], prompt: str) -> str:
@@ -64,13 +70,19 @@ def _post(url: str, headers: dict, body: dict) -> dict:
 
 
 def _claude(image_paths: list[str], prompt: str) -> str:
-    """claude -p 兜底(零 key):经文件路径看本地图。预算帽由 max-turns 粗控。"""
+    """claude -p 兜底(零 key):经文件路径看本地图。预算帽由 max-turns 粗控。
+    错误语义**与 _doubao 一致**:非零退出/无 JSON/解析失败一律抛 VisionError(不静默吞错→批次静默漏标)。"""
     listing = "\n".join(image_paths)
     full = f"{prompt}\n\n图片(本地路径,逐张看):\n{listing}"
     r = subprocess.run(["claude", "-p", full, "--output-format", "json",
                         "--max-turns", str(4 + 2 * len(image_paths))],
                        capture_output=True, text=True, timeout=600, cwd=str(config.WORKSPACE))
+    if r.returncode != 0:
+        raise VisionError(f"claude -p 退出非零({r.returncode}): {(r.stderr or r.stdout)[:200]}")
+    idx = r.stdout.find("{")
+    if idx < 0:
+        raise VisionError(f"claude -p 无 JSON 输出: {r.stdout[:200]}")
     try:
-        return json.loads(r.stdout[r.stdout.find("{"):]).get("result", "") or ""
-    except (json.JSONDecodeError, ValueError):
-        return r.stdout
+        return json.loads(r.stdout[idx:]).get("result", "") or ""
+    except (json.JSONDecodeError, ValueError) as e:
+        raise VisionError(f"claude -p 输出解析失败: {r.stdout[:200]}") from e

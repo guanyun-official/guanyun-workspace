@@ -40,8 +40,11 @@ def maybe_process(material_ids: list[str], *, account: str = "", mode: str = "",
     钩子注入式(依赖倒置)→ 可不接真技能直测;缺钩子即使开着也安全退回原图(不炸、不臆造加工)。"""
     if not processing_enabled() or not (decide and execute):
         return material_ids
-    plan = decide(material_ids, account=account, mode=mode, clothes=clothes)
-    if not plan or not plan.get("加工"):
-        return material_ids                       # 技能判定"不加工"→ 直接用原图(最常见)
-    produced_id = execute(plan)                   # 技能执行 → store_produced → 成片素材 id
-    return [produced_id] if produced_id else material_ids
+    try:
+        plan = decide(material_ids, account=account, mode=mode, clothes=clothes)
+        if not plan or not plan.get("加工"):
+            return material_ids                   # 技能判定"不加工"→ 直接用原图(最常见)
+        produced_id = execute(plan)               # 技能执行 → store_produced → 成片素材 id
+        return [produced_id] if produced_id else material_ids
+    except Exception:  # noqa: BLE001  加工钩子抛错→安全退回原图(绝不炸穿 create_draft_note;宁可不加工也不断链)
+        return material_ids
