@@ -42,6 +42,26 @@ class TestTodayPanel(unittest.TestCase):
         self.assertEqual(p["待发"], [])
         self.assertEqual(p["待回填链接"], [])
 
+    def test_surfaces_ai_declaration_needed(self):
+        # M3:含AI合成素材的待审稿 surface『需AI声明』(人审前就看到⚠️;仍人自己勾)
+        notes = [
+            {"record_id": "n1", "fields": {NF.STATUS: NS.DRAFT_PENDING, NF.TITLE: "含AI稿", NF.ACCOUNT: "ootd号",
+                                           NF.LINKED_MATERIALS: [{"record_ids": ["mAI"]}]}},
+            {"record_id": "n2", "fields": {NF.STATUS: NS.DRAFT_PENDING, NF.TITLE: "全实拍稿", NF.ACCOUNT: "ootd号",
+                                           NF.LINKED_MATERIALS: [{"record_ids": ["mReal"]}]}},
+        ]
+        mats = [
+            {"record_id": "mAI", "fields": {MF.SOURCE: "AI生成", MF.CODE: "ML-1", MF.TYPE: "面料·纹理特写",
+                                            MF.LINK: {"link": "x", "text": "x"}}},
+            {"record_id": "mReal", "fields": {MF.SOURCE: "实拍", MF.CODE: "ST-1", MF.TYPE: "上身图",
+                                              MF.LINK: {"link": "y", "text": "y"}}},
+        ]
+        p = self._run(notes, mats)
+        flags = {n["title"]: n["需AI声明"] for n in p["待审"]}
+        self.assertTrue(flags["含AI稿"])          # 含AI素材→需声明
+        self.assertFalse(flags["全实拍稿"])        # 全实拍→免声明
+        self.assertIn("⚠️AI声明", str(cockpit.today_card("巧荷", panel=p)["elements"]))   # 卡片渲染⚠️
+
 
 class TestTodayCard(unittest.TestCase):
     def test_card_partitioned_by_account_mode_no_material_detail(self):

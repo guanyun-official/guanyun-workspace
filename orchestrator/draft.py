@@ -273,8 +273,11 @@ def create_draft_note(result: dict) -> str:
         fields.pop(NF.CONTENT_TYPE, None)
     mat_ids = select_materials(result.get("material_needs") or [], acc_ids[0] if acc_ids else "",
                                clothes=result.get("clothes", ""))  # #36 品牌新作按衣服选素材,货对板
+    from . import processing
+    mat_ids = processing.maybe_process(mat_ids, account=account_name, mode=content_type_name,
+                                       clothes=result.get("clothes", ""))  # M3 gated 加工步(默认关=原样返回)
     if mat_ids:
-        fields[NF.LINKED_MATERIALS] = mat_ids   # #32 完整包:选定素材挂关联素材
+        fields[NF.LINKED_MATERIALS] = mat_ids   # #32 完整包:选定(或加工后)素材挂关联素材
     existing = _find_inflight_note(account_name, content_type_name)
     if existing:
         feishu_io.update_record(NF.TABLE, existing, fields)  # 推进:待出文案→草稿待发 / 刷新旧草稿(不新建重复)

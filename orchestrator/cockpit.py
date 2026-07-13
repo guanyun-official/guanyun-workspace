@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from . import bitable, config, feishu_io, publish, shotlist
+from . import bitable, config, feishu_io, guard, publish, shotlist
 from .bitable import NoteFields as NF, NoteStatus as NS
 
 # 排期视图里算「待发流程中」的状态(未发未归档;想法/待拍属前置,已发/回流/暂缓已出流程)
@@ -39,11 +39,16 @@ def today_panel(brand: str = "巧荷") -> dict:
         acc = bitable.text(f.get(NF.ACCOUNT))
         link = _note_link(r["record_id"])
         mode = bitable.text(f.get(NF.CONTENT_TYPE))
+        # AI声明需求 surface(人审前就看到⚠️;仍人自己勾):按挂的素材来源事实算,复用 guard 的法规规则
+        mat_ids = bitable.link_record_ids(f.get(NF.LINKED_MATERIALS))
+        ai_req = guard.ai_declaration_required([idx[m]["source"] for m in mat_ids if m in idx])
         if st == NS.DRAFT_PENDING:
-            pend_review.append({"title": title, "account": acc, "mode": mode, "open": link})
+            pend_review.append({"title": title, "account": acc, "mode": mode, "open": link,
+                                "需AI声明": ai_req})
         elif st == NS.TO_PUBLISH:
             mats = publish.note_materials(f, idx)
             to_publish.append({"title": title, "account": acc, "mode": mode, "open": link,
+                               "需AI声明": ai_req,
                                "materials": [{"code": m["code"], "link": m["取用链接"]} for m in mats]})
         elif st == NS.PUBLISHED and not bitable.text(f.get(NF.PUBLISH_LINK)).strip():
             need_link.append({"title": title, "account": acc, "mode": mode, "open": link})
@@ -67,7 +72,8 @@ def today_card(brand: str = "巧荷", panel: dict | None = None) -> dict:
     for icon, bucket in (("📋", "待审"), ("📤", "待发"), ("🔗", "待回填链接")):
         for n in p[bucket]:
             key = (n["account"], n.get("mode", ""))
-            blocks.setdefault(key, []).append(f"{icon} {_title_link(n)}")
+            mark = " ⚠️AI声明" if n.get("需AI声明") else ""   # surface:含AI合成素材,发前须人勾AI声明
+            blocks.setdefault(key, []).append(f"{icon} {_title_link(n)}{mark}")
 
     el: list[dict] = []
     for (acc, mode), lines in sorted(blocks.items()):
