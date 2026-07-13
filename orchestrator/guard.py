@@ -65,12 +65,26 @@ def assert_publish_quota(published_today_for_account: int) -> None:
         )
 
 
-def assert_no_source_leak(source_text: str, payload: str, n: int = 10) -> None:
+def assert_no_source_leak(source_text: str, payload: str, n: int = 10,
+                          imitating: bool = False) -> None:
     """防搬运出口闸(红线):产出 payload 不得逐字搬对标/灵感源 source_text 的 ≥n 连续实义字符片段。
     爆款只当情报——出稿不得含对标原帖/原标题的连续片段。**先归一化去空白/标点再比对**,
     加空格/改标点也绕不过(这是该红线的唯一实现,原 lib/skill_gate 那份已退役并入此处)。
-    source 归一化后过短 / payload 空 → 放行(短源不产生保护也不误伤,设计取舍)。"""
+
+    **imitating=True 时,拿不出源正文 = 直接拒绝**(2026-07-14 全体系对齐审查抓到的红线空洞)。
+    原来这里写着"源过短 → 放行(短源不产生保护也不误伤,**设计取舍**)"——而真实数据里
+    **灵感库 5 条,『文案』字段全是空的**(找热点那一步从没抓过正文)。于是门每次都走"提前放行",
+    **整段逐字搬也能过**。门造好了、装上了、单测也绿,可它比对的东西在真数据里根本不存在——
+    这是这类病最危险的形态:**不是没做,是做了、看着像在保护你、实际是空的**。
+    门自己判断不了调用方是不是在蹭爆款,所以**由调用方声明**:声称在模仿某条爆款、却拿不出源正文,
+    就必须拒绝(不然"防搬运"三个字是假的)。非模仿场景(自由创作)仍按原样放行,不误伤。
+    """
     src, pay = _norm(source_text), _norm(payload)
+    if imitating and len(src) < n:
+        raise GuardError(
+            "防搬运门:这条稿声称在**蹭爆款/模仿灵感**,却拿不出对标源正文 —— 门无从比对,"
+            "等于没门。先去灵感库把该条的『文案』(原帖正文)补上,再出稿"
+            "(draft_one 传 --source-text)。")
     if len(src) < n or not pay:
         return
     for i in range(len(src) - n + 1):

@@ -45,8 +45,13 @@ ENV_NAME = "test" if BASE_TOKEN == TEST_BASE else ("prod" if BASE_TOKEN == PROD_
 # 阈值(可 env 覆盖)
 PER_ACCOUNT_DAILY_PUBLISH = int(os.environ.get("GY_ACCOUNT_DAILY_PUB", "3"))  # 单号每日发布上限(红线)
 COLLECT_REFRESH_DAYS = int(os.environ.get("GY_COLLECT_REFRESH_DAYS", "30"))  # 回流刷新窗:超此天数的已回流帖热度已定,不再重刷(冷热分离,防累积态全拉)
-REVIEW_OVERDUE_HOURS = int(os.environ.get("GY_REVIEW_OVERDUE_H", "24"))     # 待审超时催审
-METRICS_CLOSE_DAYS = int(os.environ.get("GY_METRICS_CLOSE_DAYS", "7"))      # 已发 N 天后回流收口
+# 删了两个**死配置**(2026-07-14 全体系对齐审查):它们承诺了数据根本支撑不了的功能,和 base 里那几个
+# 空壳视图(「按颜色分组」——素材表没有颜色字段)是同一个病:**人想起来方便,就先把名字写上,功能从没做**。
+#   · GY_REVIEW_OVERDUE_H(待审超时催审):要算"躺了多久"需要**进入待审的时间戳**,
+#     而笔记表没有这个字段,飞书 records API 也不返回 created_time → **永远算不出来**。
+#     要做:先给笔记表加「创建时间」自动字段(飞书原生 type,零维护),再据此催审。
+#   · GY_METRICS_CLOSE_DAYS(已发 N 天后回流收口):从没实现,且与 COLLECT_REFRESH_DAYS 语义重复
+#     (后者已在 collect.py 真用:超窗的已回流帖热度已定,不再重刷)。
 BUDGET_MONTHLY_CNY = float(os.environ.get("GY_BUDGET_MONTHLY_CNY", "300"))  # 月度 LLM 成本告警阈值
 PER_RUN_BUDGET_USD = float(os.environ.get("GY_PER_RUN_BUDGET_USD", "1.2"))  # 单次 claude -p 预算帽(P6实测:长文0.5不够)
 # 出稿底座(dogfood 2026-07-14 真跑改的):原走 `claude -p`,**每次吞 ~33K token 的 Claude Code 系统提示**
@@ -69,11 +74,11 @@ TAG_CONCURRENCY = int(os.environ.get("GY_TAG_CONCURRENCY", "4"))
 # 视频入库开关(护本机):baidu 网盘无 range/直链外部被拒(实测403/503),视频只能下整包;
 # 视频底片=GB级raw剪辑原料(实测 median 511MB/条),下载=带宽+磁盘重活。**默认关(0)**——本机不碰视频入库
 # (raw 走 video-editing 出成片,成片才入库打标);服务器/确需时 GY_INGEST_VIDEO=1(下载一次→多帧→缓存帧→删)。
-# **视频一律入库,抽关键帧打标**(2026-07-14):曾经 GY_INGEST_VIDEO=0 一刀切跳过所有视频,造成死循环——
-# 补拍单催「上身视频×3」、摄影师拍了传网盘、系统跳过不收、补拍单继续催(人拍了系统不收,还继续催他拍)。
-# 护本机的正确手段是**视频串行处理**(tag_materials 里每批 1 个、并发度 1:拉一个→抽帧→打标→删缓存),
-# 不是"拒收"。本开关保留只为服务器场景显式声明,已不影响"视频收不收"(默认就收)。
-INGEST_VIDEO = os.environ.get("GY_INGEST_VIDEO", "0") == "1"
+# GY_INGEST_VIDEO 已删(2026-07-14 全体系对齐审查:它在视频改成"一律收+串行"之后就没人读了=死配置)。
+# 曾经它 =0 时一刀切跳过所有视频,造成死循环:补拍单催「上身视频×3」→ 摄影师拍了传网盘 →
+# 系统跳过不收 → 补拍单继续催(**人拍了,系统不收,然后继续催他拍**)。
+# 护本机的正确手段是**视频串行处理**(tag_materials:每批 1 个、并发度 1 —— 拉一个→抽帧→打标→删缓存),
+# **不是"拒收"**。视频现在一律收、中点抽关键帧打标。开关没了,因为不需要开关。
 VISION_BACKEND = os.environ.get("GY_VISION_BACKEND", "doubao")
 VISION_MODEL = os.environ.get("GY_VISION_MODEL", "doubao-seed-2-0-mini-260428")
 ARK_ENDPOINT = os.environ.get("GY_ARK_ENDPOINT", "https://ark.cn-beijing.volces.com/api/v3/chat/completions")

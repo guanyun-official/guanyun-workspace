@@ -250,8 +250,13 @@ def generate_draft(account_name: str, brand: str = "巧荷", llm_mode: str = "st
                             material_text=material_facts(mat_rows or []))   # stub 未取素材→无事实底座→走禁编造分支
     if llm_mode == "real":
         draft_text, cost = llm.run_prompt(prompt)
-        # 防搬运出口闸(红线):优先比对**完整对标源正文**(source_text),没有则退化标题seed(ADR-0009 修"只看标题")
-        guard.assert_no_source_leak(source_text or title_seed, draft_text)
+        # 防搬运出口闸(红线):比对**完整对标源正文**(source_text)。
+        # **imitating**:传了 title_seed = 这条稿是**从某条灵感/爆款来的**(dispatch 的『爆款模仿待办』
+        # 就是这么派的:draft_one --title-seed "<灵感标题>")。这种情况下**必须拿得出源正文**,
+        # 否则门无从比对 = 等于没门(真实数据:灵感库 5 条『文案』全空 → 门每次都提前放行 →
+        # 整段逐字搬也能过)。自由创作(无 title_seed)不受影响,不误伤。
+        guard.assert_no_source_leak(source_text or title_seed, draft_text,
+                                    imitating=bool(title_seed) and not source_text)
     else:
         draft_text, cost = _stub_draft(acc, pb, gen_skill, bool(skill_text), title_seed), 0.0
     ctype = pb.get("content_type") or pb.get("id") or ""

@@ -404,7 +404,44 @@ class NoSourceLeakGate(unittest.TestCase):
         with self.assertRaises(guard.GuardError):
             guard.assert_no_source_leak("原来500年前我们就有polo衫了", "抄:原来500年前我们就有polo衫了！")
         guard.assert_no_source_leak("原来500年前我们就有polo衫了", "夏色入衿，风过成凉")  # 无重叠→放行
-        guard.assert_no_source_leak("短句", "任何输出")                                    # source过短→放行
+        # 自由创作(非模仿)时源过短/为空 → 放行,不误伤
+        guard.assert_no_source_leak("短句", "任何输出", imitating=False)
+
+    def test_imitating_without_source_body_is_rejected(self):
+        """**红线空洞的回归锁**(2026-07-14 全体系对齐审查抓到的,这一整轮最严重的一条)。
+
+        原来这里有一行测试写着 `assert_no_source_leak("短句", "任何输出")  # source过短→放行`——
+        **测试本身在给窟窿背书**。而 guard 的注释也把它写成"设计取舍":源过短→提前放行。
+
+        真实数据:**灵感库 5 条,『文案』(原帖正文)字段全是空的**——"找热点"那一步的输入契约
+        `[{标题, 可借鉴?, 源链接?}]` **压根就没有正文这一项**。于是防搬运门每次都走"提前放行"分支,
+        **整段逐字搬也能过**。门造好了、装上了、单测全绿,可它比对的东西在真数据里根本不存在。
+        这是这类病最危险的形态:**不是没做,是做了、看着像在保护你、实际是空的**;
+        而且**测试就是站在窟窿前面守着的那个人**。
+
+        真契约:声称在蹭爆款/模仿灵感(dispatch 就是这么派活的:draft_one --title-seed "<灵感标题>"),
+        却拿不出对标源正文 → **必须拒**(门无从比对 = 等于没门)。
+        """
+        from orchestrator import guard
+        stolen = "夏天最好的时刻,是风比人先进门。这一身不必急着解释,光落上去它自己会说话。"
+
+        with self.assertRaises(guard.GuardError):          # 声称蹭爆款,却没源正文 → 拒
+            guard.assert_no_source_leak("", f"OOTD｜x\n\n{stolen}", imitating=True)
+        with self.assertRaises(guard.GuardError):          # 源正文有值 + 逐字搬 → 拒
+            guard.assert_no_source_leak(stolen, f"OOTD｜x\n\n{stolen}", imitating=True)
+
+        # 不误伤:自由创作没源正文 → 放行;蹭爆款但真原创 → 放行
+        guard.assert_no_source_leak("", "OOTD｜粉罗载光\n\n光落在衣上,风把影子摇醒。", imitating=False)
+        guard.assert_no_source_leak(stolen, "OOTD｜粉罗载光\n\n光落在衣上,风把影子摇醒。", imitating=True)
+
+    def test_harvest_trends_reports_missing_body(self):
+        """源头堵:落灵感时没原帖正文 → 必须喊出来(从它出的稿会被红线直接拒)。"""
+        from orchestrator import trends
+        res = trends.harvest_trends(
+            [{"标题": "无正文的灵感", "可借鉴": "钩子强"},
+             {"标题": "有正文的灵感", "文案": "这是原帖正文,防搬运门要拿它比对逐字搬运"}],
+            write=False)
+        self.assertEqual(res["无正文"], ["无正文的灵感"])
 
     def test_guard_whitespace_punctuation_cannot_evade(self):
         """红线 robust:加空格/改标点/换全半角不能绕过防搬运(归一化后仍是原文)。

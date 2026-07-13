@@ -11,14 +11,25 @@ from .bitable import InspirationFields as IF
 
 
 def harvest_trends(items: list[dict], brand: str = "巧荷", write: bool = False) -> dict:
-    """把找到的热点/爆款灵感落灵感库。items=[{标题, 可借鉴?, 源链接?}]。
-    按标题去重(已在库跳过);write=False 干跑预览、True 落库(过 base 红线闸)。返回 {新增, 去重跳过}。"""
+    """把找到的热点/爆款灵感落灵感库。items=[{标题, **文案**, 可借鉴?, 源链接?}]。
+    按标题去重(已在库跳过);write=False 干跑预览、True 落库(过 base 红线闸)。
+    返回 {新增, 去重跳过, **无正文**}。
+
+    **『文案』(原帖正文)是防搬运红线的命根子**(2026-07-14 全体系对齐审查抓到的):
+    `guard.assert_no_source_leak` 比对的就是它——出稿逐字搬了原帖 ≥10 连续实义字符就拒。
+    可这个函数原来的输入契约是 `[{标题, 可借鉴?, 源链接?}]`——**根本没有正文这一项**,
+    "找热点"从设计上就没打算存原帖正文。于是真实数据里**灵感库 5 条『文案』全空**,
+    防搬运门每次都走"源过短→提前放行"分支 → **整段逐字搬也能过**。
+    门和喂门的那条链路,从来没对齐过。
+    现在:接收并落『文案』;**落了没有正文的灵感,明确警告**——因为从它出的稿会被红线直接拒。
+    """
     if write:
         guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)  # 红线:只写测试库
     existing = {bitable.text(r["fields"].get(IF.TITLE)).strip()
                 for r in feishu_io.list_records(IF.TABLE)}
     new: list[str] = []
     dup: list[str] = []
+    no_body: list[str] = []          # 落了但没正文的 → 从它出的稿会被防搬运红线直接拒
     for it in items:
         title = (it.get("标题") or "").strip()
         if not title:
@@ -26,7 +37,12 @@ def harvest_trends(items: list[dict], brand: str = "巧荷", write: bool = False
         if title in existing:
             dup.append(title)
             continue
+        body = (it.get("文案") or "").strip()      # **原帖正文 = 防搬运门比对的对象**
         row: dict = {IF.TITLE: title}
+        if body:
+            row[IF.BODY] = body
+        else:
+            no_body.append(title)
         if it.get("可借鉴"):
             row[IF.MERITS] = it["可借鉴"]
         if it.get("源链接"):
@@ -35,4 +51,4 @@ def harvest_trends(items: list[dict], brand: str = "巧荷", write: bool = False
             feishu_io.create_record(IF.TABLE, row)
         new.append(title)
         existing.add(title)
-    return {"新增": new, "去重跳过": dup}
+    return {"新增": new, "去重跳过": dup, "无正文": no_body}

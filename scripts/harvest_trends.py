@@ -34,6 +34,13 @@ def main() -> int:
         print(f"  + {t}")
     if res["去重跳过"]:
         print(f"去重跳过 {len(res['去重跳过'])} 条(标题已在库)")
+    # **没正文的灵感 = 防搬运红线的空洞**(2026-07-14 全体系对齐审查):
+    # guard.assert_no_source_leak 比对的就是原帖正文;灵感库里正文空 → 门无从比对 → 等于没门。
+    # 现在从这种灵感出稿会被红线**直接拒**,所以这里必须当场喊出来,别等到出稿才发现。
+    if res.get("无正文"):
+        print(f"\n⚠️ {len(res['无正文'])} 条灵感**没有原帖正文**:{res['无正文'][:4]}")
+        print("   防搬运红线比对的就是原帖正文——没正文=门无从比对。")
+        print("   **从这些灵感出稿会被红线直接拒**。请补上正文(json 里加 \"文案\" 字段),或去灵感库手填『文案』。")
     if a.write and res["新增"]:
         feishu_io.log_run(summary=f"找热点落灵感库 {len(res['新增'])} 条", action="找热点")
         print("\n下一步:daily_dispatch 会列成『爆款模仿待办』,draft_one --title-seed 承接出稿。")
