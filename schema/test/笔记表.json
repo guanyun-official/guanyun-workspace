@@ -107,6 +107,10 @@
       "link_table": "tblBAkf3a9OBlOwP"
     },
     {
+      "field_name": "质检",
+      "type": "text"
+    },
+    {
       "field_name": "转发",
       "type": "number"
     }

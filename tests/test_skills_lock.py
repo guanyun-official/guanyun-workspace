@@ -103,5 +103,51 @@ class TestSkillsLock(unittest.TestCase):
         self.assertNotIn("lock sha=local", p.stderr)
 
 
+class TestShadowedSkills(unittest.TestCase):
+    """唯一真源:local-skills/ 静默遮蔽 skills/ 的探针(dogfood 2026-07-14 用户戳出的缺口)。
+
+    load_gen_skill 查找顺序 local-skills → skills(local 优先)。今天没事(skills/writing-* 的 symlink
+    就指回 local-skills 自己,同一份文件);陷阱在**将来 qiaohe-skill 加同名技能**时:装进 skills/ 的是
+    技能仓那份,跑的却仍是 workspace 那份,而 installed_drift 只比远程 HEAD,一个字都不报。
+    """
+
+    def test_symlink_pointing_back_to_local_is_single_source(self):
+        """现状:skills/X → local-skills/X(自指)= 同一份真身,单源,不该报。"""
+        from orchestrator.skills_lock import shadowed_skills
+        errs = shadowed_skills(
+            ["writing-ootd-caption"],
+            lambda n: f"/Users/x/Githubs/guanyun-workspace/local-skills/{n}")
+        self.assertEqual(errs, [])
+
+    def test_two_real_bodies_same_name_is_flagged(self):
+        """将来 qiaohe-skill 加了同名 → 两份不同真身抢一个名字 → 必须报(否则双源静默漂移)。"""
+        from orchestrator.skills_lock import shadowed_skills
+        errs = shadowed_skills(
+            ["writing-ootd-caption"],
+            lambda n: f"/Users/x/Githubs/qiaohe-skill/{n}")     # 装的是技能仓那份
+        self.assertEqual(len(errs), 1)
+        self.assertIn("双源遮蔽", errs[0])
+        self.assertIn("writing-ootd-caption", errs[0])
+
+    def test_local_only_skill_is_fine(self):
+        """只在 local-skills/、没装进 skills/ → 单源,不报。"""
+        from orchestrator.skills_lock import shadowed_skills
+        self.assertEqual(shadowed_skills(["tagging-material"], lambda n: None), [])
+
+    def test_real_workspace_has_no_shadowing_now(self):
+        """真文件系统跑一遍:当前 workspace **实际上**没有双源遮蔽(不是靠我说,是真查)。"""
+        from pathlib import Path
+        from orchestrator.skills_lock import shadowed_skills
+        root = Path(__file__).resolve().parents[1]
+        local_dir, inst_dir = root / "local-skills", root / "skills"
+        names = [p.name for p in local_dir.iterdir() if p.is_dir()] if local_dir.exists() else []
+
+        def resolve(n):
+            p = inst_dir / n
+            return str(p.resolve()) if p.exists() else None
+
+        self.assertEqual(shadowed_skills(names, resolve), [])
+
+
 if __name__ == "__main__":
     unittest.main()

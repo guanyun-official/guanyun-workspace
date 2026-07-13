@@ -49,6 +49,15 @@ REVIEW_OVERDUE_HOURS = int(os.environ.get("GY_REVIEW_OVERDUE_H", "24"))     # �
 METRICS_CLOSE_DAYS = int(os.environ.get("GY_METRICS_CLOSE_DAYS", "7"))      # 已发 N 天后回流收口
 BUDGET_MONTHLY_CNY = float(os.environ.get("GY_BUDGET_MONTHLY_CNY", "300"))  # 月度 LLM 成本告警阈值
 PER_RUN_BUDGET_USD = float(os.environ.get("GY_PER_RUN_BUDGET_USD", "1.2"))  # 单次 claude -p 预算帽(P6实测:长文0.5不够)
+# 出稿底座(dogfood 2026-07-14 真跑改的):原走 `claude -p`,**每次吞 ~33K token 的 Claude Code 系统提示**
+# (实测:只让它回"测试成本"四个字,cache_creation=32766 tokens,花 1.48 元)→ 一条 200 字文案 2~3 元,
+# 95% 的钱付给 CLI 的系统提示,与文案长短/模型档次几乎无关。切 ARK 直连(豆包,vision 同一把 key):
+# prompt 就是 prompt,同样的稿便宜两个数量级。要回退对比质量:GY_DRAFT_BACKEND=claude_cli。
+DRAFT_BACKEND = os.environ.get("GY_DRAFT_BACKEND", "ark")            # ark(直连,默认) | claude_cli(旧,贵)
+# 真跑对比(2026-07-14,同一条 ootd 稿):mini=0.0052元但只3句丢场景层;seed-1-6=0.0055元四层齐;
+# **lite=0.0057元,四层最齐、标题吃进粉+木、细闪场景都中**(用户拍板)。三者成本一个量级,取质量最好的。
+DRAFT_MODEL = os.environ.get("GY_DRAFT_MODEL", "doubao-seed-2-0-lite-260428")
+DRAFT_COST_PER_1K_CNY = float(os.environ.get("GY_DRAFT_COST_PER_1K_CNY", "0.002"))  # 出稿成本估:元/1K token
 METRICS_MODE = os.environ.get("GY_METRICS_MODE", "stub")  # 效果采集:stub 零成本 / real 走 metrics 直连 xhs-extract-master 非登录取数(G7)
 
 # 看图打标(多模态)后端(vision.py seam):doubao(ARK,便宜,默认)/ claude(claude -p 兜底,零 key)。

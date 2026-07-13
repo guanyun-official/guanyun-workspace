@@ -11,7 +11,8 @@
       "weight": 0.667,
       "view": "视频唯美OOTD",
       "gen_skill": "writing-ootd-caption",
-      "material_needs": ["上身视频"]
+      "material_needs": ["上身视频"],
+      "body_len": [100, 140]
     },
     {
       "id": "图文唯美OOTD",

@@ -21,6 +21,32 @@ def is_local_source(s: dict) -> bool:
     return s.get("sha") == "local"
 
 
+def shadowed_skills(local_names, installed_resolve) -> list[str]:
+    """**静默遮蔽探针**(dogfood 2026-07-14 用户戳出的"唯一真源"缺口)。
+
+    `draft.load_gen_skill` 的查找顺序是 `local-skills/<name>` → `skills/<name>`——**local 优先**。
+    今天没事:`skills/writing-ootd-caption` 的 symlink 就指回 `local-skills/` 自己(同一份文件,单源)。
+    陷阱在将来:**哪天 qiaohe-skill 仓里加了同名技能**,lock 把它装进 `skills/<name>`(指向技能仓),
+    可 `load_gen_skill` 仍然优先读 workspace 的 `local-skills/<name>` → **跑的技能 ≠ 锁记录/装进来的那份**,
+    而 `installed_drift` 只比"远程仓 HEAD vs lock sha",**这种同名遮蔽它一个字都不报**。双源漂移就从这进来。
+
+    判据:某技能同时存在于 local-skills/,且 `skills/<name>` 解析到的真身**不在 local-skills 底下**
+    → 两份不同的真身抢同一个名字,load_gen_skill 静默选了 local 那份 → 报冲突,别让它悄悄发生。
+
+    installed_resolve(name) -> 真身绝对路径(str)或 None(没装)。纯逻辑,文件系统 IO 由调用方注入(可零环境单测)。
+    """
+    errs: list[str] = []
+    for name in sorted(local_names or []):
+        target = installed_resolve(name)
+        if not target:
+            continue                                   # 没装进 skills/ → 只有 local 一份,单源,没事
+        if "/local-skills/" in str(target).replace("\\", "/"):
+            continue                                   # symlink 指回 local-skills 自己 → 同一份文件,单源
+        errs.append(f"技能「{name}」双源遮蔽:local-skills/ 和 skills/(→{target})是两份不同真身,"
+                    "load_gen_skill 优先读 local-skills 那份 → 跑的技能≠装的技能。定一个真源,删另一个。")
+    return errs
+
+
 def installed_drift(lock: dict, head_of) -> list[str]:
     """锁版 vs 安装现场实际 HEAD 比对(治『锁版形同虚设』:源仓库被 pull 后 symlink 悄悄变、锁没跟上,
     跑到的技能≠锁记录的版本却无人察觉)。head_of(local_path)->实际HEAD sha 或 None。

@@ -11,11 +11,9 @@ import base64
 import json
 import os
 import subprocess
-import time
-import urllib.request
 from pathlib import Path
 
-from . import config
+from . import ark, config
 
 
 class VisionError(RuntimeError):
@@ -87,21 +85,13 @@ def _doubao(image_paths: list[str], prompt: str) -> tuple[str, int]:
 
 
 def _post(url: str, headers: dict, body: dict, retries: int = 3) -> dict:
-    """HTTP POST 的**唯一真网络 seam**(tests mock 此函数)。urllib:key 留进程内不进 argv。
-    **重试退避**(#41 失败恢复):Broken pipe/Connection reset 等瞬时网络错重试 retries 次,退避 1.5s×次;
-    最终仍失败才抛 VisionError(_tag_one_batch 再把该批隔离跳过,不炸整个文件夹)。"""
-    payload = json.dumps(body).encode("utf-8")
-    last = None
-    for attempt in range(max(1, retries)):
-        try:
-            req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
-            with urllib.request.urlopen(req, timeout=120) as r:   # noqa: S310 (固定 https 端点)
-                return json.loads(r.read().decode("utf-8"))
-        except Exception as e:  # noqa: BLE001  瞬时网络错→退避重试;耗尽→VisionError
-            last = e
-            if attempt < retries - 1:
-                time.sleep(1.5 * (attempt + 1))
-    raise VisionError(f"ARK 请求失败(重试{retries}次): {str(last)[:200]}")
+    """HTTP POST → 转发到**全仓唯一真网络 seam** `ark.post`(看图与出稿共用一个网络口,别开第二个)。
+    保留本名 + VisionError 语义:tests 仍 mock `vision._post`,`_tag_one_batch` 仍按 VisionError 隔离跳批。
+    重试退避在 ark.post 里(#41 失败恢复:瞬时网络错重试 retries 次,退避 1.5s×次)。"""
+    try:
+        return ark.post(url, headers, body, retries)
+    except ark.ArkError as e:
+        raise VisionError(str(e)) from e
 
 
 def _claude(image_paths: list[str], prompt: str) -> str:

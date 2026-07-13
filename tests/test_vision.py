@@ -98,17 +98,22 @@ class TestVision(unittest.TestCase):
             if calls["n"] < 2:
                 raise OSError("Broken pipe")
             return FakeResp()
-        with mock.patch.object(vision.urllib.request, "urlopen", flaky), \
-                mock.patch.object(vision.time, "sleep", lambda s: None):
+        # 网络 seam 已收口到 ark.py(看图/出稿共用一个网络口);vision._post 是转发壳,
+        # 保留 VisionError 语义(_tag_one_batch 按它隔离跳批)。所以打 ark.urllib,断言仍在 vision 侧。
+        from orchestrator import ark
+        with mock.patch.object(ark.urllib.request, "urlopen", flaky), \
+                mock.patch.object(ark.time, "sleep", lambda s: None):
             self.assertEqual(vision._post("https://x", {}, {"a": 1}), {"ok": 1})
         self.assertEqual(calls["n"], 2)                     # 第1次失败→重试第2次成功
 
     def test_post_raises_after_exhausting_retries(self):
+        from orchestrator import ark
+
         def always_fail(req, timeout=120):
             raise OSError("Connection reset by peer")
-        with mock.patch.object(vision.urllib.request, "urlopen", always_fail), \
-                mock.patch.object(vision.time, "sleep", lambda s: None):
-            with self.assertRaises(vision.VisionError):
+        with mock.patch.object(ark.urllib.request, "urlopen", always_fail), \
+                mock.patch.object(ark.time, "sleep", lambda s: None):
+            with self.assertRaises(vision.VisionError):     # ArkError 转成 VisionError,跳批语义不变
                 vision._post("https://x", {}, {"a": 1}, retries=2)
 
     def test_data_uri_downscales_large_to_jpeg(self):

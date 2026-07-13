@@ -154,12 +154,16 @@ class SelectAndAttachMaterials(unittest.TestCase):
         self.assertNotIn("recOther", ids)
 
     def test_create_draft_note_attaches_materials(self):
+        """出稿时选定的那批素材,**原样挂进关联素材**(不重选)——文案就是配它们写的,重选会货不对板。"""
         from unittest import mock
         from orchestrator import feishu_io
-        r = draft.generate_draft("ootd号", llm_mode="stub")  # material_needs=[上身视频]
+        matV = {"record_id": "recV", "fields": {"类型": "上身视频", "拍摄状态": "已拍"}}
+        # material_rows 注入 → generate_draft 零 IO(不打真库);这批就是文案的事实底座
+        r = draft.generate_draft("ootd号", llm_mode="stub", material_rows=[matV])
+        self.assertEqual(r["material_ids"], ["recV"])
         fake = {"账号表": [{"record_id": "recACC", "fields": {"账号名": "ootd号"}}],
                 "内容类型表": [{"record_id": "recCT", "fields": {"内容类型名": "视频唯美OOTD"}}],
-                "素材表": [{"record_id": "recV", "fields": {"类型": "上身视频", "拍摄状态": "已拍"}}]}
+                "素材表": [matV]}
         cap = {}
         with mock.patch.object(feishu_io, "list_records", lambda t: fake.get(t, [])), \
                 mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: fake.get(t, [])), \
@@ -171,7 +175,9 @@ class SelectAndAttachMaterials(unittest.TestCase):
     def test_no_candidate_no_crash(self):
         from unittest import mock
         from orchestrator import feishu_io
-        r = draft.generate_draft("ootd号", llm_mode="stub")
+        r = draft.generate_draft("ootd号", llm_mode="stub", material_rows=[])   # 无候选
+        self.assertEqual(r["material_ids"], [])
+        self.assertFalse(r["material_grounded"])          # 眼前无画面 → prompt 该走"禁编造"分支
         cap = {}
         with mock.patch.object(feishu_io, "list_records",
                                lambda t: {"账号表": [{"record_id": "recA", "fields": {"账号名": "ootd号"}}]}.get(t, [])), \
@@ -483,6 +489,104 @@ class TestQualityFlags(unittest.TestCase):
         from orchestrator.draft import quality_flags
         good = "藕荷色对襟上衣\n\n今天穿这套去园林拍照超好看,面料是真丝提花...\n\n#新中式 #汉服 #ootd"
         self.assertEqual(quality_flags(good), [])
+
+
+# ── 真形态回归锁:固件是 2026-07-14 dogfood **真跑产出的真稿**(一个字没改),不是编的 mock ──
+# 这四条稿把两个真缺陷钉在这:①豆包 lite 把【视频剪辑要点】混进要发的文案(运营复制就发出去=事故);
+# ②豆包 mini 正文才 56 字(技能 writing-ootd-caption 要求 100-140 字逐字稿)。
+# 而**修复前的 quality_flags 对这四条一条 flag 都不响**——它守的是小红书平台上限(标题20/全文1000),
+# 真稿标题最长 14 字、全文最长 195 字,5 倍余量,永远撞不到。这些测试就是防它退回去。
+REAL_DRAFT_LITE_WITH_PRODUCTION_NOTES = (  # 豆包 seed-2-0-lite 真跑:老老实实执行了技能『交出什么』
+    "OOTD｜粉罗裁光，碎香浸影\n\n（27s逐字稿）\n"
+    "风擦过衣料的瞬间，连周遭的光线都软了下来。\n"
+    "衣身浮着细碎闪绒，像把半春的粉樱落絮都织进了布里。\n"
+    "贴肤是凉滑的软，完全没有沉坠的厚重感。\n"
+    "靠在老木边站着发呆，整个人的情绪都慢下来了。\n\n"
+    "【视频剪辑要点】前4s定格浅粉衣身细闪随柔光晃动的局部特写，中间10s慢移镜头扫过裸露的小臂，"
+    "后半段13s切对镜轻晃衣摆的画面，全程柔焦，配轻缓筝音BGM。"
+)
+REAL_DRAFT_MINI_TOO_SHORT = (  # 豆包 mini 真跑:正文仅 56 字,技能要 100-140
+    "OOTD｜粉纱衔光\n\n光落粉纱时，细闪衔着星子的碎光。软得像揉过的春云，指尖一触便漾开。"
+    "凭栏处，风蹭过衣袂，轻得像没留下痕迹。\n\n#新中式 #东方美学 #ootd #传统文化"
+)
+REAL_DRAFT_SONNET_OK = (  # claude sonnet + 素材事实 真跑:四层齐、正文约 110 字、无制作说明 → 应零 flag
+    "OOTD｜藕粉栖光，木荫染暖\n\n"
+    "风还没热透，粉色倒先醒了。袖口那点细闪，像揉碎的光沾在腕间，若隐若现，不喧哗。"
+    "贴着手臂的地方很轻，风一过，浮光跟着轻轻晃，不显厚重，也不压人。"
+    "身后木色晕成一片暖褐，光是软的，人站在里头，连呼吸都慢了半拍。\n\n"
+    "#汉服穿搭 #新中式 #OOTD #东方美学"
+)
+PB_VIDEO = {"id": "视频唯美OOTD", "content_type": "视频唯美OOTD", "body_len": [100, 140]}
+
+
+class TestQualityFlagsRealDrafts(unittest.TestCase):
+    """真跑稿回归锁:修复前这四条『一条 flag 都不响』,是"检查表演"。"""
+
+    def test_production_notes_must_be_flagged(self):
+        """【视频剪辑要点】混进要发的文案 = 真事故(运营从 base 复制就发到小红书)。必须报。"""
+        from orchestrator.draft import quality_flags
+        flags = quality_flags(REAL_DRAFT_LITE_WITH_PRODUCTION_NOTES, PB_VIDEO)
+        self.assertTrue(any("制作说明" in f for f in flags), f"制作说明混入没报: {flags}")
+
+    def test_too_short_body_must_be_flagged(self):
+        """正文 56 字 < 技能要求 100-140 字(逐字稿念不满 25-30s)。必须报。"""
+        from orchestrator.draft import quality_flags
+        flags = quality_flags(REAL_DRAFT_MINI_TOO_SHORT, PB_VIDEO)
+        self.assertTrue(any("技能要求" in f for f in flags), f"篇幅不足没报: {flags}")
+
+    def test_good_real_draft_stays_clean(self):
+        """四层齐、篇幅达标、无制作说明的真稿 → 不该误报(否则天天狼来了,人就不看了)。"""
+        from orchestrator.draft import quality_flags
+        self.assertEqual(quality_flags(REAL_DRAFT_SONNET_OK, PB_VIDEO), [])
+
+    def test_old_thresholds_were_unreachable(self):
+        """钉住"为什么原来的检查是死的":真稿离平台上限有 5 倍余量,那两条永远不响。"""
+        for d in (REAL_DRAFT_LITE_WITH_PRODUCTION_NOTES, REAL_DRAFT_MINI_TOO_SHORT, REAL_DRAFT_SONNET_OK):
+            title = [ln for ln in d.splitlines() if ln.strip()][0]
+            self.assertLess(len(title), 20, "真稿标题从没撞到小红书 20 字上限")
+            self.assertLess(len(d), 1000, "真稿全文从没撞到小红书 1000 字上限")
+
+    def test_no_body_len_spec_means_no_length_check(self):
+        """技能没写字数规格的模式(素人种草/品牌新作),不替它编数字瞎检。"""
+        from orchestrator.draft import quality_flags
+        flags = quality_flags(REAL_DRAFT_MINI_TOO_SHORT, {"id": "素人图文种草"})   # 无 body_len
+        self.assertFalse(any("技能要求" in f for f in flags), f"没规格却检了篇幅: {flags}")
+
+
+class TestMaterialFacts(unittest.TestCase):
+    """出稿的**事实底座**:选中素材的 vision 标(『备注』)进 prompt,文案才是『配』画面写的不是编的。"""
+
+    def test_vision_note_becomes_prompt_fact(self):
+        from orchestrator import draft
+        # 真库真形态(素材表 recvpex6XzTP9H,豆包看图打的备注)
+        rows = [{"record_id": "recvpex6XzTP9H", "fields": {
+            "类型": "上身视频", "素材编号": "SV-000000-001",
+            "备注": "浅粉色带细闪的汉服衣身局部特写，画面下方有裸露的手臂局部，"
+                    "背景为模糊的红棕色木质场景，光线柔和自然"}}]
+        facts = draft.material_facts(rows)
+        self.assertIn("浅粉色带细闪", facts)
+        self.assertIn("上身视频", facts)
+
+    def test_prompt_carries_the_picture(self):
+        """回归锁:素材事实必须真进 prompt(原来 compose_prompt 里根本没有素材 → LLM 瞎编面料手感)。"""
+        from orchestrator import draft
+
+        class _Acc:
+            name, profile_text, error = "ootd号", "设计师人设", ""
+        p = draft.compose_prompt(_Acc(), PB_VIDEO, "技能正文",
+                                 material_text="· [上身视频] 浅粉色带细闪，红棕色木质场景，光线柔和")
+        self.assertIn("细闪", p)
+        self.assertIn("木质", p)
+        self.assertIn("只写画面里看得出的", p)
+
+    def test_no_material_no_clothes_falls_back_to_ban(self):
+        """既无素材也无衣服 = 没有任何事实来源 → 必须禁编造(别再写'料子很轻')。"""
+        from orchestrator import draft
+
+        class _Acc:
+            name, profile_text, error = "ootd号", "", ""
+        p = draft.compose_prompt(_Acc(), PB_VIDEO, "技能正文")
+        self.assertIn("严禁编造", p)
 
 
 if __name__ == "__main__":

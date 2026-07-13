@@ -11,6 +11,8 @@ __pycache__/
 *.pyc
 # 本地幂等账本(feishu_workbench 运行态)
 .feishu_workbench/
+# 网盘素材下载缓存(BaiduPCS-Go 落地的大二进制,base 引用绝对路径,不入库)
+.netpan_cache/
 # OMX/Codex 本地运行态
 .omx/
 # macOS
