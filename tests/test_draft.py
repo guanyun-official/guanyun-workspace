@@ -404,35 +404,43 @@ class NoSourceLeakGate(unittest.TestCase):
         with self.assertRaises(guard.GuardError):
             guard.assert_no_source_leak("原来500年前我们就有polo衫了", "抄:原来500年前我们就有polo衫了！")
         guard.assert_no_source_leak("原来500年前我们就有polo衫了", "夏色入衿，风过成凉")  # 无重叠→放行
-        # 自由创作(非模仿)时源过短/为空 → 放行,不误伤
-        guard.assert_no_source_leak("短句", "任何输出", imitating=False)
+        guard.assert_no_source_leak("短句", "任何输出")      # 源太短不产生保护,也不误伤
 
-    def test_imitating_without_source_body_is_rejected(self):
-        """**红线空洞的回归锁**(2026-07-14 全体系对齐审查抓到的,这一整轮最严重的一条)。
+    def test_guards_every_text_the_llm_actually_saw(self):
+        """**门必须守"LLM 真正看得见的东西"**(2026-07-14 真跑抓到的方向性错误)。
 
-        原来这里有一行测试写着 `assert_no_source_leak("短句", "任何输出")  # source过短→放行`——
-        **测试本身在给窟窿背书**。而 guard 的注释也把它写成"设计取舍":源过短→提前放行。
+        LLM 在 prompt 里**真正看到**的只有:① title_seed(标题线索)
+        ② **gen_skill 的 few-shot 真实帖** —— 技能白纸黑字写着「只学结构、绝不抄原句」
+        「出口过防搬运闸」,**而那句话从来没人执行**。
+        LLM **从来没看到**的:source_text(对标源正文)—— `compose_prompt` 根本不收它。
 
-        真实数据:**灵感库 5 条,『文案』(原帖正文)字段全是空的**——"找热点"那一步的输入契约
-        `[{标题, 可借鉴?, 源链接?}]` **压根就没有正文这一项**。于是防搬运门每次都走"提前放行"分支,
-        **整段逐字搬也能过**。门造好了、装上了、单测全绿,可它比对的东西在真数据里根本不存在。
-        这是这类病最危险的形态:**不是没做,是做了、看着像在保护你、实际是空的**;
-        而且**测试就是站在窟窿前面守着的那个人**。
+        于是老实现犯了双重错误:
+          · **守着 LLM 没见过的东西**(source_text):正文没进 prompt,逐字搬它物理上不可能,
+            这份"保护"是空的;
+          · **真能搬的东西不看**(few-shot 真实帖就在 prompt 里)——真跑实证:把 few-shot 的
+            真实帖逐字搬进产出 → **直接过门,一个字都没查**。
+        (我还一度加过"声称蹭爆款却拿不出正文→拒绝出稿",在防一个不存在的风险,
+         同时把整条爆款模仿链路焊死 —— 而正文在非登录下**根本抓不到**。已撤。)
 
-        真契约:声称在蹭爆款/模仿灵感(dispatch 就是这么派活的:draft_one --title-seed "<灵感标题>"),
-        却拿不出对标源正文 → **必须拒**(门无从比对 = 等于没门)。
+        真契约:调用方把**所有进了 prompt 的文本**都传进来,门逐个比。
         """
-        from orchestrator import guard
-        stolen = "夏天最好的时刻,是风比人先进门。这一身不必急着解释,光落上去它自己会说话。"
+        from orchestrator import accounts, draft, guard
+        acc = accounts.load("ootd号", "巧荷")
+        pb = draft.pick_playbook(acc, "视频唯美OOTD")
+        skill = draft.load_gen_skill(accounts.gen_skill_of(pb))
+        self.assertIn("OOTD｜宋代风雅，粉蝶入绢", skill)     # 技能里有真实帖(它在 prompt 里)
 
-        with self.assertRaises(guard.GuardError):          # 声称蹭爆款,却没源正文 → 拒
-            guard.assert_no_source_leak("", f"OOTD｜x\n\n{stolen}", imitating=True)
-        with self.assertRaises(guard.GuardError):          # 源正文有值 + 逐字搬 → 拒
-            guard.assert_no_source_leak(stolen, f"OOTD｜x\n\n{stolen}", imitating=True)
-
-        # 不误伤:自由创作没源正文 → 放行;蹭爆款但真原创 → 放行
-        guard.assert_no_source_leak("", "OOTD｜粉罗载光\n\n光落在衣上,风把影子摇醒。", imitating=False)
-        guard.assert_no_source_leak(stolen, "OOTD｜粉罗载光\n\n光落在衣上,风把影子摇醒。", imitating=True)
+        # ① 逐字搬 few-shot 的真实帖 → **必须拒**(以前直接过门)
+        with self.assertRaises(guard.GuardError):
+            guard.assert_no_source_leak(["", "", skill],
+                                        "OOTD｜宋代风雅，粉蝶入绢\n\n夏色入衿。\n\n#汉服")
+        # ② 逐字搬灵感标题 → 必须拒
+        with self.assertRaises(guard.GuardError):
+            guard.assert_no_source_leak(["", "小个子怎么穿汉服显高显瘦", skill],
+                                        "小个子怎么穿汉服显高显瘦\n\n正文。\n\n#汉服")
+        # ③ 真原创 → 放行,不误伤(否则天天狼来了,门就废了)
+        guard.assert_no_source_leak(["", "小个子怎么穿汉服显高显瘦", skill],
+                                    "OOTD｜粉罗载光\n\n光落在衣上，风把影子摇醒。\n\n#汉服")
 
     def test_harvest_trends_reports_missing_body(self):
         """源头堵:落灵感时没原帖正文 → 必须喊出来(从它出的稿会被红线直接拒)。"""

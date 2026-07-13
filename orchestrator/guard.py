@@ -65,29 +65,43 @@ def assert_publish_quota(published_today_for_account: int) -> None:
         )
 
 
-def assert_no_source_leak(source_text: str, payload: str, n: int = 10,
-                          imitating: bool = False) -> None:
-    """防搬运出口闸(红线):产出 payload 不得逐字搬对标/灵感源 source_text 的 ≥n 连续实义字符片段。
-    爆款只当情报——出稿不得含对标原帖/原标题的连续片段。**先归一化去空白/标点再比对**,
-    加空格/改标点也绕不过(这是该红线的唯一实现,原 lib/skill_gate 那份已退役并入此处)。
+def assert_no_source_leak(sources, payload: str, n: int = 10) -> None:
+    """防搬运出口闸(红线):产出不得逐字搬**任何一个对标源**的 ≥n 连续实义字符片段。
+    sources = 单个字符串 或 字符串列表(每个都比)。归一化后比对(插空格/改标点/换全半角都绕不过)。
 
-    **imitating=True 时,拿不出源正文 = 直接拒绝**(2026-07-14 全体系对齐审查抓到的红线空洞)。
-    原来这里写着"源过短 → 放行(短源不产生保护也不误伤,**设计取舍**)"——而真实数据里
-    **灵感库 5 条,『文案』字段全是空的**(找热点那一步从没抓过正文)。于是门每次都走"提前放行",
-    **整段逐字搬也能过**。门造好了、装上了、单测也绿,可它比对的东西在真数据里根本不存在——
-    这是这类病最危险的形态:**不是没做,是做了、看着像在保护你、实际是空的**。
-    门自己判断不了调用方是不是在蹭爆款,所以**由调用方声明**:声称在模仿某条爆款、却拿不出源正文,
-    就必须拒绝(不然"防搬运"三个字是假的)。非模仿场景(自由创作)仍按原样放行,不误伤。
+    **必须守住"LLM 真正看得见的东西"**(2026-07-14 真跑发现:这道门以前在守错东西)——
+
+    LLM 在 prompt 里**真正看到**的只有:
+      · title_seed(标题线索,来自灵感标题)
+      · **gen_skill 的 few-shot 真实帖**(技能白纸黑字写着「只学结构、绝不抄原句」
+        「出口过防搬运闸」—— 而**那句话从来没人执行**)
+    LLM **从来没看到**的:
+      · source_text(对标源正文)—— `compose_prompt` 根本不收它,它只喂给这道门
+
+    于是老实现犯了双重错误:
+      1. **守着 LLM 没见过的东西**:只比对 source_text/title_seed。正文既然没进 prompt,
+         逐字搬它物理上不可能 —— 这份"保护"是空的。
+      2. **真能搬的东西不看**:few-shot 里的真实帖**就在 prompt 里**,LLM 一眼就能照抄。
+         真跑实证:把 few-shot 的真实帖标题逐字搬进产出 → **直接过门,一个字都没查**。
+      3. 我还一度加过"声称蹭爆款却拿不出正文 → 拒绝出稿"—— **在防一个不存在的风险**
+         (正文没进 prompt),同时把整条爆款模仿链路焊死(而正文在非登录下**根本抓不到**:
+         小红书详情页对非登录只吐 452 字节空壳)。已撤。
+
+    现在:调用方把**所有进了 prompt 的文本**都传进来(标题线索 + 技能 few-shot),门逐个比。
+    守 LLM 真正看得见的东西 —— 这才是"防搬运"三个字的意思。
     """
-    src, pay = _norm(source_text), _norm(payload)
-    if imitating and len(src) < n:
-        raise GuardError(
-            "防搬运门:这条稿声称在**蹭爆款/模仿灵感**,却拿不出对标源正文 —— 门无从比对,"
-            "等于没门。先去灵感库把该条的『文案』(原帖正文)补上,再出稿"
-            "(draft_one 传 --source-text)。")
-    if len(src) < n or not pay:
+    if isinstance(sources, str):
+        sources = [sources]
+    pay = _norm(payload)
+    if not pay:
         return
-    for i in range(len(src) - n + 1):
-        frag = src[i:i + n]
-        if frag in pay:
-            raise GuardError(f"防搬运门:产出含对标源 {n} 字连续片段「{frag}」,拒绝(爆款只当情报,不搬原文)")
+    for s in sources:
+        src = _norm(s or "")
+        if len(src) < n:
+            continue                      # 太短的源不产生保护,也不误伤(如两三字的标题线索)
+        for i in range(len(src) - n + 1):
+            frag = src[i:i + n]
+            if frag in pay:
+                raise GuardError(
+                    f"防搬运门:产出含对标源 {n} 字连续片段「{frag}」,拒绝"
+                    "(爆款/真实帖只当情报,**只学结构、绝不抄原句**)")

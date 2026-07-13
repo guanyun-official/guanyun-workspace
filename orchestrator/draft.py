@@ -250,13 +250,15 @@ def generate_draft(account_name: str, brand: str = "巧荷", llm_mode: str = "st
                             material_text=material_facts(mat_rows or []))   # stub 未取素材→无事实底座→走禁编造分支
     if llm_mode == "real":
         draft_text, cost = llm.run_prompt(prompt)
-        # 防搬运出口闸(红线):比对**完整对标源正文**(source_text)。
-        # **imitating**:传了 title_seed = 这条稿是**从某条灵感/爆款来的**(dispatch 的『爆款模仿待办』
-        # 就是这么派的:draft_one --title-seed "<灵感标题>")。这种情况下**必须拿得出源正文**,
-        # 否则门无从比对 = 等于没门(真实数据:灵感库 5 条『文案』全空 → 门每次都提前放行 →
-        # 整段逐字搬也能过)。自由创作(无 title_seed)不受影响,不误伤。
-        guard.assert_no_source_leak(source_text or title_seed, draft_text,
-                                    imitating=bool(title_seed) and not source_text)
+        # 防搬运出口闸(红线):**把所有进了 prompt 的文本都交给门**(2026-07-14 真跑修的方向性错误)。
+        # 门必须守"LLM 真正看得见的东西":
+        #   · title_seed —— 灵感标题(它在 prompt 的「标题线索」里)
+        #   · **skill_text —— gen_skill 的 few-shot 真实帖**,就在 prompt 里,LLM 一眼能照抄。
+        #     技能白纸黑字写着「只学结构、绝不抄原句」「出口过防搬运闸」——**而那句话从来没人执行**。
+        #     真跑实证:把 few-shot 的真实帖逐字搬进产出 → **直接过门,一个字都没查**。
+        #   · source_text —— 对标源正文(若调用方拿得到)。注意它**不进 prompt**,
+        #     所以逐字搬它物理上不可能;传进来是纯保护、不产生风险。
+        guard.assert_no_source_leak([source_text, title_seed, skill_text], draft_text)
     else:
         draft_text, cost = _stub_draft(acc, pb, gen_skill, bool(skill_text), title_seed), 0.0
     ctype = pb.get("content_type") or pb.get("id") or ""

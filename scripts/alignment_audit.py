@@ -288,9 +288,12 @@ def audit_views() -> None:
 # ══════════════════════════════════════════════════════════════════════════════
 GATE_INPUTS = [
     # (门, 它依赖的表, 依赖的字段, 全空时的后果)
-    ("防搬运门 assert_no_source_leak", "灵感库", "文案",
-     "门比对的是原帖正文。全空 → 门无从比对 → **整段逐字搬也能过**(现已 fail-closed:"
-     "声称蹭爆款却无正文=直接拒;但源头仍该补正文,否则爆款模仿这条链路整个走不通)"),
+    # 2026-07-14 校正:这条规矩以前写错了源——它断言防搬运门依赖灵感库『文案』(原帖正文)。
+    # 真跑证伪:`compose_prompt` **根本不收 source_text** → 正文从没进过 prompt → LLM 没见过 →
+    # 逐字搬它物理上不可能。守它 = 守空气。而**真能被搬的**(灵感标题、技能 few-shot 真实帖)当时零防护。
+    # 门真正的比对源 = **LLM 眼睛看得见的东西**,第一项就是灵感标题(它就是 title_seed)。
+    ("防搬运门 assert_no_source_leak", "灵感库", "标题",
+     "灵感标题**就是 title_seed**,直接进 prompt。全空 → 派不出活,爆款模仿链路断在源头"),
     ("AI声明门 assert_ai_declared", "素材表", "来源",
      "门按素材『来源』判要不要勾 AI 声明。全空 → 一律判成不需要 → **AI 内容漏标**(合规硬伤)"),
 ]
@@ -318,8 +321,58 @@ def audit_empty_gates() -> None:
             found += 1
         else:
             ok(f"{gate} ← {table}.『{field}』 {filled}/{len(rows)} 有值(门有东西可比)")
-    if not found:
-        pass
+    audit_gate_covers_prompt()
+
+
+# **进了 prompt 的外来文本**(不是我们原创的、有版权风险的):
+#   skill_text  —— 技能里的 few-shot **真实帖**(别人的帖子!),LLM 一眼就能照抄
+#   title_seed  —— 灵感标题(别人的标题)
+#   source_text —— 对标源正文(目前不进 prompt,但传了也得守)
+# **不算外来**(搬不构成抄袭):clothes_text(我们的知识库) / material_text(我们自己素材的视觉标签) / keywords。
+PROMPT_EXTERNAL_TEXTS = {"skill_text", "title_seed", "source_text"}
+
+
+def _call_arg_names(tree, fname: str) -> set:
+    """AST 取某函数调用的所有实参变量名(含 list 字面量里的、含关键字实参)。"""
+    names = set()
+
+    def collect(node):
+        if isinstance(node, ast.Name):
+            names.add(node.id)
+        for ch in ast.iter_child_nodes(node):
+            collect(ch)
+
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Call):
+            f = n.func
+            got = f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", "")
+            if got == fname:
+                for a in list(n.args) + [k.value for k in n.keywords]:
+                    collect(a)
+    return names
+
+
+def audit_gate_covers_prompt() -> None:
+    """**结构不变式:凡是进了 prompt 的外来文本,必须都交给防搬运门。**
+
+    这条是给今天这个 bug 立的碑(2026-07-14):
+      · compose_prompt 收了 skill_text(技能 few-shot 里的**真实帖**)+ title_seed
+      · assert_no_source_leak 只收了 source_text + title_seed
+      · 于是 **LLM 眼前摆着别人的真帖,而门没在看它** —— 真跑实证:逐字搬 few-shot 标题,直接过门。
+    机器能查的就是这个**集合包含关系**,人脑记不住。把 bug 塞回去(从门的实参里删掉 skill_text)
+    这条必须报红 —— 已验证。"""
+    src = (ROOT / "orchestrator" / "draft.py").read_text(encoding="utf-8")
+    tree = ast.parse(src)
+    into_prompt = _call_arg_names(tree, "compose_prompt") & PROMPT_EXTERNAL_TEXTS
+    into_gate = _call_arg_names(tree, "assert_no_source_leak") & PROMPT_EXTERNAL_TEXTS
+    missing = into_prompt - into_gate
+    if missing:
+        bad("空门·门没看全", f"这些外来文本**进了 prompt 却没进防搬运门**:{', '.join(sorted(missing))}",
+            "LLM 眼前摆着别人的原文,而门不看它 → **逐字照抄能直接过门**。"
+            "把它们加进 guard.assert_no_source_leak([...]) 的列表")
+    else:
+        ok(f"防搬运门看全了进 prompt 的外来文本({', '.join(sorted(into_prompt)) or '无'})"
+           f"—— LLM 见得到的,门都在比")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
