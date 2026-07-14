@@ -17,7 +17,7 @@
 
 - **Account(账号)** — 一个小红书号。两张脸(皆 data):
   画像 = `brands/巧荷/accounts/{号}.md` 正文(发什么/怎么写);
-  strategy = 同文件 frontmatter(cadence / autonomy / sourcing / **playbooks[]**)。
+  strategy = 同文件 frontmatter(**playbooks[]** / sourcing;`cadence` 已删——派活节奏是 agent 的判断,不是声明的旋钮)。
   `orchestrator/accounts` 加载。**它是常驻 Knowledge,不是配置文件。**
 
 - **Playbook(方法论)** — 账号的一套发布方法论 = `content_type` + **`gen_skill`** + `material_needs` + 调性 + `body_len`。

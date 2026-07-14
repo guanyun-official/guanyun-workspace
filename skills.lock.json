@@ -17,7 +17,8 @@
         "xhs-extract-master",
         "video-storyboard",
         "video-previz",
-        "video-editing"
+        "video-editing",
+        "evolving-the-system"
       ],
       "install": "symlink",
       "_video": "★剪辑三件套的引擎就在这个仓里:`video-engine/`(技能里的 `$VE`)★ **技能和引擎同仓,走不散。** 曾经只拷技能不带引擎 → `$VE/scripts/*` 全指空 → 被误判成『教一个不存在的世界』而删掉。**世界不是不存在,是拷贝时弄丢了。** 要跑引擎:`bash <仓>/video-engine/setup.sh`(clone VectCutAPI 基座 + 起 :9001)。"
