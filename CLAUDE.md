@@ -80,10 +80,19 @@ Harness = Tools + Knowledge + Observation + Action Interfaces + Permissions
 **"人想起来方便的逻辑,落实下来都是 bug"** —— 在脑子里想通了就当做完了。
 镜像同样致命:**本可以直接做完的事,别想成要先造个东西。**
 
-## 提交
+## 提交(**三份真源,一份都不能漏**)
+
+| 真源 | 在哪 | 纪律 |
+|---|---|---|
+| **workspace** | GitHub `guanyun-official/guanyun-workspace` | 改完 **push** |
+| **技能** | GitHub `guanyun-official/qiaohe-skill` | 改完 **push**,再**更新 `skills.lock.json` 的 sha** |
+| **Base** | 飞书 `ZhzJbf` | 只此一份,改完**只读自证** |
+
+> **服务器上的 agent 只从 GitHub 拿东西。本地改了不推 = 没改。**
+> **`skills.lock.json` 的 sha 必须 = 技能仓 HEAD** —— 否则服务器装出来的技能**不是我们跑的这份**。
 
 **中文**(注释/commit/issue)。**commit / push / issue 自动做,别问。**
-提交前:`bash scripts/review_gate.sh --full` + `python3 scripts/alignment_audit.py` **全绿**。红=不留,别拿"部分绿"充数。
+提交前:`bash scripts/review_gate.sh --full` **全绿**(它末尾会跑 `ask.sh` 架构自问)。红=不留,别拿"部分绿"充数。
 
 ## 已知欠账(唯一一份在 `docs/架构.md` 第四节)
 
