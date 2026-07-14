@@ -211,11 +211,26 @@ def url_value(url: str, text: str = "") -> dict:
 
 
 def text(v) -> str:
-    """任意字段值 → 文本。list[dict]→逗号连;dict→text/link;标量→str。"""
+    """任意字段值 → **给人看的文本**。list[dict]→逗号连;dict→text/link;标量→str。
+    ⚠️ url 字段(`{"link": …, "text": …}`)走这里回的是 **text(显示名)**,**不是能点的 href**。
+    要 href 用 `url()`。"""
     if isinstance(v, list):
         return ",".join(x.get("text", "") if isinstance(x, dict) else str(x) for x in v)
     if isinstance(v, dict):
         return str(v.get("text") or v.get("link") or "")
+    return str(v or "")
+
+
+def url(v) -> str:
+    """url 字段 → **能点开的 href**(不是显示名)。
+
+    ★为什么单独有这个函数★ 飞书 url 字段是 `{"link": "https://…", "text": "文件名.heic"}`。
+    `text()` 是 **text 优先** —— 对 url 字段就**恰好把唯一有用的那半扔了**。
+    这个形态被手写拆解过三处(materials / board / publish),**其中一处拆错**,
+    运营卡片上就出现了「🖼 ST-260702-004 → 2026-07-02 175621.heic」这种点不开的东西。
+    形态只该被拆一遍,拆在这。"""
+    if isinstance(v, dict):
+        return str(v.get("link") or "")
     return str(v or "")
 
 

@@ -34,26 +34,44 @@ def _call(method: str, path: str, params: dict | None = None, data: dict | None 
         args += ["--params", json.dumps(params, ensure_ascii=False)]
     if data:
         args += ["--data", json.dumps(data, ensure_ascii=False)]
+    # ★lark-cli 把**报错写在 stderr**,成功才写 stdout★(2026-07-15 查笔记本发烫时撞出来的)
+    #
+    # 老实现只看 `r.stdout`。出错时 stdout 是**空的** → `"{" in out` 为假 → 落到最后两行
+    # → **睡 1s、2s、4s、8s,重跑 5 次** → 抛 `5 次重试未成功`。
+    #
+    # 后果两条,都在骗人(**真跑量过**):
+    #  ① **任何一个错都烧 36 秒 + 5 个进程**。而这种错重试毫无意义 —— 表 id 错,重试 5 次还是错。
+    #  ② **真话被扔了。** lark-cli 在 stderr 明明白白说了 `[1254041] TableIdNotFound`,
+    #     而数字生命收到的是「5 次重试未成功」—— 它不知道自己表 id 写错了,只知道"重试没成功"。
+    #     **于是它会去重试,而不是去改。**
+    #
+    # 修完:错 → **1 秒 · 1 个进程 · 说真话**。
+    # 真读一遍 API 返回(连 stderr 一起读),别猜形态 —— 同一个坑栽过第五次。
     delay = 1.0
-    for attempt in range(5):
+    last = ""
+    for _ in range(5):
         r = subprocess.run(args, capture_output=True, text=True, cwd=str(config.WORKSPACE), env=env, timeout=60)
-        out = r.stdout.strip()
-        if "{" in out:
+        blob = r.stdout.strip() or r.stderr.strip()     # ★成功在 stdout,报错在 stderr。两个都得看★
+        last = r.stderr.strip()
+        if "{" in blob:
             try:
-                d = json.loads(out[out.find("{"):])
+                d = json.loads(blob[blob.find("{"):])
             except json.JSONDecodeError:
-                raise FeishuIOError(f"非 JSON 响应: {out[:200]}")
+                raise FeishuIOError(f"非 JSON 响应: {blob[:200]}")
             code = d.get("code", d.get("error", {}).get("code"))
             if code == 0:
                 return d.get("data", {})
+            # **只有"等一下会好"的错才配重试。** 其余的重试 5 次只是把同一个错犯 5 遍。
             if code in (99991400, 1254290, 429) or "frequency" in str(d)[:300].lower():
                 time.sleep(delay)
                 delay = min(delay * 2, 16)
                 continue
-            raise FeishuIOError(f"{method} {path} code={code}: {str(d)[:300]}")
-        time.sleep(delay)
+            msg = d.get("error", {}).get("message") or d.get("msg") or ""
+            raise FeishuIOError(f"{method} {path} code={code} {msg}: {str(d)[:300]}")
+        time.sleep(delay)                               # 连 JSON 都没有(网络/进程挂了)→ 这才值得重试
         delay = min(delay * 2, 16)
-    raise FeishuIOError(f"{method} {path} 5 次重试未成功")
+    raise FeishuIOError(f"{method} {path} 连续 5 次拿不到任何 JSON(网络?lark-cli 挂了?)"
+                        f" 最后一次 stderr: {last[:200] or '(空)'}")
 
 
 def _guard_write() -> None:
@@ -156,14 +174,24 @@ def name_map(table_name: str, name_field: str) -> dict[str, str]:
     return {r["record_id"]: bitable.text(r["fields"].get(name_field)) for r in list_records(table_name)}
 
 
+RECORD_NOT_FOUND = 1254043      # 飞书真码,三种写法(格式非法/同长不存在/乱编)全回它 —— 2026-07-15 真问过
+
+
 def get_record(table_name: str, record_id: str) -> dict | None:
-    """按 record_id 取**单条**(GET,不全表扫)。找不到→None。用于 approve/成片索引等按 id 取的场景。"""
+    """按 record_id 取**单条**(GET,不全表扫)。**只有"这条记录不存在"→None**,其余错一律抛。
+
+    ★老实现是 `except FeishuIOError: return None`★ —— 表 id 写错、没权限、网络断,
+    **全都被吞成"找不到"**。数字生命拿到 None,只会以为"这条素材不在库里",
+    然后接着往下走。**静默吞数据,仓里记过的病。**
+    """
     tid = config.tables()[table_name]
     try:
         d = _call("GET", f"/open-apis/bitable/v1/apps/{config.BASE_TOKEN}/tables/{tid}/records/{record_id}")
         return d.get("record")
-    except FeishuIOError:
-        return None
+    except FeishuIOError as e:
+        if f"code={RECORD_NOT_FOUND}" in str(e):
+            return None                                  # 真的没这条 —— 这才是 None 的意思
+        raise                                            # 别的错:**说出来**,别装作"没找到"
 
 
 def update_record(table_name: str, record_id: str, fields: dict) -> None:

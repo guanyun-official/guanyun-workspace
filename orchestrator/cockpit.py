@@ -171,6 +171,12 @@ def today_card(brand: str = "巧荷", panel: dict | None = None) -> dict:
             # 才发现是废稿。算了不给人看 = 等于没检。
             if n.get("质检"):
                 line += f"\n     ⚠️ {n['质检']}"
+            # ★待发的稿,**图必须给他**★(2026-07-14 我以运营的眼睛读卡片时骂出来的)
+            # 「📤 等你发」—— 我点开手机准备发小红书,**却不知道该传哪几张图**,
+            # 得点进 base 一张张翻。而系统**明明已经算出来了**:哪几条素材、每条的可开链接。
+            # **算了却没给人看 = 等于没算。**(这个病在这个卡片上已经犯过三次了。)
+            for m in (n.get("materials") or []):
+                line += f"\n     🖼 {m['code']} → {m['link'] or '(没有可开链接 —— 去 base 点素材)'}"
             blocks.setdefault(key, []).append(line)
 
     el: list[dict] = []

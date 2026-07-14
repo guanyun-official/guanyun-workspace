@@ -16,9 +16,16 @@ from .bitable import AccountFields as AF, NoteFields as NF, NoteStatus as NS, Ma
 
 def _mat_info(r: dict) -> dict:
     f = r["fields"]
+    # ★『链接』是 url 字段:`{"link": "https://pan.baidu.com/s/…?pwd=", "text": "2026-07-02 175609.heic"}`★
+    # `bitable.text()` 对 dict 是 **text 优先** → 拿回来的是**文件名,不是能点的链接**。
+    # 而它一路喂进 `take_link()`:文件名不以 `baidupan:` 开头 → **原样返回** → 运营卡片上
+    # 「🖼 ST-260702-004 → 2026-07-02 175621.heic」。他点不开,也不知道在网盘哪个目录。
+    # **能开的链接一直躺在库里,只是被 text 挡住了。**(又一次「算了却没给人看」。)
+    # 所以这里给 take_link 的是**耐久指针**(它本来就是为这个造的:用时 mint,人拿不到过期链),
+    # 库里那条 href 只当兜底。
     return {"source": bitable.text(f.get(MF.SOURCE)), "code": bitable.text(f.get(MF.CODE)),
             "type": bitable.text(f.get(MF.TYPE)), "note": bitable.text(f.get(MF.NOTE)),
-            "link": bitable.text(f.get(MF.LINK))}
+            "link": bitable.text(f.get(MF.REL_PATH)) or bitable.url(f.get(MF.LINK))}
 
 
 def _material_index(record_ids: list | None = None) -> dict:

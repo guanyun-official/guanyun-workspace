@@ -229,7 +229,7 @@ def _feedback() -> dict:
         nums = {"点赞": f.get(NF.LIKED), "收藏": f.get(NF.COLLECTED),
                 "评论": f.get(NF.COMMENTS), "转发": f.get(NF.SHARED)}
         link = f.get(NF.PUBLISH_LINK)
-        url = link.get("link") if isinstance(link, dict) else bitable.text(link)
+        url = bitable.url(link)
         item = {
             "id": r["record_id"],
             "标题": bitable.text(f.get(NF.TITLE)),

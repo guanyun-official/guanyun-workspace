@@ -42,7 +42,7 @@ def _fact(r: dict, acc_names: dict) -> dict:
         # 它是**事实**,给 agent 看:哪些素材被用滥了、哪些还没人用过。
         # 「优先用没用过的」是**判断**,归 agent(知识在技能里),不是这里排个序就替它决定了。
         "被引用次数": len(bitable.link_record_ids(f.get(MF.BACKLINK))),
-        "链接": bitable.text(link) if not isinstance(link, dict) else (link.get("link") or ""),
+        "链接": bitable.url(link),                       # url 字段的 href(不是显示名 —— 见 bitable.url)
         "指针": bitable.text(f.get(MF.REL_PATH)),        # baidupan:/… 耐久指针(viewable() 吃它)
     }
 
