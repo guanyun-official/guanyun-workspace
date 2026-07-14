@@ -102,11 +102,39 @@ def list_dir(remote_path: str = "") -> list[dict]:
 
 
 def pull(remote_path: str, dest: Path | None = None) -> str:
-    """按需拉一个网盘文件到本地缓存(要编辑/分析才拉,不镜像全盘)。返回本地路径。"""
+    """按需拉一个网盘文件到本地缓存。返回本地路径。
+
+    ★★ 缓存必须按**完整远端路径**落盘,绝不能按文件名 ★★
+    (2026-07-14 数字生命上班时抓到 —— **这是整个系统里最毒的一个 bug**)
+
+    老实现:`download <远端路径> --saveto <CACHE>` → 落成 `CACHE/<basename>`,返回那个路径。
+
+    真跑复现:
+
+        /巧荷素材/待入库/二次_DSC6680.jpg        5,308,416 字节(而且是**截断的坏图**,下半张全灰)
+        /巧荷/图片底片剪裁/二次_DSC6680.jpg     17,358,046 字节(完整的那张)
+
+    **两个完全不同的文件,同一个 basename。** 第一次下 A → 落 `CACHE/二次_DSC6680.jpg`;
+    第二次拉 B → BaiduPCS-Go 看见同名文件**直接跳过下载**,`pull` **把 A 原样返回给你** ——
+    返回值里 `形态: still`、路径正常、**退出码 0**。
+
+    后果:**它会对着 A 的图,写 B 的文案。**
+    而"货不对板"正是这个系统花了两次事故去防的东西 —— 备注写得再准也挡不住,**根子在工具里**。
+    (相机是循环编号,`DSC6680.jpg` 这种名字在不同批次里**必然重现**。)
+
+    现在:每个远端路径落进**自己的子目录**(路径 hash),物理上撞不了名。
+    """
+    import hashlib
     d = dest or CACHE
-    d.mkdir(parents=True, exist_ok=True)
-    _run(["download", remote_path, "--saveto", str(d)])
-    return str(d / Path(remote_path).name)
+    # 用远端路径的 hash 做子目录 —— **同名不同源的文件再也不会互相覆盖**
+    sub = d / hashlib.sha1(remote_path.encode("utf-8")).hexdigest()[:12]
+    sub.mkdir(parents=True, exist_ok=True)
+    local = sub / Path(remote_path).name
+    if not local.exists():
+        _run(["download", remote_path, "--saveto", str(sub)])
+    if not local.exists():
+        raise NetpanError(f"下下来了但文件不在:{local}(网盘路径:{remote_path})")
+    return str(local)
 
 
 def upload(local_path: str, remote_dir: str) -> str:

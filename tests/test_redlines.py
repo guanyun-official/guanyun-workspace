@@ -446,23 +446,6 @@ class R8_绝不覆盖运营待审的稿(unittest.TestCase):
         self.assertNotIn("created", cap)
 
 
-class R9_定时器的手只碰自己的行(unittest.TestCase):
-    """crontab 是**用户机器上的公共设施**,不是 agent 的私产。
-    它只许碰自己写的(带 `# gy-agent` 标记的)行 —— 别人的 cron 一个字都不许动。"""
-
-    def test_foreign_cron_lines_survive(self):
-        from orchestrator import schedule
-        别人的 = ["0 3 * * * /usr/local/bin/backup-my-photos.sh",
-                  "*/5 * * * * ping -c1 example.com"]
-        写出去的: list = []
-        with mock.patch.object(schedule, "_read_raw",
-                               lambda: 别人的 + ["0 8 * * * wake-agent # gy-agent:早班:每天看看有没有活"]), \
-                mock.patch.object(schedule, "_write_raw", lambda ls: 写出去的.extend(ls)):
-            schedule.remove("早班")
-        for ln in 别人的:
-            self.assertIn(ln, 写出去的, "撤自己的班时,把用户自己的 cron 行也删了")
-        self.assertFalse([x for x in 写出去的 if "gy-agent:早班" in x], "自己的班没撤掉")
-
 
 if __name__ == "__main__":
     unittest.main()

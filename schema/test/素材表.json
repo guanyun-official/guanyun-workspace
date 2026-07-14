@@ -31,6 +31,10 @@
       ]
     },
     {
+      "field_name": "款式",
+      "type": "text"
+    },
+    {
       "field_name": "相对路径",
       "type": "text"
     },

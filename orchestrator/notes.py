@@ -177,10 +177,23 @@ def _find_inflight(account: str, content_type: str) -> str:
                 and (not ct_ids or ct_ids & set(bitable.link_record_ids(f.get(NF.CONTENT_TYPE))))):
             continue
         if str(f.get(NF.STATUS) or "") == NS.DRAFT_PENDING:
+            # ★门的本意★:**不许覆盖人正在审的那一行**。
+            # 它**不是**"每号只准排一条待审稿"(队列该多深是 agent 的判断,不是我的规则)。
+            #
+            # ⚠️ 老实现给的两条出路**都不成立**(2026-07-14 数字生命当场指出来):
+            #   ①"让人先审掉" —— **它不能替人审**,这条路它走不了
+            #   ②"换个号"     —— **选题不该换号**,那是让它为了绕门去做错的事
+            # 而**真正的出路它没说**:`--note-id` 指定另起/推进哪一行。
+            # **拦住 ≠ 说清楚。给不出真出路的门,等于把人堵死在墙里。**
             raise DraftPending(
                 f"「{account}·{content_type}」已经有一条**待审稿**在队列里"
-                f"(《{bitable.text(f.get(NF.TITLE))}》)。再写一条会**把它覆盖掉** —— 运营正等着审它。\n"
-                f"出路:① 让人先去 base 把那条审掉(批准/暂缓归档);② 换个号或换个模式承接这个选题。")
+                f"(《{bitable.text(f.get(NF.TITLE))}》,id={r['record_id']})。\n"
+                f"直接写会**把它覆盖掉** —— 运营在卡片上看到 A,点进 base 变成 B。**那不叫复用。**\n\n"
+                f"**这道门拦的只是『覆盖』,不是『再排一条』** —— 队列该多深是你的判断。出路:\n"
+                f"  ① **想再排一条**(不覆盖那条):先 `note.new --account {account} "
+                f"--content-type {content_type}` 建一行,拿到新 id,再 `note.draft --note-id <新id> …`\n"
+                f"  ② **想改那条**(比如运营退回了、你要重写):`note.draft --note-id {r['record_id']} …`\n"
+                f"  ③ 觉得队列已经够深、不该再堆 —— 那就别写。**那也是你的判断。**")
         return r["record_id"]
     return ""
 

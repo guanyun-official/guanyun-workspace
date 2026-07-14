@@ -13,6 +13,9 @@
   · `publish`(发布)—— 红线焊死。发布是人的动作,系统止于『待发布』。
   · `tag`(打标)/ `draft`(出稿)—— 那是**你自己看图、自己写字**,不是调一个函数。
     harness 只给你:把网盘的东西变成你能看的(`material.view`)、把你写的字落库(`note.draft`)。
+  · `schedule`(定时)—— **那是运行时给的手**(`hermes cron create/list/edit/pause`),不是我们造的。
+    我一度在这里造了一份 crontab 读写 —— **harness 重新实现了一遍运行时已经会做的事**(两份真源)。
+    几点醒、醒来干什么、要不要改自己的作息 —— 一直都是**你的判断**,用运行时那只手去做。
 """
 from __future__ import annotations
 
@@ -84,10 +87,26 @@ def build() -> argparse.ArgumentParser:
                         "(board 里有词汇表)。**名字里不带『图』『视频』——那是形态,自动从文件推**")
     c.add_argument("--source", default="实拍", help="实拍 | AI生成 ——(落 02-AI生成/ 目录的会被强制标 AI生成)")
     c.add_argument("--note", required=True, help="画面备注:颜色/形制/场景/光线/姿势/细节。**这是文案的事实底座**")
+    c.add_argument("--style", default="",
+                   help="**这是哪一套衣服**(你自己起个名,同一套写同一个,如『粉上衣+白纱裙』)。"
+                        "没有它,『这套衣服已经被几条稿用过』就算不出来 —— **撞衫只能靠肉眼**")
     c.add_argument("--thumb-from", default="",
                    help="缩略图用哪张本地图(视频**必给**:你挑一张最能代表它的帧;"
                         "静图不给则用它自己)。**哪一帧代表这条视频,是你的判断**")
     c.add_argument("--no-thumb", action="store_true", help="别做缩略图(默认做,base 里人瞄一眼选材用)")
+    c = sub.add_parser("material.store",
+                       help="【手】**你在本地做好的成片 → 回传网盘 03-成片 + 登记素材**。"
+                            "剪辑是你的操作(ffmpeg / VectCutAPI 都在),harness 只负责把产物落进世界")
+    c.add_argument("path", help="本地成片路径(你自己剪好的)")
+    c.add_argument("--type", required=True, help="**内容**(上身/商品/形象/…)。你看着判")
+    c.add_argument("--note", required=True, help="画面备注(下一个人出稿时只看得见这句话)")
+    c.add_argument("--from-materials", default="",
+                   help="**这条成片是从哪几条素材剪出来的**(record_id 逗号分隔)。"
+                        "★provenance 靠它★:输入里只要有一条『AI生成』,产物就**强制**是 AI生成"
+                        "(发布前人必须勾 AI 声明)—— 你说了不算")
+    c.add_argument("--used-ai", action="store_true",
+                   help="剪的过程中**用 AI 合成了新画面**(不是纯剪辑/拼接/调色)。"
+                        "→ 产物强制 AI生成。**漏报 = 合规事故**")
     c = sub.add_parser("material.update", help="【手】改素材字段")
     c.add_argument("id")
     c.add_argument("--set", nargs="+", required=True)
@@ -158,23 +177,6 @@ def build() -> argparse.ArgumentParser:
                                               "**你看图判**;不给则拼图=搭配、AI封面=形象")
     c.add_argument("--note", default="", help="产物的画面备注(下一个人出稿时只看得见这句话)")
 
-    # ── 作息(心跳的手)──────────────────────────────────────────────────
-    sub.add_parser("schedule", help="【眼】我现在的作息表(只列我自己排的班)")
-    c = sub.add_parser("schedule.dry-run",
-                       help="【眼】**在 cron 那样的干净环境里真跑一次这条命令**,把真实输出摆给你看。"
-                            "⚠️ 退出码 0 不等于它醒了 —— 自己看输出")
-    c.add_argument("--do", required=True)
-    c = sub.add_parser("schedule.set", help="【手】给自己排班。**几点/干什么/为什么,全是你决定的**")
-    c.add_argument("--name", required=True)
-    c.add_argument("--when", required=True, help="cron 五段,如 '0 8 * * *'")
-    c.add_argument("--do", required=True, help="到点跑什么。**该做的是叫醒你自己**,不是跑写死的流程")
-    c.add_argument("--why", required=True, help="一句人话:为什么这个点。人得看得懂你给自己排了什么班")
-    c.add_argument("--verified", action="store_true",
-                   help="**你已经 schedule.dry-run 过、并亲眼确认这条命令能叫醒你**。"
-                        "不给就装不上 —— 一条每天空转的假班,比没有更危险")
-    c = sub.add_parser("schedule.rm", help="【手】撤掉自己的一个班")
-    c.add_argument("name")
-
     # ── 留痕 ────────────────────────────────────────────────────────────
     c = sub.add_parser("log", help="【手】写运行日志(你干了什么,人事后在 base 查得到)")
     c.add_argument("--summary", required=True)
@@ -188,7 +190,7 @@ def build() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     from . import (alerts, board, cockpit, compose, feishu_io, guard, ingest, materials,
-                   netpan, notes, publish, report, schedule as sch, shotlist, trends)
+                   netpan, notes, publish, report, shotlist, trends)
 
     a = build().parse_args(argv)
     try:
@@ -230,10 +232,23 @@ def main(argv: list[str] | None = None) -> int:
                 if src:
                     token = materials.thumb_token(src, name)
             rid = ingest.register(code, a.__dict__["type"], netpan.pointer(a.path), a.note,
-                                  a.source, thumb_token=token)
+                                  a.source, thumb_token=token, style=a.style)
             _out({"素材编号": code, "record_id": rid, "类型": a.__dict__["type"], "来源": a.source,
                   "指针": netpan.pointer(a.path),
                   "自证": f"python3 -m orchestrator material.list --type {a.__dict__['type']} | grep {code}"})
+        elif a.cmd == "material.store":
+            from pathlib import Path as _P
+            if not _P(a.path).exists():
+                raise ValueError(f"本地成片不存在:{a.path}")
+            srcs = [m["来源"] for m in materials.by_ids(_csv(a.from_materials))] \
+                if a.from_materials else []
+            # ★provenance 焊死:来源随像素出处,agent 说了不算★
+            src = guard.derive_source(srcs, used_ai_generation=a.used_ai)
+            rid, ptr = ingest.store_produced(a.path, a.__dict__["type"], source=src, note=a.note)
+            _out({"登记了": rid, "网盘": ptr, "来源": src,
+                  "说明": ("**来源=AI生成** → 这条素材挂上笔记后,发布前**人必须勾 AI 声明**"
+                           if src == "AI生成" else "纯剪辑/拼接,像素都来自实拍 → 免勾 AI 声明"),
+                  "自证": f"python3 -m orchestrator material.list --type {a.__dict__['type']}"})
         elif a.cmd == "material.update":
             feishu_io.update_record("素材表", a.id, _kv(a.set))
             _out({"改了": a.id, "字段": _kv(a.set)})
@@ -280,15 +295,6 @@ def main(argv: list[str] | None = None) -> int:
                   "说明": "产物已回传网盘 03-成片 并登记;AI 生成的像素来源=AI生成 → 发布前人必须勾 AI 声明"
                           if rid else "**没做成** —— 如实报告,绝不假装加好了"})
 
-        elif a.cmd == "schedule":
-            _out(sch.list_all())
-        elif a.cmd == "schedule.dry-run":
-            _out(sch.dry_run(a.__dict__["do"]))
-        elif a.cmd == "schedule.set":
-            _out(sch.set_job(a.name, a.when, a.__dict__["do"], a.why, a.verified))
-        elif a.cmd == "schedule.rm":
-            _out(sch.remove(a.name))
-
         elif a.cmd == "log":
             feishu_io.log_run(summary=a.summary, action=a.action, table=a.table,
                               result=a.result, detail=a.detail, cost=a.cost)
@@ -300,9 +306,6 @@ def main(argv: list[str] | None = None) -> int:
     except notes.DraftPending as e:
         print(f"\n✋ 停手:\n{e}\n", file=sys.stderr)
         return 4
-    except sch.ScheduleError as e:
-        print(f"\n⏰ 排班没成:\n{e}\n", file=sys.stderr)
-        return 6
     except notes.SkillMissing as e:
         print(f"\n🧩 技能装不上(防搬运门会瞎,不能放行):\n{e}\n", file=sys.stderr)
         return 5

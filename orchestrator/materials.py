@@ -35,6 +35,7 @@ def _fact(r: dict, acc_names: dict) -> dict:
         "形态": bitable.text(f.get(MF.FORM)),     # **图 / 视频** —— 独立一维(见 bitable.MaterialForm)
         "来源": bitable.text(f.get(MF.SOURCE)),          # 实拍 / AI生成(AI生成→发布前人必须勾 AI 声明)
         "拍摄状态": bitable.text(f.get(MF.SHOT_STATUS)),
+        "款式": bitable.text(f.get(MF.STYLE)),          # **这是哪一套衣服**(撞衫靠它算)
         "备注": bitable.text(f.get(MF.NOTE)),            # 画面事实(谁打的标就是谁看到的画面)=文案的事实底座
         "适用账号": bitable.link_names(f.get(MF.ACCOUNTS), acc_names),   # 空=没归赛道,谁都能用
         # **被引用次数 = 数反向链接,不信 formula**(飞书 formula 对 DuplexLink 恒返 0,已删该字段)。
@@ -64,6 +65,19 @@ def facts(types: list[str] | None = None, status: str = "", account: str = "",
     if account:
         # 显式标了别的号 = 排除;**没标 = 可用**(打标时不填适用账号,消费时才决定)
         out = [m for m in out if (not m["适用账号"]) or account in m["适用账号"]]
+    return out
+
+
+def by_ids(ids: list[str]) -> list[dict]:
+    """按 record_id 取素材事实(按 id 取单条,不全表扫)。保持传入顺序。
+    **`material.store` 用它读输入素材的『来源』** —— provenance 靠这个传播(来源随像素出处)。"""
+    acc_names = feishu_io.name_map(AF.TABLE, AF.NAME)
+    out = []
+    for rid in ids:
+        r = feishu_io.get_record(MF.TABLE, rid)
+        if r:
+            r.setdefault("record_id", rid)
+            out.append(_fact(r, acc_names))
     return out
 
 
@@ -100,7 +114,10 @@ def inbox(folder: str = "") -> dict:
     entries = [e for e in netpan.list_dir(folder or netpan.INBOX) if not e["is_dir"]]
     return {
         "目录": folder or netpan.INBOX,
+        # **给字节数**(2026-07-14 数字生命要的):没有它,它分不清"网盘上的源文件就是坏的"
+        # 还是"下载截断了" —— 那次它是靠同名对照实验硬逼出来的。
         "文件": [{"名字": e["name"], "路径": e["path"], "形态": media.kind(e["name"]),
+                  "字节": e.get("size"),
                   "已登记过同名": e["name"] in seen} for e in entries],
     }
 
@@ -157,12 +174,24 @@ def viewable(remote_paths: list[str], frames: int = 5) -> list[dict]:
                         "注意": "原件已删,只留帧(网盘无 range,看画面必须下整包;下完就删,不占你的盘)。"
                                 "要再看就再调一次。"})
             continue
-        view = media.to_jpg(local, str(netpan.CACHE)) if media.needs_jpg(local) else local
+        view = media.to_jpg(local, str(Path(local).parent)) if media.needs_jpg(local) else local
         if not Path(view).exists():
             out.append({"路径": path, "名字": Path(path).name,
                         "错": "转码没产出(视图缺失)—— 这个文件看不了"})
             continue
-        out.append({"路径": path, "名字": Path(path).name, "本地": view, "形态": kind})
+        # ★坏图不许当好图给它★(2026-07-14 数字生命抓到)
+        # 真事:待入库箱里那张 `二次_DSC6680.jpg` **下半张全是灰的**(文件截断),
+        # 而 `material.view` 照样回 `形态: still` + 正常路径 + **退出码 0**。
+        # 它是**亲眼看见半张灰**才发现的 —— 工具一个字都没说。
+        # 对着半张灰图写"垂坠感很好",那就是货不对板,而且没人拦得住。
+        broken = media.broken_image(view)
+        item = {"路径": path, "名字": Path(path).name, "本地": view, "形态": kind,
+                "字节": Path(local).stat().st_size}
+        if broken:
+            item["⚠️坏图"] = (f"{broken} —— **这张图不完整**(下载截断 / 源文件本身就坏)。"
+                              f"别拿它写文案:你看到的画面可能只有一半。"
+                              f"去 base 把这条素材标出来,或者让摄影师重传。")
+        out.append(item)
     return out
 
 

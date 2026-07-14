@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from . import accounts, bitable, config, feishu_io, ingest, materials, netpan, notes, schedule
+from . import accounts, bitable, config, feishu_io, ingest, materials, netpan, notes
 from .bitable import AccountFields as AF, AutoSched
 from .bitable import InspirationFields as IF, KeywordFields as KF
 from .bitable import MaterialFields as MF, MaterialStatus as MS
@@ -165,9 +165,23 @@ def _material_stock(brand: str) -> dict:
                 per_account.append({"账号": name, "模式": pb.get("content_type") or pb.get("id"),
                                     "要的内容": mt, "要的形态": form or "(不限)",
                                     "已拍可用": avail, "声明的缓冲目标": target})
+    # ★每套款式被几条笔记用过★(2026-07-14 数字生命点破:「132 张」是真数字、假印象)
+    # 132 张上身图里只有约 4 套衣服,其余是同一套的连拍。出完一批稿,4 套就被用遍了 ——
+    # **再出稿就是同一件衣服换个角度再发一遍**,而它只能靠肉眼比对备注才发现。
+    by_style: dict[str, dict] = {}
+    for r in shot:
+        f = r["fields"]
+        st = bitable.text(f.get(MF.STYLE)).strip() or "(没标款式)"
+        d = by_style.setdefault(st, {"素材数": 0, "被几条笔记用过": 0})
+        d["素材数"] += 1
+        d["被几条笔记用过"] += len(bitable.link_record_ids(f.get(MF.BACKLINK)))
     return {"全库已拍(内容·形态)": by_tf, "总条数": len(rows),
+            "每套款式": by_style,   # ← 撞衫看它:某套已经被用了很多次,再出稿就是重复发同一件
             "每号每模式要什么": per_account,
-            "未归赛道(适用账号为空)": sum(
+            # ⚠️ **别把它读成缺口**(2026-07-14 数字生命指出口径打架):
+            # `picking-materials` 说得很清楚 —— 『适用账号』**空 = 谁都能用,打标时本来就该留空**
+            # (哪个号用,是选材时才决定的)。老措辞叫「未归赛道」,读起来像个待补的洞。
+            "适用账号留空的(= 谁都能用,不是缺口)": sum(
                 1 for r in rows if not bitable.text(r["fields"].get(MF.ACCOUNTS)).strip())}
 
 
@@ -190,8 +204,15 @@ def _ideas() -> list[dict]:
     return out
 
 
-def _feedback() -> list[dict]:
-    """回流事实:每条已发/已回流的帖 —— 有没有链接、抓到了哪些数、**哪些数还没抓到**。
+def _feedback() -> dict:
+    """回流事实。**我们自己的帖** 和 **外部参考** 分开报 —— 混在一起就是骗人。
+
+    ⚠️ 2026-07-14 数字生命抓到:一条 `[外部参考] 浮山集|绿绾桃`(**不是我们发的**)
+    被算进了「已发: 1」,还出现在回流面板里报"一个都没抓到" ——
+    **回流面板正在追一条不是我们的帖子的数据。**
+    (它的发布链接当时填的还是一句描述文字,**根本不是 URL**。)
+
+    每条报:有没有链接、抓到了哪些数、**哪些数还没抓到**。
 
     ⚠️ **「没抓到」不等于「是 0」。** 真栽过:采集器把读不到的赞数静默变成 0,
     而 0 是个合法值,会被周报当真数据算"哪类内容更有效"。所以这里**分开报**:
@@ -201,26 +222,29 @@ def _feedback() -> list[dict]:
     **『这个数信不信』是你的判断**;harness 只给你 `note.metrics` 这只手把它写回世界。
     """
     acc_names = feishu_io.name_map(AF.TABLE, AF.NAME)
-    out = []
+    ours: list[dict] = []
+    external: list[dict] = []
     for r in feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.PUBLISHED, NS.LOOPED_BACK]):
         f = r["fields"]
         nums = {"点赞": f.get(NF.LIKED), "收藏": f.get(NF.COLLECTED),
                 "评论": f.get(NF.COMMENTS), "转发": f.get(NF.SHARED)}
-        out.append({
+        link = f.get(NF.PUBLISH_LINK)
+        url = link.get("link") if isinstance(link, dict) else bitable.text(link)
+        item = {
             "id": r["record_id"],
             "标题": bitable.text(f.get(NF.TITLE)),
             "状态": bitable.text(f.get(NF.STATUS)),
             "账号": bitable.link_names(f.get(NF.ACCOUNT), acc_names),
-            # ⚠️ **空就说空,别替它宣称"本号原创"**(2026-07-14 架构审查抓到)。
-            # 老实现写 `or "(空=本号原创)"` —— 而**没有任何代码写这个字段**。
-            # 于是空的那些,board **一口咬定是本号原创**。**没核实的断言进了人面产物**,
-            # 而且方向是最危险的那个:版权/搬运该**就低不就高**,它就高。
-            "内容归属": bitable.text(f.get(NF.OWNERSHIP)) or "**没填** —— 别默认它是本号原创",
-            "发布链接": bitable.text(f.get(NF.PUBLISH_LINK)) or "**没填 → 抓不到数**",
+            # **链接必须是个 URL** —— 我自己就往里填过一句描述文字,而回流照样去追它。
+            "发布链接": url if str(url).startswith("http") else "**这不是个 URL → 抓不到数**",
             "抓到的数": {k: v for k, v in nums.items() if v is not None} or "(一个都没抓到)",
             "还没抓到的": [k for k, v in nums.items() if v is None] or "(都抓到了)",
-        })
-    return out
+        }
+        (external if bitable.text(f.get(NF.OWNERSHIP)).strip() == "外部参考" else ours).append(item)
+    return {
+        "我们自己发的": ours or "**一条都没有** —— 红线焊死『绝不自动发布』,这一截卡在人手里",
+        "外部参考(**不是我们发的**,只用来验回流链路,不计入任何结论)": external,
+    }
 
 
 def view(brand: str = "巧荷") -> dict:
@@ -246,5 +270,4 @@ def view(brand: str = "巧荷") -> dict:
                              for r in feishu_io.list_records(KF.TABLE)
                              if bitable.text(r["fields"].get(KF.ENABLED)).strip() != KF.DISABLED],
         "回流": _feedback(),
-        "我的作息表": schedule.list_all(),
     }

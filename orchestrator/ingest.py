@@ -73,7 +73,7 @@ def gen_code(mtype: str, name: str, existing: set) -> str:
 
 def register(code: str, mtype: str, link_path: str, note: str = "",
              source: str = MSrc.REAL, accounts: list | None = None,
-             thumb_token: str = "", form: str = "") -> str:
+             thumb_token: str = "", form: str = "", style: str = "") -> str:
     """登记一条素材进素材表(素材按赛道存,不挂衣服)。字段归位:
     - 链接(url)= 能点开的分享链(投手一点直达);相对路径(text)= 系统耐久指针(baidupan:/...),寻址用。
     ⚠️ 没有『生成参数』字段了(0/280,**从来没有任何调用方传过它**)——
@@ -102,6 +102,8 @@ def register(code: str, mtype: str, link_path: str, note: str = "",
         MF.SOURCE: source,
         MF.NOTE: note,
     }
+    if style:
+        fields[MF.STYLE] = style   # **这是哪一套衣服** —— 同一套写同一个名(撞衫/补拍靠它算)
     if form:
         fields[MF.FORM] = form   # 图 / 视频 —— 从文件形态推,**不再靠"视频文件强制落视频类"那条钳制**
     if thumb_token:

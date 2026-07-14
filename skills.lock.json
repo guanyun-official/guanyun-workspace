@@ -6,11 +6,12 @@
       "repo": "https://github.com/guanyun-official/qiaohe-skill.git",
       "local": "~/Githubs/qiaohe-skill",
       "ref": "main",
-      "sha": "c7aaba80f327fdf48f0c892ff7188dac8d61b5ca",
+      "sha": "eb07b0f104b4a33c1f075a7c842e38a09d5f2ae7",
       "skills": [
         "issue-tracker",
         "picking-materials",
         "tagging-material",
+        "video-editing",
         "video-storyboard",
         "writing-amateur-ootd",
         "writing-ootd-caption",

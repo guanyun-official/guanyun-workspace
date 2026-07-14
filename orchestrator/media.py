@@ -85,6 +85,32 @@ def thumbnail(src: str, dst: str, max_px: int = 400) -> str:
     return dst
 
 
+def broken_image(path: str) -> str:
+    """这张图**完整吗**?坏了返回一句人话,好的返回 ""。
+
+    ★为什么必须有(2026-07-14 数字生命抓到)★
+    待入库箱里那张 `二次_DSC6680.jpg` **下半张全是灰的**(文件截断),
+    而 `material.view` 照样回 `形态: still` + 正常路径 + **退出码 0**。
+    它是**亲眼看见半张灰**才发现的 —— 工具一个字都没说。
+
+    **对着半张灰图写"料子垂坠感很好",就是货不对板** —— 而这正是整个系统在防的东西。
+
+    ⚠️ 注意:`thumbnail()` 里开了 `LOAD_TRUNCATED_IMAGES = True`(真相机出的图常轻微不规范,
+    为那个丢掉缩略图不值)。**但"能凑合渲染"和"画面是完整的"是两回事** ——
+    这里就是要把那个区别说出来,不能两边都装糊涂。
+    """
+    from PIL import Image, ImageFile
+    ImageFile.LOAD_TRUNCATED_IMAGES = False       # ★这里要的就是严格★
+    try:
+        with Image.open(path) as im:
+            im.load()                              # 真解码到最后一个字节
+        return ""
+    except Exception as e:                         # noqa: BLE001
+        return f"图片解码不完整({type(e).__name__}: {str(e)[:60]})"
+    finally:
+        ImageFile.LOAD_TRUNCATED_IMAGES = True     # 恢复(缩略图那边要宽松)
+
+
 def duration(video: str) -> float:
     """视频时长(秒)。**事实**,给 agent 看(25s 的片子和 3 分钟的片子,该抽的帧数不一样)。"""
     return _duration(video)

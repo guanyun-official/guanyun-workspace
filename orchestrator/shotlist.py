@@ -28,15 +28,22 @@ from . import config, netpan
 
 def card(items: list[dict]) -> dict:
     """补拍单 → 飞书卡片。items 由 **agent** 给,每项:
-        {"账号":.., "类型":.., "缺":N, "拍摄要求":"给人看的人话", "参考":[{"画面":.., "链接":..}]}
+        {"账号":.., "类型":内容, "形态":"图"|"视频", "缺":N,
+         "拍摄要求":"给人看的人话", "参考":[{"画面":.., "链接":..}]}
 
     `拍摄要求` 是**它写给摄影师的话** —— harness 不替它编(替它编 = 又一条导轨)。
     这里只保证:每项都带上"拍完往哪丢",且这句话是真的。
     """
     el: list[dict] = []
     for s in items:
-        lines = [f"· **{s.get('账号', '?')}**：{s.get('类型', '?')}"
-                 + (f" × {s['缺']} 条" if s.get("缺") else "")]
+        # **形态必须和内容一样醒目**(2026-07-14 数字生命指出来):
+        # ootd号 缺的是**视频**,而老 schema 只有『类型』(内容)、没有『形态』——
+        # 它只能把"★要的是视频不是照片★"写进散文里。**摄影师看漏了,就白跑一趟。**
+        form = s.get("形态", "")
+        head = f"· **{s.get('账号', '?')}**：{s.get('类型', '?')}"
+        if form:
+            head += f" · **{form}**" + ("（**要视频,不是照片**）" if form == "视频" else "")
+        lines = [head + (f" × {s['缺']} 条" if s.get("缺") else "")]
         if s.get("拍摄要求"):
             lines.append(f"   {s['拍摄要求']}")
         for ref in (s.get("参考") or []):
@@ -46,8 +53,15 @@ def card(items: list[dict]) -> dict:
         el.append({"tag": "div", "text": {"tag": "lark_md", "content": "\n".join(lines)}})
     if not el:
         el.append({"tag": "div", "text": {"tag": "lark_md", "content": "（这次没有要补拍的）"}})
+    # ★这句页脚曾经在骗摄影师★(2026-07-14 数字生命抓到,而且这张卡它已经发出去了)
+    # 原文:「拍完丢网盘 …… **系统看图自动归类**」
+    # —— **没有任何"系统"在看图。** 打标是 agent 看图判断,不是脚本;
+    # 而且**没有任何东西定时去看那个箱子**(作息表是空的)。
+    # 证据就躺在箱子里:`二次_DSC6680.jpg` 至今没被处理,而且它还是个**截断的坏文件**。
+    # 摄影师会以为传上去就自动进库了 —— **那是一句会让他白等的话。**
     el.append({"tag": "note", "elements": [{"tag": "lark_md", "content":
-               f"拍完丢网盘 `{netpan.INBOX}` —— **直接传,不用管文件名**（系统看图自动归类）"}]})
+               f"拍完丢网盘 `{netpan.INBOX}` —— **直接传,不用管文件名**"
+               f"（归类不看文件名,看画面）。传完**在群里说一声**,我来收。"}]})
     return {"config": {"wide_screen_mode": True},
             "header": {"template": "orange",
                        "title": {"tag": "plain_text", "content": f"📷 补拍单（{config.ENV_NAME}）"}},
