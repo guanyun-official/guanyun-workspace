@@ -203,8 +203,14 @@ def get(note_id: str) -> dict:
         "标签·关键词": [bitable.text(
             (feishu_io.get_record(KF.TABLE, i) or {"fields": {}})["fields"].get(KF.KEYWORD))
             for i in kw_ids],
+        # ★号称"整个读回来",却漏了自己刚写进去的一半★(2026-07-15 数字生命抓到)
+        # 它建了行、填了『内容归属=本号原创』,`note.get` 却**不返回这个字段** → 它读回来是"没有"
+        # → 差点冤枉写操作没写进去。**读不回自己写的,自证纪律就成了空话。** 缺的一并补齐。
+        "内容归属": bitable.text(f.get(NF.OWNERSHIP)),
         "发布链接": bitable.text(f.get(NF.PUBLISH_LINK)),
+        "实际发布日ms": f.get(NF.PUBLISHED_AT),
         "点赞": f.get(NF.LIKED), "收藏": f.get(NF.COLLECTED),
+        "评论": f.get(NF.COMMENTS), "转发": f.get(NF.SHARED),
         "打开": config.record_url(NF.TABLE, note_id),
     }
 
@@ -334,20 +340,35 @@ def write_draft(account: str, content_type: str, title: str, body: str, *,
     if material_ids:
         _assert_materials_exist(material_ids)   # ★不存在的 id 当场拒,绝不静默挂个空的★
         fields[NF.LINKED_MATERIALS] = material_ids
+    unmatched: list[str] = []
     if keywords:
         # **关键词回程**(架构.md 第五节那个活标本):base 里一直有这个 link 字段,
         # **可从来没有任何东西往里写过** → 反向链接永远 0 → 关键词库『被引用数』永远 0
         # → 「热词排行」视图排一列空数据。**一个承诺"哪些词热"却结构性答不出来的视图。**
         # 那不是代码 bug,是**世界的回程没接上**。现在由 agent 回填——填的是
         # **文案里真正出现的词**,不是"喂进 prompt 的词"(那两者从来不是一回事)。
-        kw_ids = [i for w in keywords for i in resolve_link(KF.TABLE, KF.KEYWORD, w)]
+        #
+        # ★大小写不敏感 + 库里没有的**报出来**★(2026-07-15 数字生命抓到:11 条在途稿条条丢标签)
+        # 老实现 `resolve_link` 精确匹配(`OOTD` ≠ `ootd`),库外词又静默丢 —— 结果 base 里
+        # 『标签·关键词』字段**残缺甚至全空,而它自己以为写进去了**。正文标签是全的(发布不受影响),
+        # 但那个字段在骗人,「热词排行」跟着骗。**匹配忽略大小写;挂不上的,交回去让它知道。**
+        pool = {bitable.text(r["fields"].get(KF.KEYWORD)).strip().casefold(): r["record_id"]
+                for r in feishu_io.list_records(KF.TABLE)}
+        kw_ids = []
+        for w in keywords:
+            rid = pool.get(w.strip().casefold())
+            kw_ids.append(rid) if rid else unmatched.append(w)
         if kw_ids:
             fields[NF.KEYWORDS] = kw_ids
     target = note_id or _find_inflight(account, content_type)   # 撞上待审稿会抛 DraftPending
     if target:
         feishu_io.update_record(NF.TABLE, target, fields)       # 推进:待出文案 → 草稿待发
-        return {"note_id": target, "动作": "推进了在途的『待出文案』"}
-    return {"note_id": feishu_io.create_record(NF.TABLE, fields), "动作": "新建"}
+        out = {"note_id": target, "动作": "推进了在途的『待出文案』"}
+    else:
+        out = {"note_id": feishu_io.create_record(NF.TABLE, fields), "动作": "新建"}
+    if unmatched:
+        out["⚠️这些词『关键词库』里没有,没挂上"] = unmatched   # 要挂:先把词入库,或检查拼写(大小写已忽略)
+    return out
 
 
 # ★agent 能写的状态,**焊死成白名单**★(2026-07-14 架构审查真跑复现的红线洞)

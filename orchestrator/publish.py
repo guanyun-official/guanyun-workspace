@@ -126,7 +126,7 @@ def _account_load() -> dict[str, int]:
 # 留一个 `approve()` 函数 = 给红线留了个后门:CLI 里没这个动词,可 `import` 就能调。
 # (2026-07-14 架构审查抓到。)
 
-def fill_publish_link(note_key: str, url: str, write: bool = False) -> dict:
+def fill_publish_link(note_key: str, url: str, write: bool = False, published_at_ms: int = 0) -> dict:
     """认领发布链接(聊天里发链接/卡片):按 record_id 或标题/账号片段 匹配**一条**『待发布 或 已发缺链接』的笔记
     → 写发布链接 + 标已发。**多条/零条命中→返候选让人指定,绝不瞎猜**(防写错笔记)。write 才落库。
     返回 {ok, title?, url?, matched, candidates?}。这样回流采集才抓得到该帖数据。"""
@@ -149,14 +149,27 @@ def fill_publish_link(note_key: str, url: str, write: bool = False) -> dict:
     if len(cands) != 1:
         return {"ok": False, "matched": len(cands), "candidates": [t for _, t in cands]}
     rid, title = cands[0]
+    src = ""
     if write:
         import time
-        # 认领链接=人确认此刻已发→同时补写『实际发布日』:控量『今日已发』/回流采集/效果归因都靠它,
-        # 此前只 sim 写、真发从不写→字段常年空、今日已发计数恒为 0(「上量前重构」 收尾修)
-        feishu_io.update_record(NF.TABLE, rid,
-                                {NF.PUBLISH_LINK: bitable.url_value(url), NF.STATUS: NS.PUBLISHED,
-                                 NF.PUBLISHED_AT: int(time.time() * 1000)})
-    return {"ok": True, "title": title, "url": url, "matched": 1, "done": write}
+        fields = {NF.PUBLISH_LINK: bitable.url_value(url), NF.STATUS: NS.PUBLISHED}
+        # ★发布日不许被静默盖成"此刻"★(2026-07-15 数字生命回填一条昨天的帖时抓到)
+        # 老实现:认领链接时**硬写 `int(time.time()*1000)`** —— 真实发布是 07-14 19:30,
+        # 隔夜认领写成了 07-15 02:41。**而『实际发布日』是控量门的命根子**(今日已发几条靠它),
+        # 回流归因也靠它。一个静默写错的时间戳,能让控量门算错、让"这套上周发过"读错。
+        # 正解:传了真实时间用真实时间;库里已有值就**别覆盖**(它可能是真值);
+        # 都没有才退回此刻 —— 但**把这件事说出来**,别让人以为那是精确的发布时刻。
+        existed = (feishu_io.get_record(NF.TABLE, rid) or {"fields": {}})["fields"].get(NF.PUBLISHED_AT)
+        if published_at_ms:
+            fields[NF.PUBLISHED_AT] = published_at_ms
+            src = "你传的真实发布时间"
+        elif existed:
+            src = "保留库里已有的发布日(没覆盖)"
+        else:
+            fields[NF.PUBLISHED_AT] = int(time.time() * 1000)
+            src = "此刻(认领时刻)—— **若不是刚发的,请传真实发布时间**(publish.link --at)"
+        feishu_io.update_record(NF.TABLE, rid, fields)
+    return {"ok": True, "title": title, "url": url, "matched": 1, "done": write, "发布日来源": src}
 
 
 def stamp_published_at(write: bool = False) -> list[dict]:

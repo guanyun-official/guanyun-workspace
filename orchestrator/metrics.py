@@ -109,18 +109,30 @@ def by_playbook(notes: list[dict]) -> dict:
     而"哪套方法论更有效、要不要多产"**是模型的判断**(全景图 AGENT 框里写着「周报该怎么说」)。
     harness 摆数,agent 说话。
     """
+    # ★"没抓到" ≠ "真的 0"★(2026-07-15 数字生命抓到)
+    # 老实现 `d["总藏"] += _num(f.get(NF.COLLECTED))` —— 收藏没抓到时字段是 None,`_num(None)=0`
+    # → **一堆假 0 累进总数**。下一个读周报的 agent 会以为"这套方法论收藏就是 0",据此判断。
+    # `note.metrics` 抓不到就不写(那只手是对的);到了这里,**没写的就该算"没抓到",不是 0**。
+    def _got(v):     # 抓到了吗:字段有值(含真 0)才算抓到;None / 空串 = 没抓到
+        return v is not None and not (isinstance(v, str) and not v.strip())
+
     agg: dict[str, dict] = {}
     for f in notes:
         if bitable.text(f.get(NF.STATUS)) not in (NS.PUBLISHED, NS.LOOPED_BACK):
             continue                  # 只聚合已发/已回流(草稿 0 赞会稀释均值)
         pb = bitable.text(f.get(NF.PLAYBOOK)).strip() or "(没填方法论)"
-        d = agg.setdefault(pb, {"条数": 0, "总赞": 0, "总藏": 0, "总评": 0})
+        d = agg.setdefault(pb, {"条数": 0, "总赞": 0, "总藏": 0, "总评": 0,
+                                "赞没抓到": 0, "藏没抓到": 0, "评没抓到": 0})
         d["条数"] += 1
-        d["总赞"] += _num(f.get(NF.LIKED))
-        d["总藏"] += _num(f.get(NF.COLLECTED))
-        d["总评"] += _num(f.get(NF.COMMENTS))
+        for name, field in (("赞", NF.LIKED), ("藏", NF.COLLECTED), ("评", NF.COMMENTS)):
+            v = f.get(field)
+            if _got(v):
+                d[f"总{name}"] += _num(v)
+            else:
+                d[f"{name}没抓到"] += 1
     for d in agg.values():
-        d["均赞"] = round(d["总赞"] / d["条数"], 1) if d["条数"] else 0
+        got = d["条数"] - d["赞没抓到"]
+        d["均赞"] = round(d["总赞"] / got, 1) if got else "(赞都还没采回)"
     return agg
 
 

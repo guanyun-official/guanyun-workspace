@@ -56,6 +56,17 @@ def _kv(pairs: list[str], table: str = "") -> dict:
             out[k] = v.lower() in ("1", "true", "yes", "是", "y")
         elif t == "Number":
             out[k] = float(v) if "." in v else int(v)
+        elif t == "Url":
+            from . import bitable
+            out[k] = bitable.url_value(v)      # url 字段要 {link,text},写字符串会崩
+        elif t == "DateTime":
+            # ★不假装能写★(2026-07-15 数字生命抓到:写日期字段甩 Python 堆栈)
+            # 日期要毫秒时间戳,还牵扯格式/时区 —— 与其让手去解析(容易引新 bug),
+            # 不如**如实说这只手写不了这个字段,指条真能走的路**(agent 有 lark-cli,用户认它合理)。
+            raise SystemExit(
+                f"『{k}』是日期字段,note.update/material.update 这只手**暂时写不了**"
+                f"(要毫秒时间戳,牵扯格式和时区)。\n"
+                f"  → 去 base 里直接改,或用 lark-cli 写(值传毫秒时间戳)。")
         else:
             out[k] = v
     return out

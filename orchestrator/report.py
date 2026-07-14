@@ -43,7 +43,11 @@ def card(facts_: dict, say: str = "", needs: list[dict] | None = None) -> dict:
         el.append({"tag": "div", "text": {"tag": "lark_md", "content": say}})
     lines = [f"· 本号已发/已回流:**{facts_['本号已发/已回流']}** 条"]
     for pb, d in (facts_.get("每套方法论") or {}).items():
-        lines.append(f"· 『{pb}』:{d['条数']} 条 · 总赞 {d['总赞']} · 均赞 {d['均赞']}")
+        line = f"· 『{pb}』:{d['条数']} 条 · 总赞 {d['总赞']} · 均赞 {d['均赞']}"
+        miss = d.get("赞没抓到", 0) + d.get("藏没抓到", 0) + d.get("评没抓到", 0)
+        if miss:               # 别让"没采回"在老板眼里读成"真的 0"
+            line += "（部分互动数还没采回，不是 0）"
+        lines.append(line)
     if facts_.get("其中没填发布链接的"):
         lines.append(f"· ⚠️ {len(facts_['其中没填发布链接的'])} 条已发**没填发布链接** → "
                      f"不填,互动数就采不回来")
