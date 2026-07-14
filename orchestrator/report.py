@@ -1,14 +1,24 @@
-"""每周总结(人只管头尾的『尾』之后的复盘一环):读回流的效果数 → 人可读周报。
+"""周报(Observation · 人面):读回流的**真数据** → 老板打开就懂的一段话。
 
-哪号/哪套方法论/哪类内容表现好(均赞/本周/周环比)+ 本周最佳 + 需补拍 → 一段人打开就懂的话。
-纯计算(weekly_summary 吃 notes/needs 参数,可直测);CLI 读库 + 可推飞书。喂周复盘飞轮调技能权重。
+★这里唯一的纪律:**没数据就说没数据**★
+真跑出过这样的周报:「👉 本周最有效:『视频唯美OOTD』——可加权/多产这类」「🏆 单条最佳:赞 0」
+—— 只有 1 条,均赞 0.0。**用零数据编结论**。老板看了会说:就一条,还 0 赞,你让我多产?
+宁可说"数据不够",也不能编。这条判据焊在 `format_weekly` 里。
+
+补拍部分**不在这里算**(那是判断,归 agent);它要提就把 needs 传进来。
 """
 from __future__ import annotations
 
 from datetime import datetime
 
-from . import bitable, metrics
+from . import bitable, feishu_io, metrics
 from .bitable import NoteFields as NF, NoteStatus as NS
+
+
+def weekly_text(brand: str = "巧荷", needs: list[dict] | None = None) -> str:
+    """读真库 → 周报文本。needs = agent 想一并提的补拍项(不给就没有这一段)。"""
+    notes = [r["fields"] for r in feishu_io.list_records(NF.TABLE)]
+    return format_weekly(weekly_summary(notes, needs=needs))
 
 
 def weekly_summary(notes: list[dict], needs: list[dict] | None = None,

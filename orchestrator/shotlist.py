@@ -1,116 +1,54 @@
-"""拍摄需求单(『头』侧:人只管头尾的头=按需/自主拍素材,这里告诉他"需要拍什么")。
+"""补拍单:**把 agent 的判断,渲染成摄影师看得懂的东西**(Observation · 人面)。
 
-素材『一次性拍完』的场景 → 这是**补货信号**:每号×素材类型,比『目标缓冲(runway_alert_days 条)』和
-『已拍可用库存(赛道过滤)』——够就不提,快见底才提该号补拍哪类、缺几条,并附**拍摄要求 brief**(人设/调性/
-照哪个技能风格)+ **参考**(该 gen_skill 的真实帖 few-shot + 该号画像)。
+★这里不再有"谁该补拍"的判断★
 
-纯读(不写库),给人看/推飞书。回答"需要拍什么在哪看、怎么表达":看这单;表达=类型+条数+brief+参考帖。
+老实现 `shot_needs()` 干的是:遍历每号每类型 → 算 `缺 = 目标 - 已有` → `if 已有 >= 目标: continue`
+→ 自动生成拍摄要求(从画像里截一句)→ 自动挑参考图。
+**那整套是判断**:库存够不够、该不该催、催几条、怎么跟摄影师说、给他看哪张参考 —— 全是 agent 的事。
+(而且它算出来的"缺"只是 `runway_alert_days` 减法,压根不看今天有没有活、这个号是不是要换选题。)
+
+现在:
+  · **事实**在 `board`(每号每类型:已拍可用几条 / 它声明的缓冲目标几条 / 库里现有的同类画面长什么样)
+  · **判断**在 agent(要不要发这张单、催谁、催几条、怎么说人话、给他看哪张参考)
+  · **渲染**在这里(harness 的本分:把它的判断变成摄影师手机上看得懂的一张卡)
+
+## 渲染时焊死的两条(人面纪律,不是判断)
+
+1. **投递去向必须说对**:`待入库` 箱,**直接传,不用管文件名**。
+   系统**根本不读文件名**(分类全靠看图)。实测:文件命名成「ootd号·上身图」,系统标出来是「商品图」
+   —— 看图判对了,是命名错了。再告诉人"文件名带类型更好认"就是**让他白费功夫**。
+2. **别给人看代码路径**。补拍单的读者是**拿相机的人**,不是 agent。
+   给他 `skills/writing-ootd-caption/SKILL.md` 让他去读?他在片场,手机上打不开也看不懂。
+   参考必须是**能直接看的画面**(真实图链接 + 一句画面描述)。
 """
 from __future__ import annotations
 
-import re
-
-from . import accounts, bitable, draft, feishu_io, netpan
-from .bitable import AccountFields as AF, AutoSched, MaterialFields as MF
+from . import config, netpan
 
 
-def _deliver_to(name: str, mtype: str) -> str:
-    """人拍完/生成后往哪丢(答"人拍完怎么给到"):单一扁平投递箱,**直接传,不用管文件名**。
+def card(items: list[dict]) -> dict:
+    """补拍单 → 飞书卡片。items 由 **agent** 给,每项:
+        {"账号":.., "类型":.., "缺":N, "拍摄要求":"给人看的人话", "参考":[{"画面":.., "链接":..}]}
 
-    **别再让人费心命名**(2026-07-14 用户戳破的那类 bug:"人想起来方便的逻辑,落实下来都是 bug"):
-    原文写「文件名带『ootd号·上身视频』更好认」——**可系统根本不读文件名**。
-    实测:我把文件命名成 `ootd号·上身图·压测新片.jpg`,系统标出来是「商品图」——因为豆包看图看到的
-    是挂在衣架上的衣服,**它判对了,是我命名错了**。分类完全由 vision 看图决定,文件名一个字都不参与。
-    这句"更好认"只会让摄影师白费功夫按规范命名。删掉,说实话。
+    `拍摄要求` 是**它写给摄影师的话** —— harness 不替它编(替它编 = 又一条导轨)。
+    这里只保证:每项都带上"拍完往哪丢",且这句话是真的。
     """
-    return f"传网盘 {netpan.INBOX}/(直接传,不用管文件名——系统看图自动归类)"
-
-
-def _brief(name: str, acc, mtype: str, gen_skill: str) -> str:
-    """一条拍摄要求 —— **写给拿相机的人看的**,不是写给 agent 看的。
-
-    2026-07-14 运营视角实测:原文是「风格照技能『writing-ootd-caption』的真实帖 few-shot + 该号画像
-    挑最出片的」——让摄影师去读代码库里的 SKILL.md?他在片场,手机上收到这条,打不开也看不懂。
-    现在只给人话:这个号是什么调性(取账号画像的一句话)+ 拍什么。参考画面由 `_reference_shots` 给
-    (真图 + 网盘链接,照着拍)。gen_skill 是给出稿用的,与拍摄无关,不往人眼前塞。
-    """
-    # 画像是一份 md,**首行是标题/来源元数据**(「# ootd号 · 账号画像」「> 来源:xhs-extract 实抓…」),
-    # 直接取首句会把这些塞给摄影师。跳过 markdown 标题/引用/空行,找**第一句实质的调性描述**。
-    tone = ""
-    for ln in (acc.profile_text or "").splitlines():
-        s = ln.strip().lstrip("*- ").strip()
-        if not s or s.startswith("#") or s.startswith(">") or s.startswith("|"):
-            continue
-        s = s.replace("**", "")
-        # **在句子边界断,别在字中间断**:原来硬截 80 字,手机上读到「…朝代/形制只当意境里一个词轻点,不」
-        # ——断在半个字上,摄影师读着一头雾水。取前两句(句号/分号为界)就够了,读得完整。
-        parts = [p for p in re.split(r"[。；;]", s) if p.strip()]
-        tone = "。".join(p.strip() for p in parts[:2])[:90]
-        break
-    if not tone:   # 画像没有实质内容 → 退回账号 md 的 notes(滤掉给系统看的那几段)
-        notes = [x.strip() for x in (acc.strategy.get("notes") or "").split(";") if x.strip()]
-        useful = [x for x in notes if x != name and "走 " not in x and "文案 " not in x]
-        tone = "、".join(useful[:2]) or name
-    return f"拍『{mtype}』——{tone}"
-
-
-def shot_needs(brand: str = "巧荷") -> list[dict]:
-    """拍摄需求单:每号×素材类型,库存(已拍可用)< 目标缓冲 才提。
-    返回 [{account, 类型, 缺, 已有, 目标, 拍摄要求, 参考}](缺=目标-已有,>0 才在单里)。"""
-    accs = {n: a for n, a in accounts.load_all(brand).items() if not a.error}
-    acc_rows = feishu_io.list_records(AF.TABLE)
-    # **暂停号不催拍**(2026-07-14 运营视角实测):官号 base 里「自动排产=暂停」,补拍单却还在催
-    # 运营去拍官号的上身视频×4——号都关了还让人去拍?纯干扰,人会开始无视这张单(狼来了)。
-    # base 的「自动排产」是运营开关的唯一真相(md 只是默认值),这里必须听它。
-    paused = {bitable.text(r["fields"].get(AF.NAME)).strip()
-              for r in acc_rows
-              if bitable.text(r["fields"].get(AutoSched.FIELD)).strip() == AutoSched.PAUSED}
-    accs = {n: a for n, a in accs.items() if n not in paused}
-    # 全局需要的素材类型 → 一次按类型服务端过滤取素材(规模M4,不全拉素材表)
-    needed = sorted({mt for a in accs.values()
-                     for pb in a.playbooks() for mt in (pb.get("material_needs") or [])})
-    mats = feishu_io.search_in(MF.TABLE, MF.TYPE, needed) if needed else []
-    acc_id = {bitable.text(r["fields"].get(AF.NAME)).strip(): r["record_id"] for r in acc_rows}
-    out: list[dict] = []
-    for name, acc in sorted(accs.items()):
-        if acc.error:
-            continue
-        target = int(acc.strategy.get("runway_alert_days") or 3)   # 目标缓冲(条,≈够发几天)
-        rid = acc_id.get(name, "")
-        # 该号所有模式需要的素材类型 → 各自的风格技能(取第一个用到该类型的模式的 gen_skill)
-        type_skill: dict[str, str] = {}
-        for pb in acc.playbooks():
-            for mt in (pb.get("material_needs") or []):
-                type_skill.setdefault(mt, accounts.gen_skill_of(pb))
-        for mtype, gen_skill in sorted(type_skill.items()):
-            hit_ids = draft._material_hits(mats, [mtype], rid, limit=9999)      # 已拍+赛道 可用库存
-            avail = len(hit_ids)
-            if avail >= target:
-                continue                                                        # 库存够→不提
-            out.append({"account": name, "类型": mtype, "缺": target - avail, "已有": avail,
-                        "目标": target, "拍摄要求": _brief(name, acc, mtype, gen_skill),
-                        "投递去向": _deliver_to(name, mtype),
-                        "参考": _reference_shots(mats, hit_ids)})
-    return out
-
-
-def _reference_shots(mats: list[dict], hit_ids: list[str], k: int = 2) -> str:
-    """参考:**该号已有的同类素材长什么样**(豆包 vision 标 + 可点开的链接)——照着这个拍。
-
-    2026-07-14 运营视角实测:原来这里给的是
-      `skills/writing-ootd-caption/SKILL.md 真实帖 + brands/巧荷/accounts/ootd号.md 画像`
-    ——**这是写给 agent 的文件路径,不是写给人的**。运营在手机上收到补拍单,让他去打开代码库里的
-    SKILL.md?他不在终端,他打不开。补拍单的读者是**拿相机的人**,给他的必须是能直接看的画面。
-    """
-    by_id = {m["record_id"]: m for m in mats}
-    refs = []
-    for rid in hit_ids[:k]:
-        f = (by_id.get(rid) or {}).get("fields", {})
-        note = bitable.text(f.get(MF.NOTE)).strip()
-        link = f.get(MF.LINK)
-        url = link.get("link") if isinstance(link, dict) else ""
-        if note:
-            refs.append(f"「{note[:44]}」" + (f" → {url}" if url else ""))
-    if not refs:
-        return "(该号这类素材还一条都没有——第一次拍,按上面的调性自由发挥)"
-    return "照着这些已有的拍(同调性,换场景/角度别重样):\n      · " + "\n      · ".join(refs)
+    el: list[dict] = []
+    for s in items:
+        lines = [f"· **{s.get('账号', '?')}**：{s.get('类型', '?')}"
+                 + (f" × {s['缺']} 条" if s.get("缺") else "")]
+        if s.get("拍摄要求"):
+            lines.append(f"   {s['拍摄要求']}")
+        for ref in (s.get("参考") or []):
+            pic = ref.get("画面", "")
+            url = ref.get("链接", "")
+            lines.append(f"   照着这个拍：「{pic}」" + (f" → {url}" if url else ""))
+        el.append({"tag": "div", "text": {"tag": "lark_md", "content": "\n".join(lines)}})
+    if not el:
+        el.append({"tag": "div", "text": {"tag": "lark_md", "content": "（这次没有要补拍的）"}})
+    el.append({"tag": "note", "elements": [{"tag": "lark_md", "content":
+               f"拍完丢网盘 `{netpan.INBOX}` —— **直接传,不用管文件名**（系统看图自动归类）"}]})
+    return {"config": {"wide_screen_mode": True},
+            "header": {"template": "orange",
+                       "title": {"tag": "plain_text", "content": f"📷 补拍单（{config.ENV_NAME}）"}},
+            "elements": el}

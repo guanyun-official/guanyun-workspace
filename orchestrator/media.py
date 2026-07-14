@@ -85,6 +85,11 @@ def thumbnail(src: str, dst: str, max_px: int = 400) -> str:
     return dst
 
 
+def duration(video: str) -> float:
+    """视频时长(秒)。**事实**,给 agent 看(25s 的片子和 3 分钟的片子,该抽的帧数不一样)。"""
+    return _duration(video)
+
+
 def _duration(video: str) -> float:
     """视频时长(秒,ffprobe);拿不到→0。给抽帧定位中点用(避免固定1秒抽到片头黑帧/slate)。"""
     r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
@@ -102,42 +107,40 @@ def _extract_frame(video: str, at: float, dst: Path) -> bool:
     return dst.exists()
 
 
-def video_keyframe(video: str, out_dir: str | None = None, n: int = 3) -> str:
-    """抽 n 帧(均匀分布,默认首/中/尾)**横向拼成一张**给打标看——单帧可能抽到黑帧/特写不代表整片;
-    多帧拼一张=保持"1视图1标签"批模型不破,却让 Doubao 看到整片脉络。返回拼图 jpg 路径。
-    n≤1 或拿不到时长→退化单帧(中点/1秒处);全抽失败→返回原视频路径(调用方兜底/跳过)。
-    注:视频下载是重活(ADR-0007:baidu 无 range 只能下整包),本函数只管"已在本地的视频"抽帧。"""
+def video_frames(video: str, out_dir: str | None = None, n: int = 5) -> list[dict]:
+    """一条视频 → **均匀抽 n 帧,各自一个文件**,返回 [{本地, 秒}]。**给 agent 用自己的眼睛看整条视频。**
+
+    ★为什么不是一帧,也不是拼成一张★
+
+    老实现叫 `video_keyframe`,做两件事,两件都是**替模型做取舍**:
+      · **只给一帧**(或"代表帧")—— 而"哪一帧能代表这条视频"**本身就是判断**。
+        活证据:库里唯一那条上身视频(EG9A7581.MP4),备注被写成
+        「浅粉色…衣身**局部特写**,画面下方有裸露的手臂局部」——
+        **一条上身视频,被一帧特写代表了**。补拍单照它去催摄影师"拍个上身视频",
+        给的参考却是个局部特写,摄影师当场懵。
+      · **把 3 帧横向拼成一张宽图** —— 那是为了迁就"一张图=一个标签"的**批量看图模型**。
+        可 agent 是多模态的,**它本来就能分别看每一帧**。拼成一张 = 我提前替它把三帧压成了一个视图,
+        它再也看不到"这条视频是怎么走的"。
+
+    现在:**帧分开给,几秒的也标出来**。agent 自己 Read 每一帧,自己综合出"这条视频是什么"。
+    看不清?它可以要更多帧(`--frames N`)。**要看多少、看完判成什么,都是它的事。**
+
+    抽不到时长 → 退回 1 秒处一帧(如实标 `秒: null`)。全抽失败 → 空列表(调用方如实报"看不了")。
+    """
     od = Path(out_dir) if out_dir else Path(video).parent
     od.mkdir(parents=True, exist_ok=True)
     stem = Path(video).stem
     dur = _duration(video)
-    if n <= 1 or dur <= 0:                                    # 退化单帧(中点,拿不到时长用1秒)
-        one = od / f"{stem}_frame.jpg"
-        return str(one) if _extract_frame(video, dur * 0.5 if dur > 0 else 1.0, one) else video
-    frames = []
-    for i in range(n):                                       # 均匀取 n 帧(避开首尾极端)
+    if dur <= 0:                                              # 拿不到时长:抽 1 秒处一帧,如实说不知道在第几秒
+        one = od / f"{stem}_f0.jpg"
+        return [{"本地": str(one), "秒": None}] if _extract_frame(video, 1.0, one) else []
+    out: list[dict] = []
+    for i in range(max(1, n)):                                # 均匀取 n 帧(避开首尾极端:i+1 / n+1)
+        at = dur * (i + 1) / (n + 1)
         fp = od / f"{stem}_f{i}.jpg"
-        if _extract_frame(video, dur * (i + 1) / (n + 1), fp):
-            frames.append(fp)
-    if not frames:
-        return video
-    if len(frames) == 1:
-        return str(frames[0])
-    try:                                                    # 横向等高拼接成一张
-        from PIL import Image
-        imgs = [Image.open(str(f)).convert("RGB") for f in frames]
-        h = min(im.height for im in imgs)
-        imgs = [im.resize((max(1, int(im.width * h / im.height)), h)) for im in imgs]
-        strip = Image.new("RGB", (sum(im.width for im in imgs), h), (255, 255, 255))
-        x = 0
-        for im in imgs:
-            strip.paste(im, (x, 0))
-            x += im.width
-        out = od / f"{stem}_frames.jpg"
-        strip.save(str(out), "JPEG", quality=85)
-        return str(out)
-    except Exception:  # noqa: BLE001  拼接失败→退回第一帧(仍可打标)
-        return str(frames[0])
+        if _extract_frame(video, at, fp):
+            out.append({"本地": str(fp), "秒": round(at, 1)})
+    return out
 
 
 def to_jpg(path: str, out_dir: str | None = None) -> str:

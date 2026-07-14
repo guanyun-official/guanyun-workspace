@@ -17,6 +17,9 @@
                    不是没做,是做了、看着像在保护你、实际是空的**)
   ⑦ 假形态 mock —— 测试固件用真实世界不存在的形态(裸字符串 "ootd号"),而真 search API 回
                   {link_record_ids: [...]} → **测试常绿、生产照坏,测试就是站在窟窿前守着的那个人**
+  ⑪ 悬空引用   —— 文档/代码提到已删的模块名/脚本名/开关名,当成还活着的东西在用
+                  (2026-07-14 大手术删了 orchestrator/{dispatch,draft,…} 一整批,
+                   谁还在提它们,谁就在骗人)
 
 任一条不过 → 非 0 退出。这是门,不是报告。
 
@@ -52,10 +55,38 @@ DEAD_CODE_ALLOW = {
         "同上(ADR-0005 聊天动作函数:运营把链接发给 bot → webhook → 认领)。webhook 未接 → 运营够不着它。"
         "**后果已用 publish.stamp_published_at() 兜住**:运营在 base 只能改状态+填链接,"
         "『实际发布日』他做不了 → 系统在 publish_ready(cron)里自愈补上,控量红线不再形同虚设。",
-    "compose.simple_decide":
-        "ADR-0006 加工环的 gated 钩子(GY_PROCESSING_ENABLED 默认关)。**关态下 processing.maybe_process "
-        "原样返回、绝不调它** —— 这是设计,不是遗漏。开关一开就会被调。",
-    "compose.compose_execute": "同上(ADR-0006 加工环 gated 钩子)。",
+    # ── 2026-07-14 拆导轨(含本轮清理开发期门)留下的孤儿原语 ─────────────────────────
+    #   它们的**唯一调用者**是被删掉的导轨脚本/cron/开发期假检查,函数本身没坏,只是没人调了。
+    #   "做出来"(接新调用者)还是"删掉",都是 orchestrator/ 的判断,不是清理开发期门这次改动该做的决定——
+    #   如实记账,留给下一轮判断。**不是静默豁免**:每条都写死它的孤儿身世,查得到。
+    "accounts.problems":
+        "唯一调用者曾是 scripts/ar_check.py(本轮 2026-07-14 删除——'测措辞'的假检查,grep 源码算分)。"
+        "账号 frontmatter 健壮性校验本身没坏,该不该给它接新调用者,留给你判断。",
+    "skills_lock.validate":
+        "唯一调用者曾是 scripts/check_p1.sh(本轮删除,同类假检查)。",
+    "skills_lock.installed_drift":
+        "唯一调用者曾是 scripts/ar_check.py(本轮删除)。",
+    "lock.write_lock":
+        "唯一调用者是 run_day/dispatch 的写循环——均已删(见 docs/架构.md『已经删掉的(2026-07-14)』)。"
+        "并发锁原语还在,等新写路径需要时再接。",
+    "trends.fill_missing_bodies":
+        "唯一调用者是 daily_dispatch --write(cron,已删——『心跳也是导轨』,docs/架构.md 4.1)。",
+    "cost.budget_alert":
+        "唯一调用者是 daily_dispatch(cron,已删,同上)。",
+    "cockpit.weekly_schedule_card":
+        "大手术后的 orchestrator/cli.py(薄 Action Interface)还没给它接一个动词——"
+        "`report` 动词现在吐的是 report.weekly_text,不是这张卡片。接不接、接哪个动词,不是本轮门清理的范围。",
+    "feishu_io.delete_record":
+        "通用删除原语,目前没有任何脚本/CLI 动词调用它(手工/REPL 场景用;"
+        "restore_tables.py 文档里『真删一条再恢复』的验证就是手动调它做的)。",
+    "ingest.segment_note":
+        "ADR-0004 §4 的视频分段备注原语;视频处理链路(ADR-0007)还没写调用它的那段代码。",
+    "ark.chat":
+        "通用 LLM 纯文本 chat 原语;llm.py(替 agent 调另一个模型写稿的导轨)已删,现在没人调它。",
+    "materials.by_ids":
+        "按 id 批量取素材事实的原语;cli.py 的 material.list 走的是 materials.facts(),没有走它。",
+    "netpan.logged_in":
+        "ADR-0004 提到的登录态前置检查原语,还没有 cron/脚本接它(目前人工确认登录态)。",
 }
 
 
@@ -176,15 +207,15 @@ def audit_dead_code() -> None:
 # ══════════════════════════════════════════════════════════════════════════════
 #   自称"验收/检查/探针"却没人跑的脚本 —— **验收器自己没被验收过**
 #
-#   2026-07-14 真事:`scripts/full_stack_probe.py` 号称"17条链路综合验收",而
+#   2026-07-14 真事(那个脚本本身后来已删,教训留着):某个自称"综合验收"的脚本,
 #     · review_gate 不跑它、cron 不跑它、任何脚本都不跑它 —— **零调用**
-#     · 手动一跑,L5 段当场 AttributeError 崩掉(MSrc.SHOT 这个属性根本不存在)
-#     · 它的 L2 提示还在传播一句已被真跑证伪的话
-#   而"17条链路真跑"是目标的硬条件。**验收器不在门里 = 那条件从来没被机器验过**,
-#   我却一直以为它验过了。这就是"人想起来方便的逻辑"最贵的一种:连查错的东西本身都没人查。
+#     · 手动一跑当场崩掉,它的提示却还在传播一句已被真跑证伪的话
+#   "验收器不在门里 = 那条件从来没被机器验过",我却一直以为它验过了。
+#   这就是"人想起来方便的逻辑"最贵的一种:连查错的东西本身都没人查。
 #
 #   规则**故意写窄**(误报比漏报更糟——狼来了三次,门就废了):
-#   只管"自称验收/检查"的脚本。draft_one/harvest_trends 这类**给人和 agent 手调的 CLI**
+#   只管"自称验收/检查"的脚本。`python3 -m orchestrator <动词>` 这类**给人和 agent 手调的
+#   Action Interface**(board / material.* / note.* / idea.* / compose / schedule.* …)
 #   本来就没有上游调用者,不算死。
 _VERIFIER_HINTS = ("probe", "verify", "check_", "audit", "smoke")
 _GATE_RUNNERS = ("scripts/review_gate.sh", "Makefile", ".github")
@@ -245,7 +276,10 @@ def audit_dead_config() -> None:
 # ⑤ 默认值陷阱:关键参数有默认值,而**所有调用点都不传** → "忘了传"变成"静默记错"
 #    (log_run(table="笔记表") 9 个调用点全不传 → 日志写着"打标在操作笔记表",它在撒谎)
 # ══════════════════════════════════════════════════════════════════════════════
-WATCH_DEFAULTS = [("log_run", "table"), ("collect", "mode"), ("harvest_trends", "write")]
+#   `harvest_trends`/`write` **不在这张单子里**:cli.py 的 `idea.add` 动词按位置传参
+#   (`trends.harvest_trends(items, brand, a.write)`),这条检查只认 `write=` 关键字写法,
+#   会把"位置传参"误判成"没传"——**假红**(2026-07-14 真跑验出来的),故意不盯这一对。
+WATCH_DEFAULTS = [("log_run", "table"), ("collect", "mode")]
 
 
 def audit_default_traps() -> None:
@@ -390,222 +424,22 @@ def audit_empty_gates() -> None:
             found += 1
         else:
             ok(f"{gate} ← {table}.『{field}』 {filled}/{len(rows)} 有值(门有东西可比)")
-    audit_gate_covers_prompt()
 
-
-# **进了 prompt 的外来文本**(不是我们原创的、有版权风险的):
-#   skill_text  —— 技能里的 few-shot **真实帖**(别人的帖子!),LLM 一眼就能照抄
-#   title_seed  —— 灵感标题(别人的标题)
-#   source_text —— 对标源正文(目前不进 prompt,但传了也得守)
-# **不算外来**(搬不构成抄袭):material_text(我们自己素材的视觉标签) / keywords。
-PROMPT_EXTERNAL_TEXTS = {"skill_text", "title_seed", "source_text"}
-
-
-def _call_arg_names(tree, fname: str) -> set:
-    """AST 取某函数调用的所有实参变量名(含 list 字面量里的、含关键字实参),**并跟着简单变量别名走一层**。
-
-    为什么要跟别名(2026-07-14,这条检查自己误报过一次):
-      门的调用从 `assert_no_source_leak([a, b, c], text)` 改成了
-      `sources = [a, b, c]` / `assert_no_source_leak(sources, text)`(因为要复用给自修函数)。
-      老实现只看调用点的 Name 节点 → 只看见 `sources`,看不见里面的 a/b/c → **报了假红**。
-      门明明守着(真跑压测过),检查器却喊狼来了。**误报比漏报更毒**:喊三次,人就不看这道门了。
-      所以:先扫一遍 `x = [ ... ]` 的赋值,实参是 Name 且在表里 → 展开它。
-    """
-    aliases: dict[str, set] = {}
-    for n in ast.walk(tree):
-        if isinstance(n, ast.Assign) and isinstance(n.value, (ast.List, ast.Tuple)):
-            elts = {e.id for e in n.value.elts if isinstance(e, ast.Name)}
-            for t in n.targets:
-                if isinstance(t, ast.Name) and elts:
-                    aliases.setdefault(t.id, set()).update(elts)
-
-    names: set = set()
-
-    def collect(node):
-        if isinstance(node, ast.Name):
-            names.add(node.id)
-            names.update(aliases.get(node.id, ()))     # 别名展开:sources → {source_text, title_seed, skill_text}
-        for ch in ast.iter_child_nodes(node):
-            collect(ch)
-
-    for n in ast.walk(tree):
-        if isinstance(n, ast.Call):
-            f = n.func
-            got = f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", "")
-            if got == fname:
-                for a in list(n.args) + [k.value for k in n.keywords]:
-                    collect(a)
-    return names
-
-
-def audit_gate_covers_prompt() -> None:
-    """**结构不变式:凡是进了 prompt 的外来文本,必须都交给防搬运门。**
-
-    这条是给今天这个 bug 立的碑(2026-07-14):
-      · compose_prompt 收了 skill_text(技能 few-shot 里的**真实帖**)+ title_seed
-      · assert_no_source_leak 只收了 source_text + title_seed
-      · 于是 **LLM 眼前摆着别人的真帖,而门没在看它** —— 真跑实证:逐字搬 few-shot 标题,直接过门。
-    机器能查的就是这个**集合包含关系**,人脑记不住。把 bug 塞回去(从门的实参里删掉 skill_text)
-    这条必须报红 —— 已验证。"""
-    src = (ROOT / "orchestrator" / "draft.py").read_text(encoding="utf-8")
-    tree = ast.parse(src)
-    into_prompt = _call_arg_names(tree, "compose_prompt") & PROMPT_EXTERNAL_TEXTS
-    into_gate = _call_arg_names(tree, "assert_no_source_leak") & PROMPT_EXTERNAL_TEXTS
-    missing = into_prompt - into_gate
-    if missing:
-        bad("空门·门没看全", f"这些外来文本**进了 prompt 却没进防搬运门**:{', '.join(sorted(missing))}",
-            "LLM 眼前摆着别人的原文,而门不看它 → **逐字照抄能直接过门**。"
-            "把它们加进 guard.assert_no_source_leak([...]) 的列表")
-    else:
-        ok(f"防搬运门看全了进 prompt 的外来文本({', '.join(sorted(into_prompt)) or '无'})"
-           f"—— LLM 见得到的,门都在比")
+    # 2026-07-14 大手术:曾经这里还有 audit_gate_covers_prompt() —— 读 orchestrator/draft.py 源码,
+    # 查"进了 compose_prompt 的外来文本是否都进了 assert_no_source_leak"。draft.py 整个已删:
+    # harness 不再替 agent 组 prompt(那是导轨),agent 自己读技能、自己写稿。
+    # 这条检查查的是**已经不存在的调用图**,查不出东西了,删掉——不是留着骗人地"一直绿"。
+    # 防搬运门本身(guard.assert_no_source_leak,notes.write_draft 出口调用)还在,没有变弱。
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ⑧ 人面产物没人以人的眼睛看过 —— **这轮 bug 最大的来源,而且机器最难查**
-#
-#    实例(全是绿门/单测/schema 一条都抓不到的):
-#      · 卡片待审区堆 5 条几乎一样的稿 —— 人打开第一反应"我审哪条?"
-#      · 「今日 4/3 已达上限」—— 可他今天一条都没发,那 4 是排队数。**数字没错,话在骗人**
-#      · 批了的稿被门拦下 → 停在『已批准』→ **在任何人面视图里都不出现** = 黑洞
-#      · 补拍单让摄影师去打开 `skills/writing-ootd-caption/SKILL.md` —— 他在片场,打不开也不该打开
-#      · 周报用 0 赞的数据说「本周最有效,可加权多产这类」
-#      · 卡片说「去 base 关联素材」—— **这是错的建议**:文案是没看过素材写的,挂图会货不对板
-#
-#    机器能查的那部分,查死;查不了的部分,由 loop 强制"每轮真渲染 + 以人的眼睛读一遍"。
+# 2026-07-14 大手术:这里曾经是 ⑧ 人面产物审查(audit_human_surface,连带 AGENT_ONLY /
+# _scan_agent_only)。它调 `shotlist.shot_needs("巧荷")` 拿补拍单数据——那个函数已删:
+# 谁该补拍是 agent 的判断,harness 不再算。这条检查查的是**已经不存在的调用图**,直接崩。
+# 更深一层:CLAUDE.md 自己的规矩是「审查员必须是 agent,不能是脚本」——「人会不会懵」
+# 「话有没有骗人」这类人面质量判断,本来就不该靠 regex 机械查,是 loop 真渲染 + 人/子 agent
+# 读一遍的事(见 docs/架构.md 第六节)。删掉,不是留着骗人地"一直绿"。
 # ══════════════════════════════════════════════════════════════════════════════
-# **给 agent 看的东西,不许出现在人面产物里**。三类,一个都不许:
-#   · 代码库路径/技能名  —— 摄影师在片场,打不开也不该打开 SKILL.md
-#   · **环境变量名**     —— 2026-07-14 人眼审现场抓到:我上一轮刚从补拍单里删掉 SKILL.md 路径,
-#                          转头就在**周报**里塞了句"要真拿数据得 `GY_METRICS_MODE=real`"。
-#                          运营在手机上收到周报,看到一串环境变量 —— 他不敲终端,这句话对他毫无意义,
-#                          而且**这件事根本不是他能做的**(改环境变量是部署侧的事)。
-#                          审查器当时没抓到,因为 AGENT_ONLY 里没有"环境变量名"这个模式。
-#   · record_id/field_id —— 内部主键,人看不懂
-AGENT_ONLY = [
-    ("SKILL.md", "代码库文件"), ("skills/", "代码库路径"), ("brands/", "代码库路径"),
-    ("orchestrator/", "代码库路径"), ("scripts/", "代码库路径"),
-    (r"\bGY_[A-Z0-9_]{3,}", "**环境变量名**(改它是部署侧的事,不是运营能做的)"),
-    (r"\b[A-Z][A-Z0-9_]{5,}=[a-z]", "**环境变量赋值**(给运维/agent 看的,不是给人的)"),
-    ("record_id", "内部主键"), (r"\brec\w{10,}", "内部主键"),
-    (r"\bfld\w{8,}", "内部字段ID"), (r"\btbl\w{10,}", "内部表ID"),
-    ("playbook_id", "内部标识"), ("gen_skill", "内部技能名"),
-]
-
-
-def _scan_agent_only(surface: str, text: str, reader: str) -> int:
-    """人面产物里扫"给 agent 看的东西"。surface=产物名,reader=它的读者是谁。
-
-    **先剥掉 URL 再扫**(2026-07-14 我自己踩的假阳性):第一版直接扫全文,把 base 深链里的
-    `?table=tblsice…&record=recvphd…` 抓成"给错读者"——**可那正是运营点标题直达 base 那一行的机制**:
-    record_id 藏在可点链接里,人根本看不见,更不需要看懂。这不是给错读者,是正常深链。
-    **假阳性比漏报更毒**:检查每次都红 → 人开始无视它(狼来了)→ 这道门就废了。
-    所以:URL **里面**的内部 ID 放行;URL **外面**的(以及任何地方的代码路径/环境变量)一律不许。
-    """
-    naked = re.sub(r"https?://\S+", "«链接»", text)      # 深链整段替掉:里面的 id 是机制,不是给人读的
-    n = 0
-    for pat, why in AGENT_ONLY:
-        m = re.search(pat, naked)
-        if m:
-            bad("人面·给错读者", f"{surface}里出现「{m.group(0)}」",
-                f"{why}。**{surface}的读者是{reader}** —— 给错读者 = 让人白费功夫,或干脆看不懂")
-            n += 1
-    return n
-
-
-def audit_human_surface() -> None:
-    print("\n── ⑧ 人面产物(以人的眼睛看,合不合理)" + "─" * 22)
-    from orchestrator import bitable, cockpit, feishu_io, report, shotlist
-    from orchestrator.bitable import AccountFields as AF, NoteFields as NF
-    found = 0
-
-    p = cockpit.today_panel("巧荷")
-    card = cockpit.today_card("巧荷", panel=p)
-    blob = json.dumps(card, ensure_ascii=False)
-    needs = shotlist.shot_needs("巧荷")
-
-    # (a)(b) **三个人面产物全扫**(之前只扫了卡片和补拍单,**漏了周报** —— 环境变量就是从那儿漏出去的)
-    found += _scan_agent_only("今日卡片", blob, "运营(手机上,不敲终端)")
-    for g in needs:
-        found += _scan_agent_only("补拍单", f"{g.get('拍摄要求','')} {g.get('参考','')} "
-                                            f"{g.get('投递去向','')}", "摄影师(在片场)")
-    wk_txt = report.format_weekly(report.weekly_summary(
-        [r["fields"] for r in feishu_io.list_records(NF.TABLE)], needs=needs))
-    found += _scan_agent_only("周报", wk_txt, "运营(周一看,不敲终端)")
-
-    # (b2) **base 里指向仓库的指针必须真指到文件**(2026-07-14 撞到的活标本)。
-    #   账号表『workspace_ref』4/4 都写着 `brands/观云/accounts/…` —— 观云→巧荷 改名之后,
-    #   那个目录**根本不存在了**。没有任何代码读这个字段,所以它一声不吭;
-    #   可它**是给人看的**:运营/开发点它去找账号声明。人点过去扑空,还以为自己搞错了。
-    #   "没代码读" ≠ "没人读" —— 人也是读者,而且是最容易被骗的那个。
-    for r in feishu_io.list_records(AF.TABLE):
-        ref = bitable.text(r["fields"].get("workspace_ref")).strip()
-        if ref and not (ROOT / ref).exists():
-            bad("人面·死指针", f"账号表『workspace_ref』= `{ref}`,**这个文件在仓库里不存在**",
-                "它是给人点的(去看账号声明)。指到空处 → 人扑空。改名/挪目录后必须同步 base,"
-                "或者干脆删掉这个字段——**别留一个永远指错的路标**")
-
-    # (c) 黑洞:某个在途状态的稿,在**任何**人面视图里都不出现 → 人以为它发出去了
-    surfaced = {n["title"] for k in ("待审", "待发", "待回填链接", "已暂停", "卡住") for n in p.get(k, [])}
-    for st in ("草稿待发", "已批准", "待发布"):
-        for r in feishu_io.search_in(NF.TABLE, NF.STATUS, [st]):
-            title = bitable.text(r["fields"].get(NF.TITLE))
-            if title and title not in surfaced:
-                bad("人面·黑洞", f"「{title}」(状态={st})不在任何人面视图里",
-                    "人在卡片/面板上看不到它 → 以为它发出去了。**门拦住 ≠ 事情办完**:"
-                    "拦住 + 说清为什么 + 给出路,才算数")
-                found += 1
-
-    # (d) 卡片分组表头不许为空(link 形态坑直接砸这:账号名读空 → 人不知道是哪个号)
-    for el in card["elements"]:
-        c = (el.get("text") or {}).get("content", "")
-        head = c.split("\n")[0].strip("* ")
-        if c.startswith("**") and head in ("", "·"):
-            bad("人面·空表头", "今日卡片有空的账号分组表头",
-                "运营一眼看不出这是哪个号。link 字段从 search 只回 id、没有 text —— 这坑直接砸在人脸上")
-            found += 1
-
-    # (e) 话不许说一半(手机上读到「…只当意境里一个词轻点,不」)
-    for g in shotlist.shot_needs("巧荷"):
-        for k in ("拍摄要求", "参考"):
-            s = (g.get(k) or "").strip()
-            if s and s[-1] in "不的了和与或在把被将而且但":
-                bad("人面·话说一半", f"补拍单『{k}』断在半句:…{s[-12:]}",
-                    "硬截字数会断在半个词上,人读着一头雾水。要在句子边界断")
-                found += 1
-
-    # (f) 零数据不许编结论(周报曾用 0 赞的稿说「本周最有效,可加权多产这类」)。复用上面已算的 wk_txt。
-    wk = wk_txt
-    if ("最有效" in wk or "单条最佳" in wk) and "赞0" in wk:
-        bad("人面·零数据编结论", "周报用 0 赞的数据下了「最有效/最佳」的结论",
-            "运营会说:'就一条,还 0 赞,你让我多产?' 宁可说'数据不够',也不能编")
-        found += 1
-
-
-    # (g) **假承诺:人面上说的能力,代码里没接线**(2026-07-14 人眼审抓到的,⑧ 的更深形态)
-    #     卡片原话:"发完把链接发我认领" —— "发我认领"要 webhook 接住聊天消息 →
-    #     `publish.fill_publish_link()` 是那个入口,而它**生产零调用、webhook 未接**:
-    #     运营真把链接发给 bot,**石沉大海,没有任何东西在听**。功能没接线,话却已经说出去了。
-    PROMISES = [
-        ("发我认领", "fill_publish_link", "把链接发给 bot 认领 —— 要 webhook 接住聊天消息"),
-        ("发给我", "fill_publish_link", "同上"),
-        ("点按钮", "approve", "卡片按钮 —— 要 webhook 接住按钮点击"),
-        ("点卡片", "approve", "同上"),
-    ]
-    for phrase, fn, need in PROMISES:
-        if phrase not in blob:
-            continue
-        wired = _real_callers(fn) > 0     # **AST 数真调用点**;注释里提到名字不算(第一版就栽在这)
-        if not wired:
-            bad("人面·假承诺", f"卡片上说「{phrase}」,但 {fn}() **生产零调用**",
-                f"{need}。**功能没接线,话却已经说出去了** —— 人照做,石沉大海。"
-                f"要么接线,要么别说")
-            found += 1
-
-    if not found:
-        ok("人面产物:没有给错读者/黑洞/空表头/半句话/零数据编结论/假承诺")
-        print("      ⚠️ 但机器只能查这些**形式**问题。**'人打开顺不顺手'查不了**——")
-        print("         每轮必须真渲染卡片/补拍单/周报,以人的眼睛读一遍,问'我会不会当场骂人'")
 
 
 def audit_skill_shadowing() -> None:
@@ -644,6 +478,65 @@ def audit_skill_shadowing() -> None:
 # ══════════════════════════════════════════════════════════════════════════════
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# ⑪ 悬空引用:提到已删的模块名/脚本名/开关名 —— **文档在骗人**(说着一个已经不存在的东西)
+#
+#    2026-07-14 大手术删了 orchestrator/{dispatch,draft,llm,vision,processing} +
+#    scripts/{tag_materials,daily_dispatch,draft_one,today,ingest,full_stack_probe,…} +
+#    GY_DRAFT_*/GY_VISION_*/GY_TAG_CONCURRENCY/GY_PROCESSING_ENABLED/GY_INGEST_VIDEO。
+#    这份清单本身**只在这里以数据形式存在**——本文件被排除在扫描范围外(否则查自己会自己报红)。
+#
+#    docs/架构.md、CLAUDE.md、docs/adr/ 允许提:架构.md 有专门的"已经删掉的"小节;
+#    ADR 是历史决策记录(docs/架构.md 自己的规矩:"已定的事,别重新翻案;要翻先改 ADR")——
+#    拿这道检查去逼着改写历史决策记录,本身就是错的。
+#    别的地方提到,只要**同一行**标一句"已删/删掉/曾经/老实现"这类历史措辞就放行;
+#    没标 = 当前用法在骗人,报红。
+# ══════════════════════════════════════════════════════════════════════════════
+STALE_REFS = [
+    (r"orchestrator\.draft\b|from orchestrator import[^\n]*\bdraft\b", "orchestrator.draft(导轨模块,已删)"),
+    (r"orchestrator\.dispatch\b|from orchestrator import[^\n]*\bdispatch\b", "orchestrator.dispatch(导轨模块,已删)"),
+    (r"scripts[./]tag_materials", "scripts/tag_materials.py(已删)"),
+    (r"scripts[./]draft_one", "scripts/draft_one.py(已删)"),
+    (r"scripts[./]daily_dispatch", "scripts/daily_dispatch.py(已删)"),
+    (r"scripts[./]today\b", "scripts/today.py(已删)"),
+    (r"scripts[./]ingest\b", "scripts/ingest.py(已删;别跟 orchestrator.ingest 搞混,那个还活着)"),
+    (r"full_stack_probe", "full_stack_probe(已删,17条链路真跑并入了 review_gate --full 的④)"),
+    (r"\bGY_DRAFT_\w*", "GY_DRAFT_*(已删,harness 不再替 agent 调另一个模型写稿)"),
+    (r"\bGY_VISION_\w*", "GY_VISION_*(已删,harness 不再替 agent 调另一个模型看图)"),
+    (r"\bGY_TAG_CONCURRENCY\b", "GY_TAG_CONCURRENCY(已删)"),
+    (r"\bGY_PROCESSING_ENABLED\b", "GY_PROCESSING_ENABLED(已删,要不要加工没有开关,是判断)"),
+    (r"\bGY_INGEST_VIDEO\b", "GY_INGEST_VIDEO(已删)"),
+]
+_HISTORY_MARK = re.compile(r"删|曾经|老实现|已卸|已下线|原本")   # "删"是最广的一个:已删/删掉/被删/【删】全接住
+_STALE_EXEMPT_FILES = {"CLAUDE.md", "docs/架构.md"}     # 明确允许历史提及(架构.md 有专门小节)
+_STALE_EXEMPT_DIRS = {"docs/adr"}                        # ADR = 历史决策记录,别逼着改写历史
+_STALE_SKIP_DIRS = {".git", "__pycache__", "skills", ".pytest_cache", ".omx"}  # skills=外部技能仓的符号链接,不是本仓
+
+
+def audit_stale_references() -> None:
+    print("\n── ⑪ 悬空引用(提到已删的模块/脚本/开关 —— 文档在骗人)" + "─" * 12)
+    found = 0
+    self_file = Path(__file__).resolve()
+    for ext in ("*.py", "*.md", "*.sh"):
+        for p in ROOT.rglob(ext):
+            if p.resolve() == self_file or any(part in _STALE_SKIP_DIRS for part in p.parts):
+                continue
+            rel = str(p.relative_to(ROOT))
+            if rel in _STALE_EXEMPT_FILES or any(rel.startswith(d + "/") for d in _STALE_EXEMPT_DIRS):
+                continue
+            try:
+                text = p.read_text(encoding="utf-8")
+            except Exception:  # noqa: BLE001
+                continue
+            for i, line in enumerate(text.splitlines(), 1):
+                if _HISTORY_MARK.search(line):
+                    continue                       # 标了历史措辞 = 在讲过去,放行
+                for pat, why in STALE_REFS:
+                    if re.search(pat, line):
+                        bad("悬空引用", f"{rel}:{i}  {why}", f"这行:{line.strip()[:80]}")
+                        found += 1
+    if not found:
+        ok("全仓没有悬空引用已删的模块/脚本/开关(或都标了'已删/曾经'等历史措辞)")
 
 
 
@@ -663,10 +556,10 @@ def main() -> int:
     audit_default_traps()
     audit_fake_fixtures()
     audit_skill_shadowing()
+    audit_stale_references()
     if not a.offline:
         audit_views()
         audit_empty_gates()
-        audit_human_surface()
 
     print("\n" + "═" * 70)
     if FAIL:
@@ -676,7 +569,7 @@ def main() -> int:
         print("\n  规矩:**要么真做出来,要么删掉**。别留着骗人。")
         print("═" * 70)
         return 1
-    print("  ✅ 全体系对齐 —— 没有死码/死配置/空壳/名不副实/默认值陷阱/空门/假形态mock/人面缺陷/不幂等的修复")
+    print("  ✅ 全体系对齐 —— 没有死码/死配置/空壳/名不副实/默认值陷阱/空门/假形态mock/悬空引用")
     print("═" * 70)
     return 0
 

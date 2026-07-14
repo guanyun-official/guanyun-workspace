@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
 # review_gate.sh — 停止前一条命令『审查产物 + verify + 列还能推什么』(反"莫名其妙停")。
 #
-#   bash scripts/review_gate.sh            # 快核:keep门(pytest+ar_check)+产物审查+开口项扫描
-#   bash scripts/review_gate.sh --full     # 全量:再加 check_p1-6 + verify_usable 综合验收(慢,~3min)
+#   bash scripts/review_gate.sh            # 快核:①②③(红线测试 + schema 契约 + 机器审)
+#   bash scripts/review_gate.sh --full     # 全量:再加 ④ 真库冒烟(python3 -m orchestrator board)
 #   bash scripts/review_gate.sh --since <git-ref>   # 产物审查对比基准(默认上一个 tag 或 HEAD~5)
 #
-# 退出码:任一 keep 门红 = 非0(是闸不是报告)。开口项只列不判红(供"还能推什么")。
-# 设计:一次看清『产物过没过审 + 还剩什么能推』,不用再靠记忆决定停不停。
+# 退出码:任一门红 = 非0(是闸不是报告)。产物审查/开口项只列不判红(供"还能推什么")。
+#
+# 2026-07-14 重写:老版本的门(ar_check/verify_usable/dogfood_smoke/check_p1-6)断言的正是
+# 刚拆掉的导轨(cadence 轮转、draft_one 干跑、sourcing 三态……)。CLAUDE.md 的纪律是
+# "只写红线,别测判断、别测措辞"——所以新的门只留下**真能拦住事故**的四道:
+#   ① 红线测试(pytest tests/) ② schema 契约(代码 ⊆ 活库) ③ 机器审(死码/死配置/悬空引用/空门)
+#   ④ 真跑冒烟(零 mock,agent 的眼睛真的睁得开吗)
 set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"; cd "$ROOT"
 export LARK_CLI_NO_PROXY=1
@@ -29,7 +34,7 @@ gate(){ # gate <名> <命令...>:跑,绿✓红✗(红→RED=1)
   if "$@" >/tmp/review_gate_$$.log 2>&1; then
     echo "  ✓ $name"
   else
-    echo "  ✗ $name  —— 末尾输出:"; tail -4 /tmp/review_gate_$$.log | sed 's/^/      /'
+    echo "  ✗ $name  —— 末尾输出:"; tail -8 /tmp/review_gate_$$.log | sed 's/^/      /'
     RED=1
   fi
   rm -f /tmp/review_gate_$$.log
@@ -37,38 +42,54 @@ gate(){ # gate <名> <命令...>:跑,绿✓红✗(红→RED=1)
 
 echo "══════ 审查/verify 门 ($(git branch --show-current) @ $(git rev-parse --short HEAD)) ══════"
 
-# ── ① keep 门(每次都跑,快核心)────────────────────────────────
-hr; echo "① keep 门(硬闸,红=没过审)"
-gate "pytest 全绿" $PY -m pytest -q
-gate "ar_check SCORE=100" bash -c '$0 scripts/ar_check.py 2>&1 | grep -q "SCORE=100"' "$PY"
+# ── ① 红线测试(每次都跑,快核心)────────────────────────────
+hr; echo "① 红线测试(硬闸,红=没过审)"
+gate "pytest tests/ 全绿(只测红线,不测判断)" $PY -m pytest tests/ -q
 
-# ── ② 全量(--full 才跑:check_p + 综合验收)────────────────────
+# ── ② schema 契约(代码消费的字段/枚举 ⊆ 活库,真库只读)──────────
+hr; echo "② schema 契约(代码 vs 活 Base,读侧漂移探针)"
+gate "check_schema_drift(真库只读)" $PY scripts/check_schema_drift.py
+
+# ── ③ 机器审(死码/死配置/悬空引用/空门,10 种病里机械可查的那几种)──
+hr; echo "③ 机器审 alignment_audit(死码/死配置/悬空引用/空门)"
+gate "alignment_audit" $PY scripts/alignment_audit.py
+
+# ── ③b 技能真源同步(2026-07-14 真栽过:**push 静默无操作**)────────────
+# install_skills.sh 会把技能仓 checkout 到锁定 sha → **HEAD 游离**。
+# 之后在技能仓 commit,提交落在游离 HEAD 上;`git push origin main` 推的是
+# **还停在旧 sha 的 main 分支** —— 静默无操作,退出码 0。
+# 于是"改完 push"这条纪律在这种状态下**无法执行,而且不报错**。
+# 所以门必须**直接问 GitHub**:lock 的 sha == 远端 main?
+# (不是本地 HEAD、不是本地 origin/main 缓存 —— 那两个都会骗你。)
+# 服务器上的 agent 只从 GitHub 装技能。**sha 对不上 = 它跑的不是我们这份。**
+hr; echo "③b 技能真源同步(skills.lock.json 的 sha == GitHub 上的 main?)"
+gate "lock sha == 远端 main(直接问 GitHub,不信本地缓存)" bash -c '
+  set -e
+  repo=$(python3 -c "import json;print(json.load(open(\"skills.lock.json\"))[\"sources\"][0][\"repo\"])")
+  lock=$(python3 -c "import json;print(json.load(open(\"skills.lock.json\"))[\"sources\"][0][\"sha\"])")
+  remote=$(git ls-remote "$repo" refs/heads/main | cut -f1)
+  [ -n "$remote" ] || { echo "问不到远端 main"; exit 1; }
+  [ "$lock" = "$remote" ] || { echo "lock=$lock"; echo "远端=$remote"; echo "→ 技能没推上去(或忘了更新 lock)。服务器会装到**另一份**技能。"; exit 1; }
+  echo "lock == 远端 main == $remote"'
+
+# ── ④ 真跑冒烟(--full 才跑:零 mock,真测试库)────────────────
 if [ "$FULL" = "1" ]; then
-  hr; echo "② 全量门(dogfood 冒烟 + check_p1-6 + 综合验收 verify_usable)"
-  gate "dogfood 冒烟(真库:账号名/link解析/去重键 人能看懂的真事)" $PY scripts/dogfood_smoke.py
-  for s in scripts/check_p1.sh scripts/check_p2.sh scripts/check_p3.sh scripts/check_p4.sh scripts/check_p5.sh scripts/check_p6.sh; do
-    [ -f "$s" ] && gate "$(basename "$s")" bash "$s"
-  done
-  gate "verify_usable 综合验收" $PY scripts/verify_usable.py
-  # alignment_audit 是"全体系对齐审查"(10 种病的机器审)。它以前**不在任何门里** ——
-  # 只在我记得跑的时候才跑。于是"机器审全绿"这个交付条件,保障挂在"人会不会忘"上面。
-  # 接进来:一条 review_gate --full = 单测 + 门 + 机器审 + 17条链路,一个都不许漏。
-  gate "alignment_audit 全体系对齐审查(10种病)" $PY scripts/alignment_audit.py
-  # 2026-07-14 接线:full_stack_probe(17条链路真跑验收)**以前没有任何人跑它** ——
-  # 一个号称"综合验收"的东西自己是死码,而且一跑就崩(L5 段 MSrc.SHOT 属性不存在,静默 AttributeError)。
-  # "17条链路真跑"是目标的硬条件之一,验收器却不在门里 = 那个条件从来没被机器验过。接进来。
-  gate "full_stack_probe 17条链路真跑(真库/真ARK/真网盘)" $PY scripts/full_stack_probe.py
+  hr; echo "④ 真跑冒烟(真库,agent 的眼睛真的睁得开吗)"
+  # 唯一诚实的"能不能用"判据:board 是 agent 的眼睛(Observation)——它必须真跑得通,
+  # 而且看得见法律(红线)和世界(账号)。不是 mock 同意,是真飞书数据下真结构成立。
+  gate "python3 -m orchestrator board(退出0 且看得见红线+账号)" bash -c \
+    "$PY -m orchestrator board > /tmp/gy_board_\$\$.out 2>&1 && grep -q 红线 /tmp/gy_board_\$\$.out && grep -q 账号 /tmp/gy_board_\$\$.out; rc=\$?; rm -f /tmp/gy_board_\$\$.out; exit \$rc"
 else
-  hr; echo "② 全量门:跳过(加 --full 跑 dogfood冒烟 + check_p1-6 + verify_usable,交付前必跑)"
+  hr; echo "④ 全量门:跳过(加 --full 跑真库冒烟,交付前必跑)"
 fi
 
-# ── ③ 产物审查(自 $SINCE 起改了什么)──────────────────────────
-hr; echo "③ 产物审查(自 $SINCE):"
+# ── ⑤ 产物审查(自 $SINCE 起改了什么)──────────────────────────
+hr; echo "⑤ 产物审查(自 $SINCE):"
 echo "  提交:"; git log --oneline "$SINCE"..HEAD 2>/dev/null | sed 's/^/    /' | head -20
 echo "  变更文件:"; git diff --stat "$SINCE"..HEAD 2>/dev/null | tail -12 | sed 's/^/    /'
 
-# ── ④ 还能推什么(开口项扫描:ADR残留 + 代码TODO + 未接线)─────────
-hr; echo "④ 还能推什么(开口项,只列不判红):"
+# ── ⑥ 还能推什么(开口项扫描:ADR残留 + 代码TODO + 未接线)─────────
+hr; echo "⑥ 还能推什么(开口项,只列不判红):"
 echo "  ADR 里标『待/残留/follow-up/未做/未接』的项:"
 grep -rn "待用户\|待 schema\|待 schema\|残留\|follow-up\|未做\|未接\|TODO\|FIXME" docs/adr/ 2>/dev/null \
   | grep -iv "已交付\|已修\|不做" | sed 's/^/    /' | head -18
@@ -79,8 +100,8 @@ ls issues/ 2>/dev/null | sed 's/^/    /' | head -8 || echo "    (无 issues/ 目
 
 hr
 if [ "$RED" = "0" ]; then
-  echo "✅ keep 门全绿。产物过审。上面④是『还能推什么』候选——挑一个继续,别莫名停。"
-  [ "$FULL" = "0" ] && echo "   (交付前记得再跑一次 --full 过 check_p + 综合验收)"
+  echo "✅ 门全绿。产物过审。上面⑥是『还能推什么』候选——挑一个继续,别莫名停。"
+  [ "$FULL" = "0" ] && echo "   (交付前记得再跑一次 --full 过真库冒烟)"
 else
   echo "❌ 有门红了(见上✗)。先修红再谈推进,红=不留。"
 fi

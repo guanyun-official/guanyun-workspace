@@ -13,6 +13,7 @@
 
   更毒的是:为了"可测",一切被写成纯函数 → **判断被从模型手里拿出来** → 测试驱动了导轨。
   `test_dispatch` 断言"cadence 会派这 4 条" —— 那条测试**就是把轮转规则焊死的钉子**。
+  (那条 cadence 规则和那条测试,2026-07-14 一起删了。)
 
   **红线是唯一的例外**:它是"绝不能发生的事",**没法靠"用出来"验证**
   (你不能等 AI 内容漏标真发出去了才知道)。所以它必须有机器门守着。
@@ -21,13 +22,15 @@
 """
 from __future__ import annotations
 
+import ast
 import importlib
 import os
 import re
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from orchestrator import config, draft, guard, processing
+from orchestrator import config, guard, notes
 from orchestrator.bitable import MaterialSource as MSrc, NoteFields as NF, NoteStatus as NS
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,14 +48,16 @@ class R1_只写测试库(unittest.TestCase):
     def test_test_base_is_allowed(self):
         guard.assert_base_allowed(TEST_BASE, True)      # 不误伤
 
-    def test_dispatch_guards_before_touching_any_io(self):
+    def test_every_write_atom_guards_before_touching_any_io(self):
         """**守卫必须在任何 IO 之前**(不是"在写之前")。
 
-        真事:`dispatch` 曾经在守卫前面先做了一次 `_open_slots()`(读库)——
-        于是 BASE_TOKEN 指向生产库时,**那次读会真的打到 N9IVbi**。生产库读也不碰。
-        测法:把所有 IO 换成"一碰就炸",拿生产库 token 去写 —— 必须是 GuardError,不是 IOTouched。"""
-        from unittest import mock
-        from orchestrator import dispatch, feishu_io
+        真事:老 `dispatch` 曾在守卫前先做了一次读库(`_open_slots`)——
+        BASE_TOKEN 指向生产库时,**那次读会真的打到 N9IVbi**。生产库读也不碰。
+
+        测法:把所有 IO 换成"一碰就炸",拿生产库 token 去调**每一个写原子** ——
+        必须是 GuardError(守卫拦住了),不是 IOTouched(已经碰了库)。
+        """
+        from orchestrator import feishu_io
 
         class IOTouched(AssertionError):
             pass
@@ -60,16 +65,24 @@ class R1_只写测试库(unittest.TestCase):
         def boom(*a, **k):
             raise IOTouched("守卫还没拦住,就已经碰了 IO —— 这一下会打到生产库")
 
+        写原子 = {
+            "notes.new": lambda: notes.new("ootd号", "视频唯美OOTD"),
+            "notes.write_draft": lambda: notes.write_draft("ootd号", "视频唯美OOTD", "标", "正文"),
+            "notes.update": lambda: notes.update("recX", {NF.TITLE: "x"}),
+        }
         orig = (config.BASE_TOKEN, config.TEST_MODE)
         try:
             config.BASE_TOKEN, config.TEST_MODE = PROD_BASE, True
             with mock.patch.object(feishu_io, "list_records", boom), \
                     mock.patch.object(feishu_io, "search_in", boom), \
                     mock.patch.object(feishu_io, "search_records", boom), \
+                    mock.patch.object(feishu_io, "get_record", boom), \
                     mock.patch.object(feishu_io, "create_record", boom), \
+                    mock.patch.object(feishu_io, "update_record", boom), \
                     mock.patch.object(feishu_io, "name_map", boom):
-                with self.assertRaises(guard.GuardError):
-                    dispatch.dispatch("巧荷", write=True)
+                for name, call in 写原子.items():
+                    with self.subTest(原子=name), self.assertRaises(guard.GuardError):
+                        call()
         finally:
             config.BASE_TOKEN, config.TEST_MODE = orig
 
@@ -81,29 +94,39 @@ class R1_只写测试库(unittest.TestCase):
 class R2_绝不自动发布(unittest.TestCase):
     """出稿一律止于『草稿待发』。发布是**人的动作**。"""
 
-    def test_generation_always_stops_at_draft_pending(self):
-        from orchestrator import accounts
-        for name, acc in accounts.load_all("巧荷").items():
-            if not acc or acc.error:
-                continue
-            for pb in acc.playbooks():
-                ct = pb.get("content_type") or pb.get("id")
-                f = draft.generate_draft(name, llm_mode="stub", content_type=ct)["note_fields"]
-                self.assertEqual(f[NF.STATUS], NS.DRAFT_PENDING, f"{name}/{ct} 越过了人审门")
+    def test_write_draft_always_lands_on_draft_pending(self):
+        """落库状态写死成『草稿待发』,不是参数 —— agent 传不进别的状态。"""
+        src = (ROOT / "orchestrator" / "notes.py").read_text(encoding="utf-8")
+        tree = ast.parse(src)
+        fn = next(n for n in ast.walk(tree)
+                  if isinstance(n, ast.FunctionDef) and n.name == "write_draft")
+        # write_draft 里给 STATUS 赋的值必须是常量 NS.DRAFT_PENDING,不能是变量(否则可被传成『已发』)
+        assigned = [v for n in ast.walk(fn) if isinstance(n, ast.Dict)
+                    for k, v in zip(n.keys, n.values)
+                    if isinstance(k, ast.Attribute) and k.attr == "STATUS"]
+        self.assertTrue(assigned, "write_draft 没给状态赋值?")
+        for v in assigned:
+            self.assertTrue(isinstance(v, ast.Attribute) and v.attr == "DRAFT_PENDING",
+                            "write_draft 的落库状态不是写死的『草稿待发』——它能被传成别的状态")
+
+    def test_no_publish_verb_in_the_action_interface(self):
+        """**agent 的手里根本没有"发布"这个动词**(物理上够不着,不是"记得别用")。
+        也不许有"批准" —— 审批是人在 base 做的,给它 approve 动词它就能自己批自己的稿。"""
+        from orchestrator import cli
+        verbs = set(cli.build()._subparsers._group_actions[0].choices)  # type: ignore[attr-defined]
+        for 禁 in ("publish", "approve", "note.approve", "publish.publish"):
+            self.assertNotIn(禁, verbs, f"Action Interface 里冒出了「{禁}」动词")
+        self.assertIn("publish.advance", verbs)   # 只到『待发布』的那只手还在(不误删)
 
 
 class R3_绝不代勾AI声明(unittest.TestCase):
     """AI 像素 → 素材『来源=AI生成』→ 门要求声明 → **人勾**。机器绝不代勾。"""
 
-    def test_generation_never_self_declares(self):
-        from orchestrator import accounts
-        for name, acc in accounts.load_all("巧荷").items():
-            if not acc or acc.error:
-                continue
-            for pb in acc.playbooks():
-                ct = pb.get("content_type") or pb.get("id")
-                f = draft.generate_draft(name, llm_mode="stub", content_type=ct)["note_fields"]
-                self.assertNotIn(NF.AI_DECLARED, f, f"{name}/{ct} 自带了 AI 声明")
+    def test_agent_cannot_write_the_ai_declaration_field(self):
+        """**新红线**(拆导轨后 agent 能直接改笔记字段了):它写 AI声明 必须被当场拦住。
+        以前 harness 组字段,物理上不会写这个字段;现在 `note.update --set AI声明=true` 是一句话的事。"""
+        with self.assertRaises(guard.GuardError):
+            notes.update("recX", {NF.AI_DECLARED: True})
 
     def test_ai_material_without_declaration_is_refused(self):
         self.assertTrue(guard.ai_declaration_required([MSrc.AI, MSrc.REAL]))
@@ -117,19 +140,25 @@ class R3_绝不代勾AI声明(unittest.TestCase):
 
 
 class R4_provenance随像素出处(unittest.TestCase):
-    """成片『来源』**随像素出处**,绝不给模型判断(这是合规,不是判断)。"""
+    """加工产物『来源』**随像素出处**,绝不给 agent 判断(这是合规,不是判断)。"""
 
     def test_pure_composition_stays_real(self):
-        self.assertEqual(processing.derive_source([MSrc.REAL, MSrc.REAL], used_ai_generation=False),
-                         MSrc.REAL)
+        self.assertEqual(guard.derive_source([MSrc.REAL, MSrc.REAL], used_ai_generation=False), MSrc.REAL)
 
     def test_ai_generated_pixels_flip_to_ai(self):
-        self.assertEqual(processing.derive_source([MSrc.REAL, MSrc.REAL], used_ai_generation=True),
-                         MSrc.AI)
+        self.assertEqual(guard.derive_source([MSrc.REAL, MSrc.REAL], used_ai_generation=True), MSrc.AI)
 
     def test_any_ai_input_taints_the_output(self):
-        self.assertEqual(processing.derive_source([MSrc.AI, MSrc.REAL], used_ai_generation=False),
-                         MSrc.AI)
+        self.assertEqual(guard.derive_source([MSrc.AI, MSrc.REAL], used_ai_generation=False), MSrc.AI)
+
+    def test_ai_pixels_land_as_ai_even_if_the_agent_says_otherwise(self):
+        """agent 说"这是实拍"也没用:落在 02-AI生成/ 的像素**强制** AI生成(就低不就高)。"""
+        from orchestrator import feishu_io, ingest
+        cap = {}
+        with mock.patch.object(feishu_io, "create_record", lambda t, f: cap.update(f) or "rec1"):
+            ingest.register("XX-260714-001", "形象图", "baidupan:/巧荷素材/02-AI生成/x.jpg",
+                            source=MSrc.REAL)      # ← agent 硬说实拍
+        self.assertEqual(cap["来源"], MSrc.AI, "AI 目录的像素被登记成了实拍 —— 会漏勾 AI 声明")
 
 
 class R5_控量门且不许有旋钮(unittest.TestCase):
@@ -158,14 +187,17 @@ class R5_控量门且不许有旋钮(unittest.TestCase):
 
 
 class R6_防搬运门(unittest.TestCase):
-    """爆款只当情报,**只学结构、绝不抄原句**。
+    """爆款/真实帖只当情报,**只学结构、绝不抄原句**。
 
     ⚠️ 技能里写这句话**不够** —— 真跑实证:模型照样把爆款标题原封搬走。
-    **门必须守住 LLM 眼睛看得见的一切**:灵感标题 + 爆款正文 + 技能 few-shot 真实帖。
+    ⚠️ 拆导轨之后这道门换了形状,**新的失效方式**:
+       harness 不再组 prompt,**它不知道 agent 看过什么**。
+       要是让 agent 自己申报("我这条用了 writing-ootd-caption"),它打错一个字门就瞎了。
+       **门必须自己去捞比对源。**
     """
 
     def test_verbatim_lift_is_refused(self):
-        skill = draft.load_gen_skill("writing-ootd-caption")
+        skill = (ROOT / "skills" / "writing-ootd-caption" / "SKILL.md").read_text(encoding="utf-8")
         stolen = re.sub(r"[\s\W_]+", "", skill)[200:225]        # 逐字搬技能里的真实帖
         with self.assertRaises(guard.GuardError):
             guard.assert_no_source_leak([skill], stolen)
@@ -175,42 +207,48 @@ class R6_防搬运门(unittest.TestCase):
         guard.assert_no_source_leak(["某爆款正文", "某爆款标题", "某技能 few-shot"],
                                     "OOTD｜粉罗载光\n\n光落在衣上，风把影子摇醒。\n\n#汉服")
 
-    def test_gate_covers_every_external_text_that_entered_the_prompt(self):
-        """**结构不变式:进了 prompt 的外来文本,一个不落地交给门。**
-        门被修过两次:第一次漏了 few-shot 真实帖(LLM 眼前最好抄的东西);
-        第二次我误判"正文不进 prompt 所以搬不了" —— 而正文正是当情报进 prompt 的。"""
-        import ast
-        tree = ast.parse((ROOT / "orchestrator" / "draft.py").read_text(encoding="utf-8"))
-        external = {"skill_text", "title_seed", "source_text"}
-        alias: dict[str, set] = {}
-        for n in ast.walk(tree):
-            if isinstance(n, ast.Assign) and isinstance(n.value, (ast.List, ast.Tuple)):
-                elts = {e.id for e in n.value.elts if isinstance(e, ast.Name)}
-                for t in n.targets:
-                    if isinstance(t, ast.Name) and elts:
-                        alias.setdefault(t.id, set()).update(elts)
+    def test_gate_fetches_its_own_sources_never_asks_the_agent(self):
+        """**结构不变式:比对源不许来自调用方(agent)的入参。**
 
-        def names_of(fn: str) -> set:
-            got: set = set()
+        `write_draft` 交给门的那个参数,必须是 `_leak_sources(...)` 的返回值 ——
+        harness 自己去捞的。**只要它变成一个函数入参(哪怕叫 `sources=`),这道门就有了
+        一个"被监管者自己填的申报表"入口,当场作废。**
+        """
+        tree = ast.parse((ROOT / "orchestrator" / "notes.py").read_text(encoding="utf-8"))
+        fn = next(n for n in ast.walk(tree)
+                  if isinstance(n, ast.FunctionDef) and n.name == "write_draft")
+        params = {a.arg for a in fn.args.args + fn.args.kwonlyargs}
+        calls = [n for n in ast.walk(fn) if isinstance(n, ast.Call)
+                 and getattr(n.func, "attr", "") == "assert_no_source_leak"]
+        self.assertTrue(calls, "write_draft 没有过防搬运门")
+        for c in calls:
+            src_arg = c.args[0]
+            self.assertIsInstance(src_arg, ast.Call, "比对源不是 harness 自己捞的(应是 _leak_sources(...))")
+            self.assertEqual(getattr(src_arg.func, "id", ""), "_leak_sources")
+            for n in ast.walk(src_arg):
+                if isinstance(n, ast.Name):
+                    self.assertNotIn(n.id, params - {"account", "content_type", "brand"},
+                                     f"比对源掺进了 agent 能自由填的入参「{n.id}」—— 门可以被它糊弄")
 
-            def walk(node):
-                if isinstance(node, ast.Name):
-                    got.add(node.id)
-                    got.update(alias.get(node.id, ()))
-                for ch in ast.iter_child_nodes(node):
-                    walk(ch)
-            for n in ast.walk(tree):
-                if isinstance(n, ast.Call):
-                    f = n.func
-                    if (f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", "")) == fn:
-                        for a in list(n.args) + [k.value for k in n.keywords]:
-                            walk(a)
-            return got
+    def test_skill_declared_but_missing_explodes(self):
+        """声明了 gen_skill 却装不上 → **炸**。静默跳过 = 门拿不到真实帖 = 门瞎了还假装在守。"""
+        from orchestrator import feishu_io
+        with mock.patch.object(feishu_io, "list_records", lambda t, **k: []), \
+                mock.patch.object(notes, "_gen_skill_of", lambda *a, **k: "不存在的技能xyz"):
+            with self.assertRaises(notes.SkillMissing):
+                notes._leak_sources("ootd号", "视频唯美OOTD")
 
-        into_prompt = names_of("compose_prompt") & external
-        into_gate = names_of("assert_no_source_leak") & external
-        self.assertLessEqual(into_prompt, into_gate,
-                             f"这些外来文本进了 prompt 却没进防搬运门:{into_prompt - into_gate}")
+    def test_every_real_playbook_resolves_its_skill(self):
+        """真账号声明里每个模式的 gen_skill 都装得上(否则那个模式的防搬运门是瞎的)。"""
+        from orchestrator import accounts
+        for name, acc in accounts.load_all("巧荷").items():
+            if not acc or acc.error:
+                continue
+            for pb in acc.playbooks():
+                gs = accounts.gen_skill_of(pb)
+                if gs:
+                    self.assertTrue((ROOT / "skills" / gs / "SKILL.md").exists(),
+                                    f"{name} 的技能「{gs}」装不上 —— 它的防搬运门会瞎")
 
 
 class R7_零素材门(unittest.TestCase):
@@ -227,58 +265,55 @@ class R7_零素材门(unittest.TestCase):
 
 class R8_绝不覆盖运营待审的稿(unittest.TestCase):
     """『待出文案』= 派活占位(还没内容)→ 可推进;
-    『草稿待发』= **人正等着审** → 再出一条 update 上去 = **把他等着审的稿悄悄换掉**。
+    『草稿待发』= **人正等着审** → 再写一条 update 上去 = **把他等着审的稿悄悄换掉**。
     覆盖别人正在等的东西,任何时候都不叫"复用"。"""
 
-    def _run(self, status):
-        from unittest import mock
-        from orchestrator import feishu_io
-        base = {"笔记表": [{"record_id": "recOld", "fields": {
+    def _base(self, status):
+        return {"笔记表": [{"record_id": "recOld", "fields": {
                     NF.STATUS: status, NF.TITLE: "运营正在审的那条",
                     NF.ACCOUNT: [{"record_ids": ["recA"]}],
                     NF.CONTENT_TYPE: [{"record_ids": ["recC"]}]}}],
                 "账号表": [{"record_id": "recA", "fields": {"账号名": "ootd号"}}],
-                "内容类型表": [{"record_id": "recC", "fields": {"内容类型名": "视频唯美OOTD"}}]}
-        r = draft.generate_draft("ootd号", llm_mode="stub", content_type="视频唯美OOTD")
+                "内容类型表": [{"record_id": "recC", "fields": {"内容类型名": "视频唯美OOTD"}}],
+                "灵感库": []}
+
+    def _run(self, status):
+        from orchestrator import feishu_io
+        base = self._base(status)
         cap = {}
-        with mock.patch.object(feishu_io, "list_records", lambda t: base.get(t, [])), \
+        with mock.patch.object(feishu_io, "list_records", lambda t, **k: base.get(t, [])), \
                 mock.patch.object(feishu_io, "search_in", lambda t, *a, **k: base.get(t, [])), \
-                mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: base.get(t, [])), \
                 mock.patch.object(feishu_io, "update_record", lambda t, rid, f: cap.update(updated=rid)), \
                 mock.patch.object(feishu_io, "create_record", lambda t, f: cap.update(created=True) or "recNew"):
-            return draft.create_draft_note(r), cap
+            return notes.write_draft("ootd号", "视频唯美OOTD", "新标题", "全新的正文内容"), cap
 
     def test_pending_review_draft_is_never_overwritten(self):
-        with self.assertRaises(draft.DraftPending):
+        with self.assertRaises(notes.DraftPending):
             self._run(NS.DRAFT_PENDING)
 
     def test_placeholder_is_still_promoted(self):
-        """别把防覆盖修成"什么都不敢做":占位(没内容)照旧推进。"""
-        rid, cap = self._run(NS.NEED_COPY)
-        self.assertEqual(rid, "recOld")
+        """别把防覆盖修成"什么都不敢做":占位(没内容)照旧推进,不新建重复行。"""
+        r, cap = self._run(NS.NEED_COPY)
+        self.assertEqual(r["note_id"], "recOld")
         self.assertNotIn("created", cap)
 
 
-class R9_技能装不上就炸(unittest.TestCase):
-    """声明了 gen_skill 却装不上 → **炸在出稿前**,绝不静默返回 ""。
-    静默 = LLM 零技能、零 few-shot 裸写,产出照样有,只是悄悄退化成通用口水文,**永不作声**。"""
+class R9_定时器的手只碰自己的行(unittest.TestCase):
+    """crontab 是**用户机器上的公共设施**,不是 agent 的私产。
+    它只许碰自己写的(带 `# gy-agent` 标记的)行 —— 别人的 cron 一个字都不许动。"""
 
-    def test_declared_but_missing_skill_raises(self):
-        with self.assertRaises(draft.SkillMissing):
-            draft.load_gen_skill("不存在的技能xyz")
-
-    def test_no_skill_declared_is_legal(self):
-        self.assertEqual(draft.load_gen_skill(""), "")
-
-    def test_every_real_playbook_resolves_its_skill(self):
-        from orchestrator import accounts
-        for name, acc in accounts.load_all("巧荷").items():
-            if not acc or acc.error:
-                continue
-            for pb in acc.playbooks():
-                gs = accounts.gen_skill_of(pb)
-                if gs:
-                    self.assertTrue(draft.load_gen_skill(gs).strip(), f"{name} 的技能「{gs}」装不上")
+    def test_foreign_cron_lines_survive(self):
+        from orchestrator import schedule
+        别人的 = ["0 3 * * * /usr/local/bin/backup-my-photos.sh",
+                  "*/5 * * * * ping -c1 example.com"]
+        写出去的: list = []
+        with mock.patch.object(schedule, "_read_raw",
+                               lambda: 别人的 + ["0 8 * * * wake-agent # gy-agent:早班:每天看看有没有活"]), \
+                mock.patch.object(schedule, "_write_raw", lambda ls: 写出去的.extend(ls)):
+            schedule.remove("早班")
+        for ln in 别人的:
+            self.assertIn(ln, 写出去的, "撤自己的班时,把用户自己的 cron 行也删了")
+        self.assertFalse([x for x in 写出去的 if "gy-agent:早班" in x], "自己的班没撤掉")
 
 
 if __name__ == "__main__":

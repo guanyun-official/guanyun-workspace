@@ -2,7 +2,10 @@
 {
   "account": "ootd号",
   "mode": "视频唯美OOTD",
-  "cadence": { "posts_per_day": 1, "pattern": "drip" },
+  "cadence": {
+    "posts_per_day": 1,
+    "pattern": "drip"
+  },
   "sourcing": "shoot_then_drip",
   "playbooks": [
     {
@@ -11,8 +14,14 @@
       "weight": 0.667,
       "view": "视频唯美OOTD",
       "gen_skill": "writing-ootd-caption",
-      "material_needs": ["上身视频"],
-      "body_len": [100, 140]
+      "material_needs": [
+        "上身"
+      ],
+      "body_len": [
+        100,
+        140
+      ],
+      "material_form": "视频"
     },
     {
       "id": "图文唯美OOTD",
@@ -20,7 +29,10 @@
       "weight": 0.333,
       "view": "图文唯美OOTD",
       "gen_skill": "writing-ootd-caption",
-      "material_needs": ["上身图"]
+      "material_needs": [
+        "上身"
+      ],
+      "material_form": "图"
     }
   ],
   "runway_alert_days": 4,

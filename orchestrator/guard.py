@@ -28,6 +28,23 @@ def assert_base_allowed(base_token: str, test_mode: bool) -> None:
                          f"当前 {base_token[:8]}…被拒(加品牌请在 config.BRAND_BASES 登记)")
 
 
+def derive_source(input_sources: list[str], used_ai_generation: bool = False) -> str:
+    """★provenance 传播焊死★:加工产物的『来源』**随像素出处**(ADR-0004,沿衍生链传播)。
+
+    任一输入素材=AI生成,或加工过程本身合成了新画面 → 产物=AI生成(下游笔记发布前须人勾声明);
+    否则(纯剪辑/拼接/调色,像素都来自实拍)→ 实拍(免声明)。
+
+    **这是法律,不是判断**——原来它住在 `processing.py`(一个叫"加工环"的模块)里,
+    和 `ai_decide`(要不要加工 = 判断)做邻居。判断已交回 agent,法律归位到 guard:
+    **agent 判断要不要加工、加工成什么样;像素从哪来 → 来源是什么,它说了不算。**
+    合规链条焊死:AI 生了像素 → 素材『来源=AI生成』→ AI声明门要求声明 → **人勾**。
+    """
+    from .bitable import MaterialSource as MSrc
+    if used_ai_generation or any((s or "").strip() == MSrc.AI for s in (input_sources or [])):
+        return MSrc.AI
+    return MSrc.REAL
+
+
 def ai_declaration_required(material_sources) -> bool:
     """AI 声明是否**必须**(法规规则,纯函数吃素材来源列表):
     挂的素材任一『来源=AI生成』(真合成了新内容)→ 必须勾;全『实拍』(哪怕 AI 剪辑但没往里合成新画面)→ 无需勾。

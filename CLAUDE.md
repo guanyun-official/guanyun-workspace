@@ -89,20 +89,35 @@ Harness = Tools + Knowledge + Observation + Action Interfaces + Permissions
 | **Base** | 飞书 `ZhzJbf` | 只此一份,改完**只读自证** |
 
 > **服务器上的 agent 只从 GitHub 拿东西。本地改了不推 = 没改。**
-> **`skills.lock.json` 的 sha 必须 = 技能仓 HEAD** —— 否则服务器装出来的技能**不是我们跑的这份**。
+> **`skills.lock.json` 的 sha 必须 = GitHub 上的 `main`** —— 否则服务器装出来的技能**不是我们跑的这份**。
+>
+> ⚠️ **别信本地 HEAD,也别信本地 `origin/main` 缓存** —— `install_skills.sh` 会把技能仓
+> checkout 到锁定 sha,**HEAD 游离**;这时 commit 落在游离 HEAD 上,`git push origin main`
+> **静默无操作,退出码 0**。差点因此对外宣称"技能已推送"。
+> 自证只有一条:`git ls-remote <repo> refs/heads/main`(**直接问 GitHub**)。已进 `review_gate.sh ③b`。
 
 **中文**(注释/commit/issue)。**commit / push / issue 自动做,别问。**
 提交前:`bash scripts/review_gate.sh --full` **全绿**(它末尾会跑 `ask.sh` 架构自问)。红=不留,别拿"部分绿"充数。
 
 ## 已知欠账(唯一一份在 `docs/架构.md` 第四节)
 
-**导轨 —— 判断被写死的地方,下个 session 的主战场:**
+**导轨已拆完(2026-07-14)。** `orchestrator/` 里那些替模型做决策的代码
+(cadence 轮转 / 选材 6 条规则 / 稿子行不行 / 组 prompt / 替它去问另一个模型)**全删了**。
+全景图里**没有"脚本"这一层** —— `scripts/` 只剩开发期的门。
 
-- **心脏在 `orchestrator/` 里**(最要命,那里本该只有 Tools/Observation/Permissions/Knowledge):
-  `dispatch.py`(cadence 轮转 = "今天派什么活")· `draft.py`(选材 / 稿子行不行 / 超长回炉 / 抄了重写 / 组 prompt)
-- CLI 薄壳:`tag_materials.py`(看图分类)· `daily_dispatch.py` · `draft_one.py`
-- **心跳也是导轨** —— cron 不是心跳,是**我替数字生命排的作息表**。已全部卸掉。
-  "能设定时器"是 harness 的手;**"几点醒、醒来干什么"是 agent 的判断**。
+它的手现在长这样:
 
-⚠️ **拆的时候最容易犯的错**:拆掉规则后,本能地想"那得给模型一个规则去决定" ——
-**那就是又把导轨装回去了。给它眼睛、给它手、给它知识,然后闭嘴。**
+```
+python3 -m orchestrator board          ← 眼睛:世界现在什么样(只有事实,没有建议)
+python3 -m orchestrator --help         ← 手:一个动词一件事,零判断
+```
+
+**故意没有的动词**:`approve`(审批是人在 base 做的)· `publish`(红线)·
+`tag`/`draft`(那是它自己看图、自己写字,不是调函数)。
+
+**下一步是教它上岗**(真跑 11 条能力),以及**服务器上的 Hermes agent**(见 `docs/架构.md` 4.5)。
+
+⚠️ **拆完之后最容易犯的错**:发现它判得不好,就想"那得给它一个规则去决定" ——
+**那就是又把导轨装回去了。** 判得不好 = 技能没写好;判不了 = 眼睛或手缺了。
+**都不是"再加个规则"。** 还有一条更隐蔽的:**它卡住时,先问"世界里有没有它要的那个位置"**
+(base 缺字段?)—— 世界的形状不对,代码里就会长出钳制。

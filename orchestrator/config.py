@@ -67,22 +67,25 @@ PER_ACCOUNT_DAILY_PUBLISH = 3          # 单号每日发布上限(平台风控�
 #              红线有旋钮 = 不是红线。已焊死成常量(见上),改它必须改代码 + commit + 留痕。
 #
 #   【留 · 环境事实,不是判断】—— 换台机器/换个区域/供应商改价,这些**不由 agent 决定**:
-#     · GY_TENANT_HOST / GY_ARK_ENDPOINT / GY_ARK_IMAGE_ENDPOINT   部署环境(区域、域名)
-#     · GY_DRAFT_MODEL / GY_VISION_MODEL / GY_IMAGE_MODEL          供应商模型名(会改名、会下线)
-#     · GY_DRAFT_COST_PER_1K_CNY / GY_VISION_COST_PER_1K_CNY       供应商定价(算成本用的**事实**)
-#     · GY_TAG_CONCURRENCY                                          本机负载(笔记本 4 / 服务器可调高)
+#     · GY_TENANT_HOST / GY_ARK_IMAGE_ENDPOINT   部署环境(区域、域名)
+#     · GY_IMAGE_MODEL                            供应商模型名(会改名、会下线)
 #
 #   【留 · 人的决策,不是 agent 的】
-#     · GY_BUDGET_MONTHLY_CNY / GY_PER_RUN_BUDGET_USD  花多少钱是**老板定**,不是 agent 定
+#     · GY_BUDGET_MONTHLY_CNY  花多少钱是**老板定**,不是 agent 定
 #       (⚠️ 默认 300 元/月是我拍的,不是你定的 —— 该由你确认)
 #
-#   【留 · 逃生舱,不是常规路径】
-#     · GY_DRAFT_BACKEND=claude_cli   实测贵 577 倍,只留作质量对比。**别拿它当常规底座**
-#     · GY_VISION_BACKEND=claude      ARK key 缺失时的零凭证兜底
-#
-#   【留 · 放量闸,不是判断】
-#     · GY_PROCESSING_ENABLED         加工环默认关。**关的不是"要不要加工"这个判断**(那归 ai_decide),
-#       关的是"这条能力放不放出去" —— 它会生成 AI 像素、连带触发 AI 声明手续。验证通过再开。
+# ── 2026-07-14 拆导轨这一轮**删掉的**(它们服务的那段代码没了,留着就是死配置)──────
+#   【删】GY_DRAFT_BACKEND / GY_DRAFT_MODEL / GY_DRAFT_COST_PER_1K_CNY / GY_PER_RUN_BUDGET_USD
+#         —— 它们是"harness 调另一个 LLM 替 agent 写稿"的参数。**agent 自己就是模型**,
+#            它读画像、读技能、读素材备注,**自己把稿写出来**。那条路整条删了(`llm.py` 已删)。
+#   【删】GY_VISION_BACKEND / GY_VISION_MODEL / GY_VISION_COST_PER_1K_CNY / GY_TAG_CONCURRENCY
+#         —— 它们是"harness 拿着一份分类法去问另一个模型这张图是什么"的参数。
+#            **agent 自己有眼睛**:harness 把网盘的东西转成它能看的(`materials.viewable`),
+#            它自己看、自己判、自己写备注。(`vision.py` 已删。)
+#   【删】GY_PROCESSING_ENABLED —— 它关的是"加工环放不放出去"。而加工环里那个 `ai_decide`
+#         (harness 拿着判断准则 prompt 去问另一个模型"该不该加封面")本身就是导轨,已删。
+#         现在 **agent 自己看素材、自己判断要不要加工**,判好了调 `compose.execute` 那只手。
+#         要不要加工没有开关 —— 它是判断;而 AI 像素的 provenance 和 AI 声明**是法律**(guard 焊死)。
 #
 
 #   【留 · 规模护栏,不是判断】(2026-07-14 重新判过:我之前把它记成"欠账",判错了)
@@ -101,49 +104,15 @@ COLLECT_REFRESH_DAYS = int(os.environ.get("GY_COLLECT_REFRESH_DAYS", "30"))  # �
 #     要做:先给笔记表加「创建时间」自动字段(飞书原生 type,零维护),再据此催审。
 #   · GY_METRICS_CLOSE_DAYS(已发 N 天后回流收口):从没实现,且与 COLLECT_REFRESH_DAYS 语义重复
 #     (后者已在 collect.py 真用:超窗的已回流帖热度已定,不再重刷)。
-BUDGET_MONTHLY_CNY = float(os.environ.get("GY_BUDGET_MONTHLY_CNY", "300"))  # 月度 LLM 成本告警阈值
-PER_RUN_BUDGET_USD = float(os.environ.get("GY_PER_RUN_BUDGET_USD", "1.2"))  # 单次 claude -p 预算帽(P6实测:长文0.5不够)
-# 出稿底座(dogfood 2026-07-14 真跑改的):原走 `claude -p`,**每次吞 ~33K token 的 Claude Code 系统提示**
-# (实测:只让它回"测试成本"四个字,cache_creation=32766 tokens,花 1.48 元)→ 一条 200 字文案 2~3 元,
-# 95% 的钱付给 CLI 的系统提示,与文案长短/模型档次几乎无关。切 ARK 直连(豆包,vision 同一把 key):
-# prompt 就是 prompt,同样的稿便宜两个数量级。要回退对比质量:GY_DRAFT_BACKEND=claude_cli。
-DRAFT_BACKEND = os.environ.get("GY_DRAFT_BACKEND", "ark")            # ark(直连,默认) | claude_cli(旧,贵)
-# 真跑对比(2026-07-14,同一条 ootd 稿):mini=0.0052元但只3句丢场景层;seed-1-6=0.0055元四层齐;
-# **lite=0.0057元,四层最齐、标题吃进粉+木、细闪场景都中**(用户拍板)。三者成本一个量级,取质量最好的。
-DRAFT_MODEL = os.environ.get("GY_DRAFT_MODEL", "doubao-seed-2-0-lite-260428")
-DRAFT_COST_PER_1K_CNY = float(os.environ.get("GY_DRAFT_COST_PER_1K_CNY", "0.002"))  # 出稿成本估:元/1K token
+BUDGET_MONTHLY_CNY = float(os.environ.get("GY_BUDGET_MONTHLY_CNY", "300"))  # 月度成本告警阈值(老板定)
 
-# 看图打标(多模态)后端(vision.py seam):doubao(ARK,便宜,默认)/ claude(claude -p 兜底,零 key)。
-# ARK_API_KEY 从 env 读——明文凭证绝不入代码/库;doubao 后端缺 key 时 vision 报错(不静默)。
-# 打标并发度(护本机负载的旋钮):看图打标并发跑几批。转码=本机CPU大头,本地默认低(护笔记本),
-# 上线服务器可 GY_TAG_CONCURRENCY 调高。"串行不并发"红线=别把高负载压用户本机,不是禁打标并发。
-TAG_CONCURRENCY = int(os.environ.get("GY_TAG_CONCURRENCY", "4"))
-
-# 视频入库开关(护本机):baidu 网盘无 range/直链外部被拒(实测403/503),视频只能下整包;
-# 视频底片=GB级raw剪辑原料(实测 median 511MB/条),下载=带宽+磁盘重活。**默认关(0)**——本机不碰视频入库
-# (raw 走 video-editing 出成片,成片才入库打标);服务器/确需时 GY_INGEST_VIDEO=1(下载一次→多帧→缓存帧→删)。
-# GY_INGEST_VIDEO 已删(2026-07-14 全体系对齐审查:它在视频改成"一律收+串行"之后就没人读了=死配置)。
-# 曾经它 =0 时一刀切跳过所有视频,造成死循环:补拍单催「上身视频×3」→ 摄影师拍了传网盘 →
-# 系统跳过不收 → 补拍单继续催(**人拍了,系统不收,然后继续催他拍**)。
-# 护本机的正确手段是**视频串行处理**(tag_materials:每批 1 个、并发度 1 —— 拉一个→抽帧→打标→删缓存),
-# **不是"拒收"**。视频现在一律收、中点抽关键帧打标。开关没了,因为不需要开关。
-VISION_BACKEND = os.environ.get("GY_VISION_BACKEND", "doubao")
-VISION_MODEL = os.environ.get("GY_VISION_MODEL", "doubao-seed-2-0-mini-260428")
-ARK_ENDPOINT = os.environ.get("GY_ARK_ENDPOINT", "https://ark.cn-beijing.volces.com/api/v3/chat/completions")
-# 加工环生图(AI 封面 / AI 画面)。Seedream 4.0 在方舟**存在但需账号开通**(控制台一次点击,人做)。
+# 加工环生图(AI 封面)。**agent 画不了图,这是它真正缺的一只手。**
+# Seedream 4.0 在方舟**存在但需账号开通**(控制台一次点击,人做)。
 # 未开通时 ark.image 抛 ModelNotOpen —— **绝不静默退回原图**:判了"该加封面"却悄悄没加,
 # 人会以为加上了,那正是最贵的那种 bug。
 ARK_IMAGE_ENDPOINT = os.environ.get("GY_ARK_IMAGE_ENDPOINT",
                                     "https://ark.cn-beijing.volces.com/api/v3/images/generations")
 IMAGE_MODEL = os.environ.get("GY_IMAGE_MODEL", "doubao-seedream-4-0-250828")
-# 看图成本估算费率(元/1K tokens):打标成本=实测 usage.total_tokens/1000×此率,记进运行日志→纳入月度成本硬闸。
-# 默认 0.002 是 doubao-seed-mini 量级的保守估值,按真实 ARK 账单校准用 env 覆盖(宁高估不漏计,免成本盲区)。
-VISION_COST_PER_1K_CNY = float(os.environ.get("GY_VISION_COST_PER_1K_CNY", "0.002"))
-
-# 加工环开关(M3,ADR-0006):默认关(OFF)——真需求(某模式非拼图/AI图不可)到再开。
-# 开=select_materials 后挂笔记前插 gated 加工步(决策/执行=技能,provenance/AI声明=代码焊死)。
-PROCESSING_ENABLED = os.environ.get("GY_PROCESSING_ENABLED", "0") == "1"
-
 
 TENANT_HOST = os.environ.get("GY_TENANT_HOST", "ccn925h7lg9d.feishu.cn")
 

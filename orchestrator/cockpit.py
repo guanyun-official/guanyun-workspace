@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from . import bitable, config, feishu_io, guard, netpan, publish, shotlist
+from . import bitable, config, feishu_io, guard, publish
 from .bitable import NoteFields as NF, NoteStatus as NS
 from .bitable import AccountFields as AF, AutoSched, ContentTypeFields as CTF
 
@@ -141,8 +141,11 @@ def today_panel(brand: str = "巧荷") -> dict:
               "逼近": published.get(a, 0) + queued.get(a, 0) >= cap}
              for a in sorted(set(published) | set(queued))
              if published.get(a, 0) + queued.get(a, 0)]
+    # **补拍不在这张卡上算**(2026-07-14 拆导轨):"库存够不够、该不该催拍、催几条、怎么跟摄影师说"
+    # 全是判断,已交回 agent —— 它看 board 的库存事实,自己判断,自己用 `shotlist` 发一张补拍单。
+    # 这里再算一遍 = 判断有两份真源,而且我这份还只会做减法(`目标 - 已有`),压根不看今天有没有活。
     return {"待审": pend_review, "待发": to_publish, "待回填链接": need_link,
-            "控量": quota, "要补拍": shotlist.shot_needs(brand),
+            "控量": quota,
             "已暂停": paused_notes,   # 暂停号的在途稿:不要人管,卡片底部提一句就够(不隐瞒也不干扰)
             "卡住": stuck}            # 批了却被门拦下的稿:**必须让人看见**,否则批完就消失=黑洞
 
@@ -180,14 +183,13 @@ def today_card(brand: str = "巧荷", panel: dict | None = None) -> dict:
     # **算了、判了,却没给人看 —— 等于没判。**
     n_wait = len(p["待审"])
     if n_wait:
-        # ⚠️ 措辞必须只说**确凿为真**的话。我第一版写的是「今天没派新活」——
-        # 那是**未经核实的断言**:没有待审稿的号今天照样会派。差点亲手写下一句骗人的话,
-        # 而"话在骗人"正是我今天一路在拆的那个病。
-        # 确凿为真的只有这一条(去重是写死的行为):**同号同模式,在途没审完就不会再派**。
+        # ⚠️ 只说**确凿为真**的话。
+        # 这里曾经写着「⏸ 这些审完之前,**同号同模式不会再派新活**」—— 当时是真的
+        # (`dispatch` 里有一条写死的去重规则)。**那条规则今天被删了**(派不派活是 agent 的判断),
+        # 这句话当场变成谎话。**拆代码的时候,人面上那些"基于旧规则"的承诺会集体变成谎话** ——
+        # 它们不会报错,只会静静地骗人。删掉,只留确凿为真的:你有几条要审,点进去审。
         el.append({"tag": "div", "text": {"tag": "lark_md", "content":
-                   f"**🖊 等你审的 {n_wait} 条**（点标题去 base，把『状态』改掉就行）\n"
-                   f"⏸ 这些审完之前，**同号同模式不会再派新活**（免得给你堆稿）。"
-                   f"审掉一条(批准 / 暂缓归档)，那个号的位子就空出来了。"}})
+                   f"**🖊 等你审的 {n_wait} 条**（点标题去 base，把『状态』改掉就行：批准 / 暂缓归档）"}})
     for (acc, mode), lines in sorted(blocks.items()):
         head = f"**{acc}{' · ' + mode if mode else ''}**"
         el.append({"tag": "div", "text": {"tag": "lark_md", "content": head + "\n" + "\n".join(lines)}})
@@ -209,24 +211,8 @@ def today_card(brand: str = "巧荷", panel: dict | None = None) -> dict:
         el.append({"tag": "div", "text": {"tag": "lark_md",
                    "content": f"**🚦 控量预警**（红线：单号日发 ≤ {config.PER_ACCOUNT_DAILY_PUBLISH}）\n" + "\n".join(lines)}})
 
-    # 补拍:**带上"怎么拍"和"照着什么拍"**(2026-07-14 运营视角实测)——原来卡片上只有干巴巴一行
-    # 「ootd号:上身视频×3」,而调性和参考画面只存在于 shot_list 这个 CLI 里。**运营不敲终端**,
-    # 他手机上收到卡片,只知道"要拍3条",不知道怎么拍、照着什么拍 → 补拍单的人面是断的。
-    if p["要补拍"]:
-        el.append({"tag": "hr"})
-        lines = []
-        for s in p["要补拍"]:
-            lines.append(f"· **{s['account']}**：{s['类型']} × {s['缺']} 条")
-            if s.get("拍摄要求"):
-                lines.append(f"   {s['拍摄要求']}")
-            if s.get("参考"):
-                lines.append(f"   {s['参考']}")
-        # 别再承诺"文件名带类型更好认"——系统**根本不读文件名**,分类全由 vision 看图决定。
-        # 实测:文件命名成「ootd号·上身图」,系统标出来是「商品图」(豆包看图判对了,是命名错了)。
-        # 让人白费功夫按规范命名 = 典型的"人想起来方便的逻辑,落实下来是 bug"。
-        lines.append(f"\n拍完丢网盘：`{netpan.INBOX}`（**直接传，不用管文件名** —— 系统看图自动归类）")
-        el.append({"tag": "div", "text": {"tag": "lark_md",
-                   "content": "**📷 待补拍**\n" + "\n".join(lines)}})
+    # 补拍**不在这张卡上** —— 它是 agent 的判断(看库存事实自己判),用 `shotlist` 单发一张卡给摄影师。
+    # 这张卡的读者是**运营**(审稿/发稿/回填链接);补拍单的读者是**摄影师**。两个人,两张卡,别混。
 
     # 暂停号:它的稿不进待办(运营已经把号关了),但也别偷偷藏起来——底部提一句,想看点 base
     if p.get("已暂停"):

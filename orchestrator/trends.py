@@ -1,13 +1,20 @@
 """找热点 → 灵感库(系统化热点采集的『落库』一环)。
 
-分工同薄执行器:**『找』热点由 skill(explosive-teardown / qiaohe-amateur-miner)或 agent 负责**,产出
-[{标题, 可借鉴, 源链接}];**『落』由本函数收口**——按标题去重(不重复灌)、URL 字段正确包装、只写测试库。
-落库后 dispatch.pending_ideas 自动捞出未转化的,draft_one --title-seed 承接出稿(trend_imitate 闭环)。
+**『找』是 agent 的事**(它用 xhs-extract-master / explosive-teardown 技能去抓、判断哪条值得学);
+**『落』由本函数收口** —— 按标题去重、URL 字段正确包装、只写测试库。
+落库后 `board` 会把未转化的灵感摆给它看,它自己决定拿哪条来出稿(闭环靠 `mark_converted` 回填)。
 """
 from __future__ import annotations
 
 from . import bitable, config, feishu_io, guard
 from .bitable import InspirationFields as IF
+
+
+def mark_converted(idea_id: str, note_id: str) -> None:
+    """灵感转化成笔记了 → 回填灵感库,闭合环(灵感 → 出稿 → 回填,不重复捞同一条)。
+    『转化为笔记』是 **link 字段**,写的是 record_id **列表**,不是字符串 —— 真跑才暴露的坑,codify 防复发。"""
+    guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)  # 红线:只写测试库
+    feishu_io.update_record(IF.TABLE, idea_id, {IF.CONVERTED: [note_id]})
 
 
 def harvest_trends(items: list[dict], brand: str = "巧荷", write: bool = False) -> dict:

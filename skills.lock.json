@@ -6,7 +6,7 @@
       "repo": "https://github.com/guanyun-official/qiaohe-skill.git",
       "local": "~/Githubs/qiaohe-skill",
       "ref": "main",
-      "sha": "1b00b061e991dd251f8e64ccb953ce498357998d",
+      "sha": "6647d002bfb706ec788384e41c3d30a9a872086c",
       "skills": [
         "content-writing",
         "feishu-requirement-manager",
@@ -30,7 +30,8 @@
         "video-storyboard",
         "writing-ootd-caption",
         "writing-amateur-ootd",
-        "tagging-material"
+        "tagging-material",
+        "picking-materials"
       ],
       "install": "symlink"
     }

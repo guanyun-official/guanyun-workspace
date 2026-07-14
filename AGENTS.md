@@ -16,6 +16,11 @@ Agent 是模型;Base、网盘、小红书是**世界**,不是 harness。
 | 生产 Base | `N9IVbi6pTatJG5sqyTTcc0vSn4g` | **焊死不碰**(读也不行)。红线守卫在任何 IO 之前拦住 |
 
 - 表:笔记表(状态机脊柱)· 素材表 · 账号表 · 内容类型表 · 灵感库 · 关键词库 · 运行日志表 · 目标客户 · 素人推广案例 · Issue 表(共 13 表)。
+- **素材表『类型』= 纯内容,『形态』= 图/视频**(2026-07-14 分开的两维)。
+  类型 11 值:上身 · 商品 · 形象 · 搭配 · 细节 · 面料·纹理 · 工艺 · 制作过程 · 空镜·场景 · 文物原件 · 文物对照。
+  **名字里不带"图"/"视频"** —— 那是形态,由文件本身推。(混在一起时代码里长出过钳制,见 `docs/踩坑账.md`。)
+- ⚠️ **改 select 选项会清空所有单元格**(飞书按 option_id 认)。要保留就把旧选项**连 id 一起回传**。
+  真栽过:280 行的『类型』被一次 PUT 抹空,靠 `backups/` 救回来的。
 - 字段契约 dump 在 `schema/test/`(`scripts/dump_schema.py` 产出);**取表一律按表名经 schema 解析,不硬编码 table_id**(测试库 table_id 与生产不同)。
 - **Base 同时是人的驾驶舱** —— 人和 agent 看同一张表,不搞两套真源。
 - 旧 Base `ITz4bsLSWaKuSqsuUaocmEC0nXe` 已废弃,不管理。
@@ -50,7 +55,7 @@ Agent 是模型;Base、网盘、小红书是**世界**,不是 harness。
 |---|---|
 | `lark-cli` | 飞书读写走它。**一律 `--as bot`**(app `cli_a965851065381ccb`)**+ `LARK_CLI_NO_PROXY=1`**(宿主机代理会弄挂它)。gotcha:`+record-get` 字段挂 `data.record` 下;删除类要 `--yes`;建带 property 字段走 bitable v1、公式走 base v3 |
 | `hermes` | 飞书消息网关(告警/日报投递到人眼前) |
-| `ARK`(火山方舟) | 出稿 + 看图 + 生图。key 从 env `ARK_API_KEY` 读。**`claude -p` 实测贵 577 倍**(每次吞 33K 系统提示),已弃 |
+| `ARK`(火山方舟) | **只剩生图**(AI 封面;agent 画不了图,这是它真缺的一只手)。key 从 env `ARK_API_KEY` 读。<br>**出稿/看图的 ARK 调用已删** —— agent 自己就是模型:它自己看图、自己写稿,不需要 harness 替它去问另一个模型 |
 | `BaiduPCS-Go` | 网盘 CLI。装:`bash scripts/install_netpan.sh`。**真跑需人工一次** `BaiduPCS-Go login -bduss=<BDUSS>` + `.env` 设 `GY_NETPAN_MODE=real`。BDUSS 会过期 |
 | `ffmpeg` / `sips` | 转码、抽关键帧、缩略图(`orchestrator/media.py`;Linux 换 heif-convert/ImageMagick) |
 | `xhs-extract-master` | 小红书非登录抓取(技能)。**`note` 原子取正文必须带 `xsec_token`**,正文在 `note.desc` |
@@ -66,16 +71,20 @@ guanyun-workspace/            ← harness(领域那一半)
 ├── docs/踩坑账.md            病例(形态陷阱 / 人面缺陷 / 检查器自己得病)
 ├── docs/adr/                 已定的决策,别翻案
 │
-├── orchestrator/             **Tools + Observation + Permissions**
-│   ├── guard.py              ← Permissions:五道红线门
-│   ├── feishu_io netpan ark media   ← Tools:它的手
-│   ├── cockpit shotlist report      ← Observation:它的眼睛
+├── orchestrator/             **Action Interface + Tools + Observation + Permissions**
+│   ├── cli.py __main__.py    ← **Action Interface**:`python3 -m orchestrator <动词>`
+│   │                            一个动词=一件事,零判断。**故意没有** approve/publish/tag/draft
+│   ├── guard.py              ← Permissions:五道红线门 + provenance
+│   ├── board.py              ← **它的眼睛**:世界现在什么样(只有事实,没有建议)
+│   ├── feishu_io netpan media ark   ← Tools:它的手
+│   ├── materials notes ingest compose schedule   ← Tools:看/写/登记/加工/**自己排班**
+│   ├── cockpit shotlist report      ← Observation:给人看的(运营/摄影师/老板)
 │   ├── bitable                      ← 常驻 Knowledge:schema 常量
-│   └── accounts config draft dispatch publish collect compose processing …
+│   └── accounts config publish collect metrics trends cost lock alerts …
 │
-├── scripts/                  CLI + 门(check_p*.sh / review_gate.sh / alignment_audit.py)
-│                             ⚠️ tag_materials / daily_dispatch / draft_one 是**三条导轨**
-│                                (替模型做了决策,该拆 —— 见 docs/架构.md 第四节)
+├── scripts/                  **只剩开发期的门**(review_gate.sh / alignment_audit.py /
+│                             backup_tables / dump_schema / install_skills.sh)。
+│                             **运营侧一个脚本都没有** —— 导轨已拆完(2026-07-14)
 ├── skills/                   **Knowledge(按需加载)**;install_skills.sh 按 skills.lock.json 装出的符号链接
 │                             唯一真源 = qiaohe-skill 仓。**不入库**
 ├── lib/                      ⚠️**技能层共享运行库,非死码**。qiaohe-skill 的 Python 技能 import 它
@@ -94,6 +103,16 @@ guanyun-workspace/            ← harness(领域那一半)
 
 ## 门
 
-`bash scripts/review_gate.sh --full` —— 单测 + ar_check(=100)+ dogfood 真库冒烟 + check_p1-6 + verify_usable + **机器审 `alignment_audit.py`** + **17 条链路真跑(真库/真ARK/真网盘)**。
+`bash scripts/review_gate.sh --full` ——
+① **红线测试**(`tests/`,只测红线,不测判断)
+② schema 契约(代码消费的字段 ⊆ 活库)
+③ 机器审 `alignment_audit.py`(死码/死配置/悬空引用/空门)
+③b **技能真源同步**(`skills.lock.json` 的 sha == **GitHub 上的 main**,直接问 GitHub)
+④ **真跑冒烟**(零 mock,真测试库:`python3 -m orchestrator board` 必须真跑得通)
+⑥ 末尾跑 `ask.sh` 架构自问
+
+老的门(`ar_check` / `verify_usable` / `dogfood_smoke` / `check_p1-6`)**已删** ——
+它们断言的正是刚拆掉的导轨("cadence 会派这 4 条"、"draft_one 干跑通"),
+而且**测的是措辞不是正确性**。实测 = **派子 agent 真跑**。
 
 **全绿才提交。红=不留,别拿"部分绿"充数。**

@@ -17,7 +17,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from orchestrator import config, draft, feishu_io, guard  # noqa: E402
+from orchestrator import config, feishu_io, guard, notes  # noqa: E402
 
 # link-target 表的主字段(link.text_arr 里的名字对应它);schema fields[0] 不可靠(如账号表首字段是 workspace_ref)
 _PRIMARY = {
@@ -57,7 +57,7 @@ def restore_fields(fields: dict, tbl_by_id: dict[str, str]) -> dict:
                 nf = _primary_field(target) if target else None
                 if target and nf:
                     for name in (e.get("text_arr") or []):
-                        ids += draft._resolve_link(target, nf, name)
+                        ids += notes.resolve_link(target, nf, name)
             if ids:
                 out[k] = ids            # 解析到才写(否则丢弃该 link,不写孤儿)
         else:
