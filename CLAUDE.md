@@ -13,9 +13,10 @@
 Harness = Tools + Knowledge + Observation + Action Interfaces + Permissions
 ```
 
-- **Tools / Action Interfaces** — 它的手:`feishu_io` `netpan` `ark` `media` `ingest` `xhs-extract`
+- **Tools / Action Interfaces** — 它的手:`feishu_io` `netpan` `media` `ark` `ingest` `notes` `materials` `compose`
 - **Knowledge** — 它的知识:`skills/`(按需加载)+ 本文件(常驻,所以必须短)+ 账号声明 + schema 常量
-- **Observation** — 它的眼睛:`cockpit`(今日卡片)`shotlist`(补拍单)`report`(周报)+ base 视图
+- **Observation** — 它的眼睛:**给它看** `board`(世界现在什么样)`note.list` `material.list`;
+  **给人看** `cockpit`(今日卡片·运营)`shotlist`(补拍单·摄影师)`report`(周报·老板)+ base 视图
 - **Permissions** — 它的法律:`guard.py` 五道红线门
 
 **Base 不是 harness,是世界。** 飞书 Base `ZhzJbf` / 百度网盘 / 小红书 = **状态 · 唯一真源**,是 agent 作用的对象。Base **同时是人的驾驶舱** —— 人和 agent 看同一张表,**不搞两套真源**。
@@ -79,6 +80,26 @@ Harness = Tools + Knowledge + Observation + Action Interfaces + Permissions
 - ❌ **不测判断** —— "给定这些素材必须选这 3 条""今天必须派这 4 条"。**那是模型的事。**
 - ❌ **不测措辞** —— grep 源码/文档里有没有某句话。**那是保护我的用词,不是保护正确性。**
 - ✅ **实测 = 派子 agent 真跑**(真库 / 真 ARK / 真网盘),我当外部观察者验收。**零 mock 零 stub。**
+
+### 派数字生命上班,是目前最有效的审查(两天的证据)
+
+它不是"跑一遍看看报不报错" —— **它会用**,于是它撞见的是**我看不见的那一类错**:
+
+| 它逮到的 | 我为什么看不见 |
+|---|---|
+| board 报「藕荷紫被 **9** 条笔记用过」(真实 **3**) | 数字是"对"的,**话是假的** —— 只有真拿它去判撞衫的人才对得出来 |
+| 『款式』装不下双人同框两套衣服 | 我加的字段。**只有真去填的人**才知道它装不下 |
+| board 报「视频**已拍**可用 0」→ 它去催摄影师补 8 条 | 而网盘里躺着 **95 条**。**"已拍"这个词是假的**,它数的是"已登记" |
+| `material.delete` **先删,后崩** | 我几小时前刚写的手。**做了事然后崩掉,比不做事更毒** |
+| 补拍单写死「照着这个拍:」→ 反例图变成「照着这个拍:别再拍它了」 | **只有真想放一张反例的人**,才会撞上那句写死的话 |
+
+**规律:**
+- **"算了却没给人看" / "数什么不叫什么" —— 机器测不出,只有用的人骂得出。**
+- **它卡住的地方,不是它笨,是 harness 缺东西**(手/眼/知识/世界的位置)。
+- 而**"没有回退的手,它就停止探索"** —— 它原话:「没有 `material.delete`,试错了我收不回来,**我不拿真库做实验**。」
+  给了删除的手,它当天就把我不敢验的洞验了。
+
+**要它真上班,不是让它演示。** 它得真出稿、真挑图、真发单子给人 —— 它才会撞上那些话。
 
 ## 实测纪律
 
