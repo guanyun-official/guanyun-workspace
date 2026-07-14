@@ -78,10 +78,11 @@ guanyun-workspace/            ← harness(领域那一半)
 │   ├── guard.py              ← Permissions:五道红线门 + provenance
 │   ├── board.py              ← **它的眼睛**:世界现在什么样(只有事实,没有建议)
 │   ├── feishu_io netpan media ark   ← Tools:它的手
-│   ├── materials notes ingest compose schedule   ← Tools:看/写/登记/加工/**自己排班**
+│   ├── materials notes ingest compose   ← Tools:看/写/登记/加工
+│   │                             ⚠️ **没有 schedule** —— 心跳是运行时的活(架构.md 4.3b)
 │   ├── cockpit shotlist report      ← Observation:给人看的(运营/摄影师/老板)
 │   ├── bitable                      ← 常驻 Knowledge:schema 常量
-│   └── accounts config publish collect metrics trends cost lock alerts …
+│   └── accounts config publish metrics trends alerts …
 │
 ├── scripts/                  **只剩开发期的门**(review_gate.sh / backup_tables /
 │                             dump_schema / check_schema_drift / install_skills.sh)。

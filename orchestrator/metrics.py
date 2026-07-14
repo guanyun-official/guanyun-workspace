@@ -1,8 +1,17 @@
-"""效果采集 + 反馈(G7)。从已发笔记的公开页取互动数据写回笔记表,并按 playbook 聚合成
-"哪套方法论有效"的反馈信号,喂回排产(闭环学习的最后一环)。
+"""取数工具集 —— 两只手 + 几个小工具。**这里没有"回流采集"这件事。**
 
-采集能力是可替换 skill:`_extract_note` 直接 subprocess 调 xhs-extract-master 非登录 SSR
-提取器(**零封号不用我方账号**),换源=换 skill 路径。默认 stub 零成本;`mode="real"` 才真取(只读安全)。
+  · `fetch_source(url)`  抓一条**爆款**的标题+正文(非登录 SSR,零凭证)→ 给 trends 看结构、供出稿参考
+  · `by_playbook(notes)` 把**已发/已回流**的笔记按方法论聚合成事实(条数/总赞/均赞/…)→ 给周报摆数
+  · `expand_share_link` / `_cn_num` / `_num`  短链展开、中文计数归一的小工具
+
+★**回流的『抓』不在这里** —— 那是 agent 的操作★
+  它有 `xhs-extract-master` / `xhs-collector` 两个采集技能,用哪个、抓到的数信不信,是它的判断。
+  harness 只给它**把数写回世界的手**(`note.metrics` → `notes.write_metrics`);不替它去抓,
+  也不"喂回排产"(排产/dispatch 早拆了,见 docs/架构.md 4.1)。
+
+★**没有 stub、没有 mode**★ —— 全是真 subprocess(只读,零封号)。
+  老实现有个 `GY_METRICS_MODE=stub` 让离线单测不触网;单测已全删,那个开关也删了(config.py / 架构.md 4.4)。
+  死规矩:**不搞 mock、不搞 stub**(参 netpan.py 的写法)。抓不到就如实返回空,绝不假装成功。
 """
 from __future__ import annotations
 
