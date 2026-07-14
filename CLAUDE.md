@@ -13,6 +13,8 @@
 Harness = Tools + Knowledge + Observation + Action Interfaces + Permissions
 ```
 
+**而"剩下的"包括维护和进化这个 harness 本身。** 数字生命不只**用**这个体系跑内容 —— 它**维护它**:复盘(体系 + 群聊 + 发布)→ 发现能变好的 → **自己改**(base / 代码 / 技能 / 文档,自己 commit)→ 用唯一判据自审 → 记进化账。**它是这个体系的维护者,不是只能"报缺口等人改"的用户。** 极大的自由度 —— 真危险的它自己会在自审那步发现,不靠门拦。(方法:技能 `evolving-the-system`。红线仍是红线:对外不可逆的那几样 —— 发布 / AI声明 / 生产库 —— 焊死不动。)
+
 - **Tools / Action Interfaces** — 它的手:`feishu_io` `netpan` `media` `ark` `ingest` `notes` `materials` `compose`
 - **Knowledge** — 它的知识:`skills/`(按需加载)+ 本文件(常驻,所以必须短)+ 账号声明 + schema 常量
 - **Observation** — 它的眼睛:**给它看** `board`(世界现在什么样)`note.list` `material.list`;

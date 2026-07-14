@@ -146,11 +146,43 @@ def pull(remote_path: str, dest: Path | None = None) -> str:
     sub = d / hashlib.sha1(remote_path.encode("utf-8")).hexdigest()[:12]
     sub.mkdir(parents=True, exist_ok=True)
     local = sub / Path(remote_path).name
-    if not local.exists():
-        _run(["download", remote_path, "--saveto", str(sub)])
+
+    # ★★ 缓存里绝不留坏文件 ★★(2026-07-15 数字生命剪视频时抓到,issue #45)
+    # 老实现:`if not local.exists(): download` —— **只看文件在不在,不看对不对**。
+    # 真跑复现:BaiduPCS-Go **续传**时,残留的续传标记会导致偏移错位 →
+    # 下出来的文件**字节数对、内容坏**(开头全 0 / 中段截断),而**退出码是 0**。
+    # 下次 pull 看见文件"存在" → 跳过下载 → **把坏文件原样返回**。
+    # 后果:数字生命拿它去剪,剪进成片的是半截糊画面 —— **工具在骗人,这一族最毒**。
+    # (它当时只能自己写临时下载器绕过;根子在这只手,现在焊死。)
+    #
+    # 两道:① 缓存命中直接返回(因为坏文件下载后**当场就删了**,缓存里留的都是好的);
+    #      ② 下载前清残留(防坏续传)+ `--ow` 强制全新下载 + 下载后**比对网盘真实大小**,
+    #        对不上 = 坏,**删掉 + 报错,绝不把坏文件返回出去**。
+    if local.exists():
+        return str(local)
+    for junk in sub.iterdir():          # 清上次的部分文件 / 续传标记 —— 强制全新下载,不坏续传
+        junk.unlink()
+    _run(["download", remote_path, "--saveto", str(sub), "--ow"])
     if not local.exists():
         raise NetpanError(f"下下来了但文件不在:{local}(网盘路径:{remote_path})")
+    expected = _remote_size(remote_path)
+    if expected is not None and local.stat().st_size != expected:
+        got = local.stat().st_size
+        local.unlink()                  # ★坏文件当场删,别留在缓存里骗下一个人★
+        raise NetpanError(f"下下来大小不对(本地 {got} ≠ 网盘 {expected} 字节),"
+                          f"已删,没敢返回坏文件:{remote_path}")
     return str(local)
+
+
+def _remote_size(remote_path: str) -> int | None:
+    """网盘上这个文件的真实字节数(下载完整性校验用)。查不到→None(不因此拦下载)。"""
+    import re
+    try:
+        out = _run(["meta", remote_path])
+    except NetpanError:
+        return None
+    m = re.search(r"文件大小\s+(\d+)", out)   # BaiduPCS-Go meta:『文件大小  19679214, 18.7MB』
+    return int(m.group(1)) if m else None
 
 
 def upload(local_path: str, remote_dir: str) -> str:
