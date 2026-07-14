@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>巧荷内容工厂 · Harness 全景图</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --fg:#1a1d21; --muted:#6b7280; --card:#ffffff; --line:#d6dae0;
+    --world:#2563eb; --world-bg:#eaf1ff; --hand:#059669; --hand-bg:#e7f7f0;
+    --eye:#b45309; --eye-bg:#fdf3e3; --law:#dc2626; --law-bg:#fdecec;
+    --know:#7c3aed; --know-bg:#f2ecfe; --agent:#0891b2; --agent-bg:#e5f6fb;
+    --loop:#db2777; --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  }
+  @media (prefers-color-scheme:dark){
+    :root{ --bg:#0f1216; --fg:#e6e8eb; --muted:#9aa3af; --card:#171b21; --line:#2a2f37;
+      --world-bg:#12233f; --hand-bg:#0e2b22; --eye-bg:#2e2410; --law-bg:#331515;
+      --know-bg:#241a3a; --agent-bg:#0d2933; --shadow:0 1px 3px rgba(0,0,0,.4);}
+  }
+  :root[data-theme=dark]{ --bg:#0f1216; --fg:#e6e8eb; --muted:#9aa3af; --card:#171b21; --line:#2a2f37;
+    --world-bg:#12233f; --hand-bg:#0e2b22; --eye-bg:#2e2410; --law-bg:#331515; --know-bg:#241a3a; --agent-bg:#0d2933;}
+  :root[data-theme=light]{ --bg:#f6f7f9; --fg:#1a1d21; --card:#fff; --line:#d6dae0;
+    --world-bg:#eaf1ff; --hand-bg:#e7f7f0; --eye-bg:#fdf3e3; --law-bg:#fdecec; --know-bg:#f2ecfe; --agent-bg:#e5f6fb;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 18px 60px;}
+  h1{font-size:24px;margin:0 0 2px;letter-spacing:.5px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:22px}
+  .flow{color:var(--muted);text-align:center;font-size:12px;margin:6px 0;letter-spacing:1px}
+  .layer{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:16px 18px;box-shadow:var(--shadow);margin:0}
+  .layer>.lh{font-weight:700;font-size:15px;margin-bottom:4px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .layer>.ld{color:var(--muted);font-size:12.5px;margin-bottom:12px}
+  .tag{font-size:11px;font-weight:600;padding:1px 8px;border-radius:20px}
+  .grid{display:grid;gap:12px}
+  .g2{grid-template-columns:repeat(2,1fr)} .g3{grid-template-columns:repeat(3,1fr)}
+  .g5{grid-template-columns:repeat(5,1fr)}
+  @media(max-width:820px){.g3,.g5{grid-template-columns:1fr 1fr}.g2{grid-template-columns:1fr}}
+  @media(max-width:520px){.g2,.g3,.g5{grid-template-columns:1fr}}
+  .box{border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--card)}
+  .box b{display:block;font-size:13px;margin-bottom:6px}
+  .box ul{margin:0;padding-left:16px} .box li{font-size:12px;margin:2px 0;color:var(--fg)}
+  .box .role{font-size:10.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+  .world .box{border-color:var(--world);background:var(--world-bg)} .world .lh .tag{background:var(--world);color:#fff}
+  .hand .box{border-color:var(--hand)} .hand .lh .tag{background:var(--hand);color:#fff}
+  .eye .box{border-color:var(--eye)} .eye .lh .tag{background:var(--eye);color:#fff}
+  .law{background:var(--law-bg)} .law{border-color:var(--law)} .law .lh .tag{background:var(--law);color:#fff}
+  .know .box{border-color:var(--know);background:var(--know-bg)} .know .lh .tag{background:var(--know);color:#fff}
+  .agent{background:var(--agent-bg);border-color:var(--agent)} .agent .lh .tag{background:var(--agent);color:#fff}
+  .harness{background:linear-gradient(180deg,var(--card),var(--card));border:2px dashed var(--line)}
+  .code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px}
+  .loop{border:2px solid var(--loop);border-radius:12px;padding:14px 18px;margin-top:14px;background:var(--card)}
+  .loop b{color:var(--loop)}
+  .foot{display:grid;gap:12px;grid-template-columns:repeat(3,1fr);margin-top:14px}
+  @media(max-width:640px){.foot{grid-template-columns:1fr}}
+  .foot .box b{font-size:12.5px}
+  .pill{display:inline-block;font-size:11px;padding:1px 7px;border:1px solid var(--line);border-radius:6px;margin:2px 3px 2px 0}
+  .redline{color:var(--law);font-weight:600}
+  .toggle{position:fixed;top:12px;right:14px;font-size:12px;color:var(--muted);cursor:pointer;
+    border:1px solid var(--line);border-radius:8px;padding:4px 10px;background:var(--card)}
+</style>
+</head>
+<body>
+<div class="toggle" onclick="var r=document.documentElement;r.dataset.theme=r.dataset.theme==='dark'?'light':'dark'">◐ 明/暗</div>
+<div class="wrap">
+  <h1>巧荷内容工厂 · Harness 全景图</h1>
+  <div class="sub">A 阶段(开发)完成态 · 2026-07-15 &nbsp;|&nbsp; <b>Agency 来自模型 · Agent = 模型 + Harness · 造好 harness,模型完成剩下的</b></div>
+
+  <!-- 人 -->
+  <div class="layer">
+    <div class="lh">👤 人 &nbsp;<span class="tag" style="background:var(--muted);color:#fff">只管头尾</span></div>
+    <div class="ld">运营 · 摄影师 · 老板 —— <b>不敲终端</b>。头:拍完传网盘。尾:在飞书审 + 发小红书 + 填发布链接。</div>
+  </div>
+  <div class="flow">▲ 头:传素材 &nbsp;&nbsp;&nbsp; ▼ 尾:审 / 发 / 填链接</div>
+
+  <!-- 世界 -->
+  <div class="layer world">
+    <div class="lh">🌍 世界 <span class="tag">状态 · 唯一真源</span></div>
+    <div class="ld"><b>不属于 harness,是 agent 作用的对象</b>;同时是人的驾驶舱 —— 人机看同一张表,不搞两套真源。</div>
+    <div class="grid g3">
+      <div class="box"><b>飞书 Base <span class="code">ZhzJbf</span>(测试库=运营库)</b>
+        <ul><li>笔记表(状态机:想法→待拍→待文案→草稿待发→已批准→待发布→已发→已回流)</li>
+        <li>素材表(类型/形态/款式/来源/备注/<b>他牌</b>/<b>源底片</b>血缘)</li>
+        <li>账号表 · 内容类型 · 灵感库 · 关键词库 · <b>进化账</b></li></ul></div>
+      <div class="box"><b>百度网盘</b>
+        <ul><li>/巧荷素材/(设计目录:待入库/01-04)</li>
+        <li>/巧荷/(摄影师真归档:479 文件,双根都扫)</li>
+        <li>03-成片/(加工产出)</li></ul></div>
+      <div class="box"><b>小红书</b>
+        <ul><li>发布 <span class="redline">(只有人能做)</span></li>
+        <li>回流(赞/藏/评)</li>
+        <li>找热点(爆款情报)</li></ul></div>
+    </div>
+  </div>
+  <div class="flow">▲ 动作(写) &nbsp;&nbsp;&nbsp; ▼ 观察(读)</div>
+
+  <!-- HARNESS -->
+  <div class="layer harness">
+    <div class="lh">🛠 HARNESS <span class="tag" style="background:var(--fg);color:var(--bg)">Tools + Knowledge + Observation + Action + Permissions</span></div>
+    <div class="ld">workspace(领域:手/眼/法/常驻知识) + 运行时(通用:loop/工具调度/技能加载)。<b>没有"脚本"这一层</b> —— scripts/ 只剩开发期的门。</div>
+    <div class="grid g2" style="margin-bottom:12px">
+      <div class="box hand" style="border:1px solid var(--hand)">
+        <span class="role" style="color:var(--hand)">Action Interface · 手伸出来的地方</span>
+        <b><span class="code">python3 -m orchestrator &lt;动词&gt;</span> · 26 个原子动词</b>
+        <ul><li>一个动词=一件事,<b>零判断</b>;先 <span class="code">--help</span> 看全</li>
+        <li><b>故意没有</b>:approve/publish(人的动作)· tag/draft(自己看图写字)· schedule(运行时 cron)</li></ul></div>
+      <div class="box hand" style="border:1px solid var(--hand)">
+        <span class="role" style="color:var(--hand)">Tools · 它的手(确定性 IO)</span>
+        <b>orchestrator 模块</b>
+        <ul><li class="code">feishu_io · netpan · media · ark</li>
+        <li class="code">ingest · notes · materials · compose</li>
+        <li>零判断:真做一次 IO,不夹带决策</li></ul></div>
+    </div>
+    <div class="grid g3">
+      <div class="box eye" style="border:1px solid var(--eye)">
+        <span class="role" style="color:var(--eye)">Observation · 眼睛</span>
+        <b>给它看(报事实,不报建议)</b>
+        <ul><li class="code">board</li><li class="code">note.list · material.list</li></ul>
+        <b style="margin-top:6px">给人看(人面)</b>
+        <ul><li class="code">cockpit</li> 今日卡片·运营
+        <li class="code">shotlist</li> 补拍单·摄影师
+        <li class="code">report</li> 周报·老板</ul></div>
+      <div class="box law">
+        <span class="role" style="color:var(--law)">Permissions · 法律</span>
+        <b><span class="code">guard.py</span> · 5 道门(IO 前置)</b>
+        <ul><li>Base 守卫(只写测试库)</li><li>AI 声明门(人勾)</li>
+        <li>控量门 · 零素材门</li><li>防搬运门(≥10 连续实义字符)</li>
+        <li>provenance(来源随像素出处)</li></ul></div>
+      <div class="box know" style="border:1px solid var(--know)">
+        <span class="role" style="color:var(--know)">Knowledge · 知识(按需加载)</span>
+        <b>qiaohe-skill 仓 · 11 技能</b>
+        <ul><li>打标 · 选材 · 出稿×2 · 采集×2 · issue</li>
+        <li>分镜 · previz · 精剪 ← 引擎 <span class="code">video-engine/</span> 同仓</li>
+        <li><b>维护体系</b> <span class="code">evolving-the-system</span></li>
+        <li>渐进披露:读进上下文=知识,不是函数</li></ul></div>
+    </div>
+  </div>
+  <div class="flow">▲ 提供 手/眼/知识/法律 &nbsp;&nbsp;&nbsp; ▼ 决策</div>
+
+  <!-- AGENT -->
+  <div class="layer agent">
+    <div class="lh">🧠 AGENT = 模型 <span class="tag">一切判断在这里</span></div>
+    <div class="ld">开发环境=Claude subagent(验过);服务器=豆包(待上岗)。<b>它做一切判断,harness 只给手眼知识法律。</b></div>
+    <div>
+      <span class="pill">今天该干什么</span><span class="pill">这张图是什么</span><span class="pill">素材够不够</span>
+      <span class="pill">配哪些素材</span><span class="pill">要不要加工</span><span class="pill">稿子行不行</span>
+      <span class="pill">爆款配给哪个号</span><span class="pill">周报怎么说</span><span class="pill">撞不撞衫</span>
+      <span class="pill">要不要出补拍单</span>
+    </div>
+  </div>
+
+  <!-- 进化回路 -->
+  <div class="loop">
+    <div class="lh">🔄 <b>进化回路</b>(2026-07-15)—— agent 不只<b>用</b> harness,还<b>维护并进化它</b></div>
+    <div class="ld" style="margin-bottom:0">
+      复盘(体系 + 群聊 + 发布)→ 发现能变好的 → <b>自己改</b>(base 形状 / 代码 / 技能 / 文档,自己 commit)
+      → 用唯一判据<b>自审</b>(给手/眼/知识/法律 = 对;替模型决策 = 删)→ 记进<b>进化账</b>(记 SHA 指针,不拷贝)。
+      &nbsp;<span class="redline">红线仍焊死:对外不可逆的(发布 / AI 声明 / 生产库)不动。</span>
+    </div>
+  </div>
+
+  <!-- 底部 -->
+  <div class="foot">
+    <div class="box law"><b class="redline">红线(焊死)</b>
+      <ul><li>只写测试库,生产库读也不碰(物理没钥匙)</li><li>绝不自动发布</li><li>绝不代勾 AI 声明</li>
+      <li>红线不许有旋钮 · 防搬运 · 明文凭证只从 env</li></ul></div>
+    <div class="box"><b>三份真源(一份不漏)</b>
+      <ul><li>workspace → GitHub guanyun-workspace</li><li>技能 → GitHub qiaohe-skill(含 video-engine)+ lock sha</li>
+      <li>base → 飞书 ZhzJbf(只读自证)</li></ul></div>
+    <div class="box"><b>交付(A 阶段)</b>
+      <ul><li><span class="code">docs/上岗包.md</span> 注入知识</li><li><span class="code">docs/培训包.md</span> 上岗考核</li>
+      <li>门全绿 · 全量 verify 干净 · 三源同步</li></ul></div>
+  </div>
+
+  <div class="sub" style="margin-top:22px;text-align:center">
+    心跳:cron / 事件 / 运营在飞书说话(几点醒、干什么 = agent 判断,用运行时 hermes cron)
+    &nbsp;·&nbsp; 唯一判据:<b>给模型手/眼/知识/法律 = 对;替模型决策 = 删</b>
+  </div>
+</div>
+</body>
+</html>
