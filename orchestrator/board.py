@@ -168,13 +168,23 @@ def _material_stock(brand: str) -> dict:
     # ★每套款式被几条笔记用过★(2026-07-14 数字生命点破:「132 张」是真数字、假印象)
     # 132 张上身图里只有约 4 套衣服,其余是同一套的连拍。出完一批稿,4 套就被用遍了 ——
     # **再出稿就是同一件衣服换个角度再发一遍**,而它只能靠肉眼比对备注才发现。
+    #
+    # ★★ 这句话骗过人 ★★(2026-07-15 数字生命把款式打满之后当场对出来的)
+    # 老实现是 `+= len(backlink)` —— **把每张图的引用次数加起来**。
+    # 一条稿挂 3 张图,就被数 3 遍:藕荷紫**报 9,真实是 3 条笔记**。
+    # 而这个数字的**唯一用途就是判撞衫**(「这套已经发过几次了?」)—— 报大三倍,
+    # 它会以为这套穿滥了而避开,真正撞衫的那套反倒躲过去。**数字对不上话,就是假话。**
+    # 笔记数只有一个算法:**把笔记 id 去重**。
     by_style: dict[str, dict] = {}
+    style_notes: dict[str, set] = {}
     for r in shot:
         f = r["fields"]
         st = bitable.text(f.get(MF.STYLE)).strip() or "(没标款式)"
         d = by_style.setdefault(st, {"素材数": 0, "被几条笔记用过": 0})
         d["素材数"] += 1
-        d["被几条笔记用过"] += len(bitable.link_record_ids(f.get(MF.BACKLINK)))
+        style_notes.setdefault(st, set()).update(bitable.link_record_ids(f.get(MF.BACKLINK)))
+    for st, d in by_style.items():
+        d["被几条笔记用过"] = len(style_notes[st])      # **去重的笔记数**,不是引用次数之和
     return {"全库已拍(内容·形态)": by_tf, "总条数": len(rows),
             "每套款式": by_style,   # ← 撞衫看它:某套已经被用了很多次,再出稿就是重复发同一件
             "每号每模式要什么": per_account,

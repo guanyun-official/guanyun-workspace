@@ -194,6 +194,13 @@ def get_record(table_name: str, record_id: str) -> dict | None:
         raise                                            # 别的错:**说出来**,别装作"没找到"
 
 
+def delete_record(table_name: str, record_id: str) -> None:
+    """删一条记录。**过写守卫**(生产库物理到不了)。"""
+    _guard_write()
+    tid = config.tables()[table_name]
+    _call("DELETE", f"/open-apis/bitable/v1/apps/{config.BASE_TOKEN}/tables/{tid}/records/{record_id}")
+
+
 def update_record(table_name: str, record_id: str, fields: dict) -> None:
     _guard_write()
     tid = config.tables()[table_name]

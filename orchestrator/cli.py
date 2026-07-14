@@ -110,6 +110,9 @@ def build() -> argparse.ArgumentParser:
     c = sub.add_parser("material.update", help="【手】改素材字段")
     c.add_argument("id")
     c.add_argument("--set", nargs="+", required=True)
+    # 打标就是判断,判断就会错。**能撤销,才敢判断** —— 没有回退的手,它只会靠"不敢动"来保证不出错。
+    c = sub.add_parser("material.delete", help="【手】删一条素材(登记错了能撤)。删前如实报出谁在用它")
+    c.add_argument("id")
 
     # ── 笔记(手 + 眼;写稿的门在这)────────────────────────────────────
     c = sub.add_parser("note.new", help="【手】建一行笔记(派活占位等)。**派不派、派给谁,你判断**")
@@ -129,6 +132,11 @@ def build() -> argparse.ArgumentParser:
     c.add_argument("--note-id", default="", help="指定推进某一行(不给则找该号该模式的在途占位)")
     c = sub.add_parser("note.get", help="【眼】**把一条笔记整个读回来(含正文)** —— 写完之后拿它自证")
     c.add_argument("id")
+    # 撞衫最要命的是"这套上周发过了",而**已发的稿不在任何一只眼睛里**。board 只给在途。
+    c = sub.add_parser("note.list", help="【眼】笔记事实(含**已发**):穿的哪套款式 · 哪天发的 · 数据")
+    c.add_argument("--status", default="", help="只看某个状态(不给=全部,含已发/已回流)")
+    c.add_argument("--account", default="")
+    c.add_argument("--limit", type=int, default=0)
     c = sub.add_parser("note.update", help="【手】改笔记字段(状态推进等)。**AI声明字段写不了 —— 人勾**")
     c.add_argument("id")
     c.add_argument("--set", nargs="+", required=True)
@@ -252,6 +260,8 @@ def main(argv: list[str] | None = None) -> int:
         elif a.cmd == "material.update":
             feishu_io.update_record("素材表", a.id, _kv(a.set))
             _out({"改了": a.id, "字段": _kv(a.set)})
+        elif a.cmd == "material.delete":
+            _out(materials.delete(a.id))
 
         elif a.cmd == "note.new":
             _out({"note_id": notes.new(a.account, a.content_type, a.title, a.status)})
@@ -262,6 +272,8 @@ def main(argv: list[str] | None = None) -> int:
                                    note_id=a.note_id))
         elif a.cmd == "note.get":
             _out(notes.get(a.id))
+        elif a.cmd == "note.list":
+            _out(notes.listing(status=a.status, account=a.account, limit=a.limit))
         elif a.cmd == "note.update":
             notes.update(a.id, _kv(a.set))
             _out({"改了": a.id, "字段": _kv(a.set)})

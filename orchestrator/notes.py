@@ -109,6 +109,59 @@ def inflight() -> list[dict]:
     return out
 
 
+def listing(status: str = "", account: str = "", limit: int = 0) -> list[dict]:
+    """**笔记事实**(任意状态,含**已发**)。每条带上它**穿的是哪套衣服**和**哪天发的**。
+
+    ★为什么必须有(2026-07-15 数字生命第二天点出来的)★
+    它的原话:「我只能看到 board 里的在途稿。**已发的稿穿了哪套衣服、哪天发的,我读不出来。**
+    而撞衫最要命的恰恰是"这套上周发过了"。」
+
+    —— **眼睛缺了一块。** 它能算出"队列里两条撞衫",却算不出"这套三天前刚发过",
+    因为已发的笔记**不在任何一只眼睛里**。它不是判断不了,是**看不见**。
+
+    顺带补掉它说的第二处:『款式』挂在素材上,笔记要**跳两跳**(笔记→素材→款式)
+    才知道自己穿的哪套,而没有一只眼睛把这一跳拼好。这里拼好了 —— 这是**事实组装,不是判断**。
+    "要不要避开这套"仍然是它的事。
+    """
+    from .bitable import ContentTypeFields as CTF
+    from .bitable import MaterialFields as MF
+    rows = (feishu_io.search_in(NF.TABLE, NF.STATUS, [status]) if status
+            else feishu_io.list_records(NF.TABLE))
+    acc_names = feishu_io.name_map(AF.TABLE, AF.NAME)
+    ct_names = feishu_io.name_map(CTF.TABLE, CTF.NAME)
+
+    # 笔记引用的素材,一次取齐(按 id 取,不全表扫)→ id → 它的款式
+    mat_ids = {i for r in rows for i in bitable.link_record_ids(r["fields"].get(NF.LINKED_MATERIALS))}
+    style_of: dict[str, list] = {}
+    for i in mat_ids:
+        m = feishu_io.get_record(MF.TABLE, i)
+        v = (m or {"fields": {}})["fields"].get(MF.STYLE)
+        style_of[i] = [x if isinstance(x, str) else x.get("text", "") for x in v] if isinstance(v, list) \
+            else ([v] if v else [])                      # 『款式』是**多选** → 一张图可以是两套衣服
+
+    out = []
+    for r in rows:
+        f = r["fields"]
+        acc = bitable.link_names(f.get(NF.ACCOUNT), acc_names)
+        if account and account != acc:
+            continue
+        ids = bitable.link_record_ids(f.get(NF.LINKED_MATERIALS))
+        out.append({
+            "id": r["record_id"],
+            "标题": bitable.text(f.get(NF.TITLE)),
+            "状态": bitable.text(f.get(NF.STATUS)),
+            "账号": acc,
+            "内容类型": bitable.link_names(f.get(NF.CONTENT_TYPE), ct_names),
+            "穿的款式": sorted({s for i in ids for s in style_of.get(i, []) if s}),   # ← 撞衫看它
+            "实际发布日": bitable.text(f.get(NF.PUBLISHED_AT)),
+            "发布链接": bitable.text(f.get(NF.PUBLISH_LINK)),
+            "点赞": f.get(NF.LIKED), "收藏": f.get(NF.COLLECTED),
+            "打开": config.record_url(NF.TABLE, r["record_id"]),
+        })
+    out.sort(key=lambda x: x["实际发布日"] or "", reverse=True)   # 新发的在前;**排序不是筛选,没替它挑**
+    return out[:limit] if limit else out
+
+
 def get(note_id: str) -> dict:
     """**把一条笔记整个读回来**(含正文)—— 写完之后用它自证。
 

@@ -203,3 +203,34 @@ def thumb_token(view_path: str, name: str) -> str:
         return feishu_io.upload_media(thumb, name + ".jpg")
     except Exception:  # noqa: BLE001  缩略图不是命根子,失败不拦登记
         return ""
+
+
+def delete(record_id: str) -> dict:
+    """删一条素材。**先把它是什么、谁在用它,如实说出来,再删。**
+
+    ★为什么该有这只手(2026-07-15 数字生命点出来的)★
+    它的原话:「坏图能不能被 register 进库,**我没试** —— 因为**没有 material.delete**,
+    试错了我收不回来。**没有回退的手,我不拿真库做实验。**」
+
+    —— 这是**缺手**,不是它胆小。一个连自己登记错的行都撤不掉的 agent,
+    只能靠"不敢动"来保证不出错。**它会因此停止探索。**
+    打标本来就是判断,判断就会错;**能撤销,才敢判断。**
+
+    删之前先报出「删掉的是什么、哪几条笔记正引用它」——**事实**,不是拦阻。
+    真要删被引用的素材,那是它的判断(那条笔记可能本来就该改)。
+    """
+    r = feishu_io.get_record(MF.TABLE, record_id)
+    if not r:
+        return {"没删": record_id, "因为": "库里没有这条素材(它可能已经被删了)"}
+    f = r["fields"]
+    cited = bitable.link_record_ids(f.get(MF.BACKLINK))
+    was = {"编号": bitable.text(f.get(MF.CODE)), "类型": bitable.text(f.get(MF.TYPE)),
+           "形态": bitable.text(f.get(MF.FORM)), "备注": bitable.text(f.get(MF.NOTE)),
+           "指针": bitable.text(f.get(MF.REL_PATH))}
+    feishu_io.delete_record(MF.TABLE, record_id)
+    out = {"删了": record_id, "删掉的是": was}
+    if cited:
+        out["⚠️这条素材有 %d 条笔记在用" % len(cited)] = [
+            config.record_url(NF.TABLE, i) for i in cited]
+        out["那几条笔记现在少了一张图"] = "去看看它们还配不配得齐(note.get)"
+    return out
