@@ -149,6 +149,52 @@ def audit_dead_code() -> None:
 # ② 死配置:config 里定义了,没人读
 #    (GY_METRICS_MODE 曾是死配置:运维在 .env 设了 real,collect_metrics 写死不读它 → 跑的还是 stub)
 # ══════════════════════════════════════════════════════════════════════════════
+#   自称"验收/检查/探针"却没人跑的脚本 —— **验收器自己没被验收过**
+#
+#   2026-07-14 真事:`scripts/full_stack_probe.py` 号称"17条链路综合验收",而
+#     · review_gate 不跑它、cron 不跑它、任何脚本都不跑它 —— **零调用**
+#     · 手动一跑,L5 段当场 AttributeError 崩掉(MSrc.SHOT 这个属性根本不存在)
+#     · 它的 L2 提示还在传播一句已被真跑证伪的话
+#   而"17条链路真跑"是目标的硬条件。**验收器不在门里 = 那条件从来没被机器验过**,
+#   我却一直以为它验过了。这就是"人想起来方便的逻辑"最贵的一种:连查错的东西本身都没人查。
+#
+#   规则**故意写窄**(误报比漏报更糟——狼来了三次,门就废了):
+#   只管"自称验收/检查"的脚本。draft_one/harvest_trends 这类**给人和 agent 手调的 CLI**
+#   本来就没有上游调用者,不算死。
+_VERIFIER_HINTS = ("probe", "verify", "check_", "audit", "smoke")
+_GATE_RUNNERS = ("scripts/review_gate.sh", "scripts/install_cron.sh", "Makefile", ".github")
+
+
+def audit_dead_verifiers() -> None:
+    print("\n── ①b 没人跑的验收器(验收器自己没被验收过)" + "─" * 20)
+    runners = ""
+    for rel in _GATE_RUNNERS:
+        p = ROOT / rel
+        if p.is_file():
+            runners += p.read_text(encoding="utf-8", errors="ignore")
+        elif p.is_dir():
+            for f in p.rglob("*"):
+                if f.is_file():
+                    runners += f.read_text(encoding="utf-8", errors="ignore")
+    # 其它脚本互相调用也算"被跑"(如 check_p3.sh 里 python3 xxx.py)
+    for f in (ROOT / "scripts").glob("*.sh"):
+        runners += f.read_text(encoding="utf-8", errors="ignore")
+
+    found = 0
+    for f in sorted((ROOT / "scripts").glob("*.py")):
+        if not any(h in f.name for h in _VERIFIER_HINTS):
+            continue
+        if f.name in runners or f.stem in runners:
+            ok(f"{f.name} 被门真调用")
+            continue
+        bad("死验收器", f"`scripts/{f.name}` 自称验收/检查,却**没有任何门跑它**",
+            "没人跑的验收器 = 零价值,而且会烂在暗处(崩了都没人知道),"
+            "更坏的是**让人误以为那件事已经被验过了**。要么接进 review_gate,要么删掉")
+        found += 1
+    if not found:
+        print("      (自称验收的脚本都真接在门上——没有'验收器自己没被验收'的)")
+
+
 def audit_dead_config() -> None:
     print("\n── ② 死配置(设了没人读,人以为生效了)" + "─" * 26)
     cfg_path = ROOT / "orchestrator/config.py"
@@ -580,6 +626,7 @@ def main() -> int:
     print("═" * 70)
 
     audit_dead_code()
+    audit_dead_verifiers()
     audit_dead_config()
     audit_default_traps()
     audit_fake_fixtures()

@@ -19,11 +19,23 @@ class LoadGenSkill(unittest.TestCase):
         self.assertIn("蓝罗裁夏", text)   # ootd号 真实帖 few-shot,证明确实读到了技能正文
         self.assertIn("逐字稿", text)     # 合并后:技能含逐字稿配方(不只短标题)
 
-    def test_missing_skill_returns_empty(self):
-        self.assertEqual(draft.load_gen_skill("不存在的技能xyz"), "")
+    def test_declared_but_missing_skill_raises_not_silently_empty(self):
+        """**报了名字却装不上 = 炸**(2026-07-14 人眼审)。
 
-    def test_empty_name_returns_empty(self):
+        这条测试的上一版是 `assertEqual(load_gen_skill('不存在的技能xyz'), "")` ——
+        它**把 bug 焊死在了绿门里**:文件不存在就静默给 "",于是 compose_prompt(skill_text="")
+        → **LLM 零技能、零 few-shot 裸写**,而整条链路一声不吭,产出照样有,只是悄悄退化成通用口水文。
+        "每个模式都有专门技能写文案"这句话会当场变成谎话,且没有任何人会发现。
+        测试该锁**正确行为**,不是锁我当初图省事的那个假设。"""
+        with self.assertRaises(draft.SkillMissing):
+            draft.load_gen_skill("不存在的技能xyz")
+
+    def test_no_skill_declared_is_legal(self):
+        """没声明 gen_skill(空名)→ 合法,返 ""(该模式本就不挂技能)。别把"没声明"和"装不上"混为一谈。"""
         self.assertEqual(draft.load_gen_skill(""), "")
+
+    # 「全号×全模式的 gen_skill 都装得上」已由 test_skills_lock.test_every_gen_skill_resolves_from_single_source
+    # 守着(真读 accounts/,非 mock)。**不在这儿再写一条重复的**——重复的测试和死码一样,是负债。
 
 
 class GenerateDraft(unittest.TestCase):
@@ -441,6 +453,41 @@ class NoSourceLeakGate(unittest.TestCase):
         # ③ 真原创 → 放行,不误伤(否则天天狼来了,门就废了)
         guard.assert_no_source_leak(["", "小个子怎么穿汉服显高显瘦", skill],
                                     "OOTD｜粉罗载光\n\n光落在衣上，风把影子摇醒。\n\n#汉服")
+
+    def test_over_spec_body_gets_trimmed_not_dumped_on_the_operator(self):
+        """**超规格 → 回炉改一次,别把锅甩给运营**(2026-07-14 探针真跑抓到:出稿148字,规格100-140)。
+
+        病根是那个熟悉的形状:prompt 里已经写了「【篇幅硬要求】必须100-140字」、quality_flags 也已经
+        会插旗 —— 于是系统觉得自己"做完了"。**可没人去修它**:LLM 不听,稿子照样落库,QC 一插旗,
+        让运营自己去删那 8 个字。**把 prompt 里的一句话当成了执行。**
+        锁行为:超了→带着字数回炉删减→压回规格内。改完仍超才插旗给人看(诚实兜底,不假装修好)。"""
+        from orchestrator import draft
+        pb = {"body_len": [100, 140]}
+        long_body = "光" * 148
+        calls = []
+
+        def fake_run(prompt):
+            calls.append(prompt)
+            return f"标题行\n\n{'光' * 130}\n\n#汉服", 0.01
+
+        from unittest import mock as _m
+        with _m.patch.object(draft.llm, "run_prompt", fake_run):
+            out, cost = draft._fit_to_spec(f"标题行\n\n{long_body}\n\n#汉服", pb, "原prompt")
+        self.assertEqual(len(draft.body_text(out)), 130)          # 真被压回规格内
+        self.assertIn("148", calls[0])                            # 告诉它超了多少(不是空喊"太长了")
+        self.assertIn("只做删减", calls[0])                        # 只许删,不许换主题/新编画面
+        self.assertGreater(cost, 0)                               # 回炉的钱算进成本,不藏账
+
+    def test_in_spec_body_costs_nothing(self):
+        """没超规格 → **一次 LLM 都不多调**(别为了"稳"平白烧钱,那也是"想起来方便")。"""
+        from orchestrator import draft
+        def boom(_):  # noqa: ANN001
+            raise AssertionError("没超规格却回炉了")
+        from unittest import mock as _m
+        with _m.patch.object(draft.llm, "run_prompt", boom):
+            out, cost = draft._fit_to_spec("标题\n\n" + "光" * 120 + "\n\n#汉服", {"body_len": [100, 140]}, "p")
+        self.assertEqual(cost, 0.0)
+        self.assertIn("光" * 120, out)
 
     def test_harvest_trends_reports_missing_body(self):
         """源头堵:落灵感时没原帖正文 → 必须喊出来(从它出的稿会被红线直接拒)。"""

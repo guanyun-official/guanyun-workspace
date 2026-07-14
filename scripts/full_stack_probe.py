@@ -114,11 +114,21 @@ def L2_trends():
     except Exception as e:  # noqa: BLE001
         ck("L2", "坏数据不炸", False, f"炸了: {type(e).__name__}: {e}")
 
-    # 防搬运门要比对**正文**:灵感有正文才拦得住逐字搬(只给标题=门看不到正文)
+    # 2026-07-14 真跑证伪,这条检查以前在**传播一个错误的因果**:
+    #   老话术:「防搬运门比对的是正文,没正文就形同虚设」——**假的**。
+    #   `compose_prompt` 根本不收 source_text → 正文从没进过 prompt → LLM 没见过它 → 搬不了。
+    #   门真正要守的是**LLM 眼睛看得见的**:灵感标题(=title_seed)+ 技能 few-shot 里的真实帖。
+    # 所以这里该查的是**标题**(它才是真进 prompt 的那个),不是正文。
+    # 正文降级为"锦上添花"(有凭证时能多一层保护),不是命门——非登录下小红书详情页只吐 452 字节空壳,
+    # 拿它当硬门 = 把整条爆款模仿链路焊死在一个抓不到的东西上。
+    with_title = [r for r in rows if bitable.text(r["fields"].get(IF.TITLE)).strip()]
+    ck("L2", f"灵感带标题({len(with_title)}/{len(rows)} 条)——标题=title_seed,真进 prompt,防搬运门守它",
+       not rows or len(with_title) == len(rows),
+       "有灵感没标题 → 派不出活,且门少了一个比对源" if rows and len(with_title) < len(rows) else "")
     with_body = [r for r in rows if bitable.text(r["fields"].get(IF.BODY)).strip()]
-    ck("L2", f"灵感带正文({len(with_body)}/{len(rows)} 条)——防搬运门比对的是正文,没正文就形同虚设",
-       not rows or len(with_body) > 0,
-       "全部灵感都没正文 → 蹭爆款出稿时防搬运门看不到源文" if rows and not with_body else "")
+    if rows and not with_body:
+        print(f"      ↳ ℹ️ {len(rows)} 条灵感都没正文(非登录抓不到,详情页只吐空壳)。"
+              f"**不影响出稿**:正文不进 prompt,LLM 没见过 → 搬不了。不算红。")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -216,9 +226,13 @@ def L5_L6_publish():
         ck("L5", "AI声明门真拒(含AI素材未勾声明→GuardError)", True)
 
     # 全实拍则免勾(否则天天误报,人就不看了)
+    # 2026-07-14:这两行原来写的是 `MSrc.SHOT` —— **MaterialSource 里根本没有 SHOT**(实拍是 REAL,
+    # SHOT 是 MaterialStatus 的『已拍』)。一跑就 AttributeError,整个 L5 段当场崩。
+    # 它没被发现,是因为**这个探针根本没人跑**(不在 review_gate、不在任何脚本里)——
+    # 一个号称"17条链路综合验收"的东西,自己是死码,还崩着。**验收器自己没被验收过。**
     ck("L5", "全实拍素材免勾 AI 声明(不误报)",
-       not guard.ai_declaration_required([MSrc.SHOT, MSrc.SHOT]))
-    ck("L5", "含 AI 合成素材 → 需勾 AI 声明", guard.ai_declaration_required([MSrc.SHOT, MSrc.AI]))
+       not guard.ai_declaration_required([MSrc.REAL, MSrc.REAL]))
+    ck("L5", "含 AI 合成素材 → 需勾 AI 声明", guard.ai_declaration_required([MSrc.REAL, MSrc.AI]))
 
     # 压测·控量红线:超过单号日上限 → 门必须真拒
     from orchestrator import config
@@ -247,11 +261,25 @@ def L5_L6_publish():
 def L7_L8_collect_report():
     from orchestrator import collect
     section("L7/L8", "回流采集 + 周报复盘(真库)")
+    from orchestrator.bitable import NoteFields as _NF
     try:
         h = collect.harvestable_notes()
         ck("L7", f"harvestable_notes 真跑通({len(h)} 条可回流)", True)
-        nolink = [n for n in h if not n.get("link")]
-        ck("L7", "可回流的都有真链接(取链接不取描述)", not nolink, f"{len(nolink)} 条无链接")
+        # 2026-07-14:这条检查以前是 `[n for n in h if not n.get("link")]` —— **恒假**。
+        #   harvestable_notes 返回的是**原始 record**({record_id, fields}),里面根本没有 "link" 这个键,
+        #   `n.get("link")` 永远是 None → 只要库里有一条可回流的稿,这道门就必红。
+        #   而它红了也没人知道 —— 因为**这个探针当时没有任何人跑**。
+        #   (同一种病第二次:上一次是飞书 search 的 link 字段形态。**别信形态,先真读一遍返回**。)
+        # 更要命的是它问了个**自己保证了答案**的问题:harvestable_notes 最后一行就是 `if _link(...)` 过滤,
+        #   返回的每条按构造都有链接。所以真正该验的不是"返回的有没有链接",而是**那个过滤器真的在滤**。
+        bad_shape = [r for r in h if not collect._link(r["fields"].get(_NF.PUBLISH_LINK))]
+        ck("L7", "可回流的都取到真 URL(dict 取 link,不取 text 描述)", not bad_shape,
+           f"{len(bad_shape)} 条取不出 URL")
+        # 真验那个过滤器:没填链接的『已发』必须被滤掉(否则采集器拿着空 URL 去采,必挂)。
+        # 顺带守住"取 link 不取 text"——url 字段的 text 是描述文字,拿它去采必挂(这条踩过)。
+        ck("L7", "没填链接的『已发』真被滤掉(不拿空URL去采)", not collect._link(None))
+        ck("L7", "url 字段取 link 不取 text(取 text=拿到描述文字,真采必挂)",
+           collect._link({"link": "https://a.com/x", "text": "我的第一篇笔记"}) == "https://a.com/x")
     except Exception as e:  # noqa: BLE001
         ck("L7", "harvestable_notes 真跑通", False, f"{type(e).__name__}: {str(e)[:120]}")
 
@@ -384,7 +412,13 @@ def L16_L17_skills():
     for name, acc in sorted(accounts.load_all("巧荷").items()):
         for pb in acc.playbooks():
             gs = accounts.gen_skill_of(pb)
-            txt = draft.load_gen_skill(gs)
+            # load_gen_skill 现在装不上就抛(不再静默返 "")。探针的职责是**报红**,不是跟着炸——
+            # 接住它,把"技能装不上"如实渲染成一条红检查,人才看得见是哪个号哪个模式。
+            try:
+                txt = draft.load_gen_skill(gs)
+            except draft.SkillMissing as e:
+                txt = ""
+                print(f"      ↳ {str(e)[:88]}")
             ck("L17", f"{name}/{pb.get('content_type')} 的技能「{gs}」载得到({len(txt)}字符)", bool(txt))
 
     # workspace 不许再藏技能(local-skills 是双源遮蔽的入口)

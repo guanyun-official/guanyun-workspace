@@ -17,6 +17,10 @@ from . import accounts, config, guard, llm
 from .bitable import AccountFields as AF, NoteFields as NF, NoteStatus as NS
 
 
+class SkillMissing(RuntimeError):
+    """模式声明的 gen_skill 装不上。宁可炸,也不让 LLM 在零技能下裸写(message 面向告警可读)。"""
+
+
 def load_gen_skill(name: str) -> str:
     """加载 gen_skill 的 SKILL.md 正文(含该号真实帖 few-shot)。
 
@@ -25,11 +29,51 @@ def load_gen_skill(name: str) -> str:
     的 local-skills、一半住技能仓,同类资产两个家;更坑的是**技能仓一旦出现同名技能就会被 local 静默盖住**
     (跑的技能 ≠ 锁记录/装进来的那份),而 installed_drift 只比远程 HEAD,这种遮蔽一个字都不报。
     归一后只有一个查找路径,遮蔽从根上不存在(skills_lock.shadowed_skills 留作回归哨兵,防有人再把它加回来)。
+
+    **报了名字却找不到人 = 炸,不静默返回 ""**(2026-07-14 人眼审抓到):
+    老实现文件不存在就悄悄给 "" → `compose_prompt(skill_text="")` → **LLM 在零技能、零 few-shot 下裸写**,
+    而系统一声不吭。改个技能名、打错一个字、install_skills 漏装一个,都会让
+    "每个模式都有专门技能写文案"这句话当场变成谎话,**且没有任何人会发现**——
+    产出照样有,只是悄悄退化成通用口水文。这正是"人想起来方便的逻辑"的标本:
+    `if p.exists() else ""` 写的时候觉得"稳",落实下来就是一个永不作声的黑洞。
+
+    没声明 gen_skill(name="")→ 返 "" 合法(该模式本就不挂技能);声明了却装不上 → **炸在出稿前**。
     """
     if not name:
         return ""
     p = config.WORKSPACE / "skills" / name / "SKILL.md"
-    return p.read_text(encoding="utf-8") if p.exists() else ""
+    if not p.exists():
+        raise SkillMissing(
+            f"模式声明了 gen_skill=「{name}」,但 skills/{name}/SKILL.md 不存在——"
+            f"技能没装上(跑 bash scripts/install_skills.sh)或名字写错了。"
+            f"**不能就这么裸写**:没技能=没 few-shot=没风格,产出会退化成通用口水文")
+    return p.read_text(encoding="utf-8")
+
+
+def _fit_to_spec(draft_text: str, pb: dict, prompt: str) -> tuple[str, float]:
+    """**篇幅超规格 → 让它按规格改一次**(2026-07-14 探针真跑抓到:出稿 148 字,技能规格 100-140)。
+
+    病根还是那个形状:prompt 里已经写了「【篇幅硬要求】必须 100-140 字」,`quality_flags` 也已经会
+    标记超长 —— 于是系统觉得自己"做完了"。**可没有任何人去修它**:LLM 不听话,稿子照样落库,
+    QC 旗子一插,锅甩给运营 —— 让他自己去删那 8 个字。**把 prompt 里的一句话当成了执行。**
+
+    现在:超了就带着"你写了 N 字,砍到 lo-hi"回炉一次(ARK lite,一次几厘钱)。
+    改完仍超 → **不再硬掰**,让 quality_flags 插旗、卡片上 ⚠️ 给人看(诚实兜底,不假装修好了)。
+    只砍不足则不管:太短是内容不够,硬凑只会灌水,那才是真该让人看见的。
+    """
+    if not (pb and isinstance(pb.get("body_len"), (list, tuple)) and len(pb["body_len"]) == 2):
+        return draft_text, 0.0
+    lo, hi = int(pb["body_len"][0]), int(pb["body_len"][1])
+    n = len(body_text(draft_text))
+    if n <= hi:
+        return draft_text, 0.0
+    fixed, cost = llm.run_prompt(
+        f"{prompt}\n\n——————\n你刚才写的稿子是:\n{draft_text}\n\n"
+        f"**它的正文有 {n} 字,超了硬规格({lo}-{hi} 字),念出来会超时。**\n"
+        f"请**只做删减**:保留标题、#标签、分层结构和全部真实画面细节,把正文压到 {lo}-{hi} 字。"
+        f"删虚词、删重复的意象、删可有可无的修饰句;**不许换主题、不许新编画面、不许改标题**。\n"
+        f"直接输出改好的完整稿(格式与刚才一致),不要解释。")
+    return (fixed, cost) if len(body_text(fixed)) <= hi else (draft_text, cost)
 
 
 def load_clothes(clothes_code: str, brand: str = "巧荷") -> str:
@@ -258,6 +302,10 @@ def generate_draft(account_name: str, brand: str = "巧荷", llm_mode: str = "st
         #     真跑实证:把 few-shot 的真实帖逐字搬进产出 → **直接过门,一个字都没查**。
         #   · source_text —— 对标源正文(若调用方拿得到)。注意它**不进 prompt**,
         #     所以逐字搬它物理上不可能;传进来是纯保护、不产生风险。
+        draft_text, cost2 = _fit_to_spec(draft_text, pb, prompt)
+        cost += cost2
+        # 门守的是**最终落库的那一份**。回炉改写用的 prompt 里同样带着 few-shot 真帖,
+        # 改写时照样能抄 —— 所以门必须放在 _fit_to_spec **之后**,不是之前。
         guard.assert_no_source_leak([source_text, title_seed, skill_text], draft_text)
     else:
         draft_text, cost = _stub_draft(acc, pb, gen_skill, bool(skill_text), title_seed), 0.0

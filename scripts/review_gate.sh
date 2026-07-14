@@ -50,6 +50,14 @@ if [ "$FULL" = "1" ]; then
     [ -f "$s" ] && gate "$(basename "$s")" bash "$s"
   done
   gate "verify_usable 综合验收" $PY scripts/verify_usable.py
+  # alignment_audit 是"全体系对齐审查"(10 种病的机器审)。它以前**不在任何门里** ——
+  # 只在我记得跑的时候才跑。于是"机器审全绿"这个交付条件,保障挂在"人会不会忘"上面。
+  # 接进来:一条 review_gate --full = 单测 + 门 + 机器审 + 17条链路,一个都不许漏。
+  gate "alignment_audit 全体系对齐审查(10种病)" $PY scripts/alignment_audit.py
+  # 2026-07-14 接线:full_stack_probe(17条链路真跑验收)**以前没有任何人跑它** ——
+  # 一个号称"综合验收"的东西自己是死码,而且一跑就崩(L5 段 MSrc.SHOT 属性不存在,静默 AttributeError)。
+  # "17条链路真跑"是目标的硬条件之一,验收器却不在门里 = 那个条件从来没被机器验过。接进来。
+  gate "full_stack_probe 17条链路真跑(真库/真ARK/真网盘)" $PY scripts/full_stack_probe.py
 else
   hr; echo "② 全量门:跳过(加 --full 跑 dogfood冒烟 + check_p1-6 + verify_usable,交付前必跑)"
 fi
