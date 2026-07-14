@@ -52,7 +52,7 @@
   "文案怎么和图片关联" 的答案**只有一个**:**素材的『备注』**(上一条)。别再去找别的。
 
 - **唯一源边界** — Base owner = **运营事实与状态**(它同时是人的驾驶舱);
-  workspace owner = 画像 / strategy / playbooks / 内容 know-how;
+  workspace owner = 画像 / strategy / playbooks(账号声明);
   skill owner = 可复用的"怎么做";网盘 owner = **媒体真身**。
   **非 owner 只能存指针/索引/派生快照。**
 
