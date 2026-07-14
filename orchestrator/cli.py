@@ -286,11 +286,13 @@ def main(argv: list[str] | None = None) -> int:
             from pathlib import Path as _P
             if not _P(a.path).exists():
                 raise ValueError(f"本地成片不存在:{a.path}")
-            srcs = [m["来源"] for m in materials.by_ids(_csv(a.from_materials))] \
-                if a.from_materials else []
+            from_ids = _csv(a.from_materials)
+            srcs = [m["来源"] for m in materials.by_ids(from_ids)] if from_ids else []
             # ★provenance 焊死:来源随像素出处,agent 说了不算★
             src = guard.derive_source(srcs, used_ai_generation=a.used_ai)
-            rid, ptr = ingest.store_produced(a.path, a.__dict__["type"], source=src, note=a.note)
+            # from_materials 同时落成血缘(#46):不只判 AI 声明,还记下"这条成片真剪进了哪几条源底片"
+            rid, ptr = ingest.store_produced(a.path, a.__dict__["type"], source=src, note=a.note,
+                                             source_footage=from_ids)
             _out({"登记了": rid, "网盘": ptr, "来源": src,
                   "说明": ("**来源=AI生成** → 这条素材挂上笔记后,发布前**人必须勾 AI 声明**"
                            if src == "AI生成" else "纯剪辑/拼接,像素都来自实拍 → 免勾 AI 声明"),

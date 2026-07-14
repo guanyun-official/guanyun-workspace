@@ -74,7 +74,7 @@ def gen_code(mtype: str, name: str, existing: set) -> str:
 def register(code: str, mtype: str, link_path: str, note: str = "",
              source: str = MSrc.REAL, accounts: list | None = None,
              thumb_token: str = "", form: str = "", style: str = "",
-             other_brand: bool = False) -> str:
+             other_brand: bool = False, source_footage: list | None = None) -> str:
     """登记一条素材进素材表(素材按赛道存,不挂衣服)。字段归位:
     - 链接(url)= 能点开的分享链(投手一点直达);相对路径(text)= 系统耐久指针(baidupan:/...),寻址用。
     ⚠️ 没有『生成参数』字段了(0/280,**从来没有任何调用方传过它**)——
@@ -133,16 +133,20 @@ def register(code: str, mtype: str, link_path: str, note: str = "",
         fields[MF.THUMB] = [{"file_token": thumb_token}]   # 缩略图(附件),base 驾驶舱瞄一眼
     if accounts:
         fields[MF.ACCOUNTS] = accounts
+    if source_footage:
+        fields[MF.SOURCE_FOOTAGE] = source_footage   # 成片↔源底片血缘(#46):真剪进它的那几条源素材
     return feishu_io.create_record(MF.TABLE, fields)   # feishu_io 内部过 assert_base_allowed(只写测试库)
 
 
 def store_produced(local_path: str, mtype: str, source: str = MSrc.AI, note: str = "",
-                   accounts: list | None = None, remote_dir: str | None = None) -> tuple[str, str]:
+                   accounts: list | None = None, remote_dir: str | None = None,
+                   source_footage: list | None = None) -> tuple[str, str]:
     """加工产出(拼图/AI 封面/成片)**回传网盘 03-成片** + 登记素材。
     **来源随像素出处**:纯剪辑实拍=`实拍`(免声明)、含 AI 合成=`AI生成`(需声明)——调用方按事实传 source。
+    source_footage=**真剪进这条成片的源素材 record_id**(#46 血缘;飞书自动反向,源底片能看到被哪些成片剪进过)。
     需 netpan real+STOKEN(写)。返回 (record_id, 网盘耐久指针)。"""
     remote = remote_dir or f"{netpan.ROOT}/03-成片"
     remote_path = netpan.upload(local_path, remote)   # 真上传(写,需 STOKEN)
     ptr = netpan.pointer(remote_path)
-    rid = register(Path(local_path).stem, mtype, ptr, note, source, accounts)
+    rid = register(Path(local_path).stem, mtype, ptr, note, source, accounts, source_footage=source_footage)
     return rid, ptr
