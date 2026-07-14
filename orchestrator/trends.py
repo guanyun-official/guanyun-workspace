@@ -32,6 +32,24 @@ def harvest_trends(items: list[dict], brand: str = "巧荷", write: bool = False
     """
     if write:
         guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)  # 红线:只写测试库
+    # ★不认识的键 → **炸,别静默吞**★(2026-07-14 数字生命上班第一天撞到)
+    #
+    # CLI 的 --help 曾经写着 `{"标题","文案","链接","优点"}`,而这里读的是 `源链接`/`可借鉴`。
+    # 数字生命**照着 help 传**,于是「可借鉴」和「爆款源」**被无声丢弃** —— 不报错、不警告,
+    # 行还是建出来了,**看起来完全成功**。它读回来才发现:灵感的全部价值(可借鉴的打法)
+    # 和溯源链接,一个字都没进去。**3 行残数据就这么落进了真库。**
+    #
+    # "静默丢弃未知键"写的时候觉得宽容,落实下来就是**往真库灌残数据,而且没有任何人会发现**。
+    # (它自己的话:"响的能自己发现,静默的会把脏数据写进真库 —— 静默那个毒得多。")
+    KEYS = {"标题", "文案", "可借鉴", "源链接"}
+    for it in items:
+        bad = set(it) - KEYS
+        if bad:
+            raise ValueError(
+                f"灵感的键写错了:{sorted(bad)} 不认识。\n"
+                f"合法的键只有这四个:标题(必填)· 文案(原帖正文,学结构用)· "
+                f"可借鉴(它凭什么火)· 源链接(溯源)。\n"
+                f"**不静默丢** —— 丢了你不会知道,而残数据会留在真库里。")
     existing = {bitable.text(r["fields"].get(IF.TITLE)).strip()
                 for r in feishu_io.list_records(IF.TABLE)}
     new: list[str] = []
@@ -65,7 +83,31 @@ def harvest_trends(items: list[dict], brand: str = "巧荷", write: bool = False
             feishu_io.create_record(IF.TABLE, row)
         new.append(title)
         existing.add(title)
-    return {"新增": new, "去重跳过": dup, "无正文": no_body}
+    # **干跑和实跑,返回值必须看得出区别**(2026-07-14 数字生命撞到):
+    # 老实现两次返回一模一样,一个字都不差 —— **光看返回值分不出它到底写没写**。
+    # 干跑存在的**唯一意义**就是"告诉我实跑会发生什么";它和实跑长得一样,人就只能去猜。
+    return {"写库了": write, "新增": new, "去重跳过": dup, "无正文": no_body,
+            "自证": "python3 -m orchestrator board  → 看『灵感库(未转化的爆款)』" if write
+                    else "(干跑,没写库。加 --write 才真落)"}
+
+
+def update_idea(idea_id: str, fields: dict) -> None:
+    """改灵感库的一行(补『可借鉴』『源链接』『文案』等)。
+
+    **为什么需要它**(2026-07-14 数字生命上班第一天):`idea.add` 的 help 和代码对不上,
+    它照着 help 传,『可借鉴』和『爆款源』被静默吞掉 → 3 行残数据落进真库。
+    而 CLI 里**只有 add / converted,没有 update** → **它想修都修不了**(add 按标题去重,重跑只会跳过)。
+    它按纪律没有绕过去写脚本,就把残数据留在库里等我给一只手。**这就是那只手。**
+    """
+    guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)   # 红线:只写测试库
+    KEYS = {IF.TITLE, IF.BODY, IF.MERITS, IF.LINK}
+    bad = set(fields) - KEYS
+    if bad:
+        raise ValueError(f"灵感库没有这些字段:{sorted(bad)}。可改的:{sorted(KEYS)}")
+    patch = dict(fields)
+    if IF.LINK in patch and isinstance(patch[IF.LINK], str):
+        patch[IF.LINK] = bitable.url_value(patch[IF.LINK])   # 链接是 URL 字段,写字符串会炸
+    feishu_io.update_record(IF.TABLE, idea_id, patch)
 
 
 def fill_missing_bodies(write: bool = False) -> dict:

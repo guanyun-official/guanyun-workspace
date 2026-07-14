@@ -53,7 +53,7 @@ def format_weekly(summary: dict) -> str:
     lines = ["📊 巧荷·本周复盘"]
     ranked = summary["ranked"]
     if not ranked:
-        lines.append("（本周暂无已发/已回流的效果数据——先跑 collect_metrics 采集回流）")
+        lines.append("（本周暂无已发/已回流的效果数据——还没有帖子发出去，或回流还没采）")
     else:
         lines.append("\n各方法论表现（按本周均赞）：")
         for r in ranked:
@@ -84,7 +84,7 @@ def format_weekly(summary: dict) -> str:
                 # 运营在手机上收到周报,看到一串环境变量 —— **他不敲终端,这句话对他毫无意义**,
                 # 而且**这件事根本不是他能做的**(改环境变量是部署侧的事)。
                 # 对运营:说清"数据为什么没有、要不要他做什么"(不用他做,就说不用)。
-                # 对运维:告警走 collect_metrics 的 alerts,不塞进运营的周报。
+                # 对运维:告警走回流采集自己的 alerts,不塞进运营的周报。
                 lines.append(f"   · {n_link} 条**链接已经填了**，却还是零赞 → **不是你的问题**，"
                              "是系统还没把互动数采回来（也可能真是刚发、还没人赞）。"
                              "不用你操作，采集恢复后数据会自动回填。")

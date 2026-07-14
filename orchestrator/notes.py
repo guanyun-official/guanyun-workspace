@@ -109,6 +109,49 @@ def inflight() -> list[dict]:
     return out
 
 
+def get(note_id: str) -> dict:
+    """**把一条笔记整个读回来**(含正文)—— 写完之后用它自证。
+
+    ★为什么必须有(2026-07-14 数字生命上班第一天点出来的)★
+    纪律是"**每个写操作之后,用只读的命令读回来自证**"。可 CLI 里**没有任何动词能读出笔记正文**
+    (`board`/`card` 只给标题)。也就是说,`note.draft` —— **整个系统最重要的那次写** ——
+    它**无法按纪律自证**。那条纪律在最关键的地方是**一句空话**。
+
+    它的原话:"今天我没出稿所以没踩到,但只要出稿,第 3 条纪律就是空文。"
+    """
+    from .bitable import ContentTypeFields as CTF
+    from .bitable import KeywordFields as KF
+    from .bitable import MaterialFields as MF
+    r = feishu_io.get_record(NF.TABLE, note_id)
+    if not r:
+        return {"错": f"没找到这条笔记:{note_id}"}
+    f = r["fields"]
+    acc_names = feishu_io.name_map(AF.TABLE, AF.NAME)
+    ct_names = feishu_io.name_map(CTF.TABLE, CTF.NAME)
+    mat_ids = bitable.link_record_ids(f.get(NF.LINKED_MATERIALS))
+    kw_ids = bitable.link_record_ids(f.get(NF.KEYWORDS))
+    return {
+        "id": note_id,
+        "标题": bitable.text(f.get(NF.TITLE)),
+        "状态": bitable.text(f.get(NF.STATUS)),
+        "账号": bitable.link_names(f.get(NF.ACCOUNT), acc_names),
+        "内容类型": bitable.link_names(f.get(NF.CONTENT_TYPE), ct_names),
+        "方法论": bitable.text(f.get(NF.PLAYBOOK)),
+        "文案草稿": bitable.text(f.get(NF.DRAFT)),      # ★正文★ —— 这就是它读不回来的那个东西
+        "质检": bitable.text(f.get(NF.QC)),
+        "AI声明": bool(f.get(NF.AI_DECLARED)),          # **人勾的**;你写不了这个字段
+        "关联素材": [{"id": i, "编号": bitable.text(
+            (feishu_io.get_record(MF.TABLE, i) or {"fields": {}})["fields"].get(MF.CODE))}
+            for i in mat_ids],
+        "标签·关键词": [bitable.text(
+            (feishu_io.get_record(KF.TABLE, i) or {"fields": {}})["fields"].get(KF.KEYWORD))
+            for i in kw_ids],
+        "发布链接": bitable.text(f.get(NF.PUBLISH_LINK)),
+        "点赞": f.get(NF.LIKED), "收藏": f.get(NF.COLLECTED),
+        "打开": config.record_url(NF.TABLE, note_id),
+    }
+
+
 def _find_inflight(account: str, content_type: str) -> str:
     """该 (账号, 内容类型) 在途的『待出文案』占位 record_id;无则空。
 

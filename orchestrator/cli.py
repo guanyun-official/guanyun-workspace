@@ -53,7 +53,9 @@ def build() -> argparse.ArgumentParser:
     c.add_argument("--send", action="store_true")
     c = sub.add_parser("shotlist", help="【眼·人面】补拍单(摄影师看的)。**内容你给** --items '<json>'")
     c.add_argument("--items", required=True,
-                   help='[{"账号":..,"类型":..,"缺":N,"拍摄要求":"人话","参考":".."}] —— 催谁、催几条、怎么说,你判断')
+                   help='[{"账号":.., "类型":.., "缺":N, "拍摄要求":"写给拿相机的人看的人话", '
+                        '"参考":[{"画面":"一句画面描述", "链接":"能点开的图"}]}] '
+                        '—— 催谁、催几条、怎么说,你判断。**参考是列表,不是字符串**')
     c.add_argument("--send", action="store_true")
 
     # ── 素材(手 + 眼)──────────────────────────────────────────────────
@@ -100,6 +102,8 @@ def build() -> argparse.ArgumentParser:
     c.add_argument("--playbook", default="")
     c.add_argument("--qc", default="", help="你自己看出的问题,想让运营重点看的(会显示在卡片上)")
     c.add_argument("--note-id", default="", help="指定推进某一行(不给则找该号该模式的在途占位)")
+    c = sub.add_parser("note.get", help="【眼】**把一条笔记整个读回来(含正文)** —— 写完之后拿它自证")
+    c.add_argument("id")
     c = sub.add_parser("note.update", help="【手】改笔记字段(状态推进等)。**AI声明字段写不了 —— 人勾**")
     c.add_argument("id")
     c.add_argument("--set", nargs="+", required=True)
@@ -119,8 +123,13 @@ def build() -> argparse.ArgumentParser:
 
     # ── 灵感 / 回流 / 加工 ──────────────────────────────────────────────
     c = sub.add_parser("idea.add", help="【手】把抓到的爆款落灵感库。**items 是你抓的**")
-    c.add_argument("--items", required=True, help='[{"标题":..,"文案":..,"链接":..,"优点":..}]')
-    c.add_argument("--write", action="store_true")
+    c.add_argument("--items", required=True,
+                   help='[{"标题":必填, "文案":原帖正文(学结构用), "可借鉴":它凭什么火, "源链接":溯源}]'
+                        ' —— **只认这四个键;写错的键会当场报错,不会静默吞掉**')
+    c.add_argument("--write", action="store_true", help="不给 = 干跑(返回值里 `写库了: false`)")
+    c = sub.add_parser("idea.update", help="【手】改灵感库的一行(补『可借鉴』『源链接』『文案』)")
+    c.add_argument("id")
+    c.add_argument("--set", nargs="+", required=True, help="字段=值,如 可借鉴=... 源链接=https://...")
     c = sub.add_parser("idea.converted", help="【手】灵感转化成笔记了 → 回填灵感库(闭环)")
     c.add_argument("idea_id")
     c.add_argument("note_id")
@@ -163,16 +172,17 @@ def main(argv: list[str] | None = None) -> int:
             _out(board.view(a.brand))
         elif a.cmd == "card":
             card = cockpit.today_card(a.brand)
-            _out({"sent": alerts.send_card(card) if a.send else False, "card": card})
+            _out({"投递": alerts.send_card(card) if a.send else {"已发": False, "说明": "干跑,没发(加 --send 才推飞书)"},
+                  "card": card})
         elif a.cmd == "report":
             text = report.weekly_text(a.brand)
             print(text)
             if a.send:
                 alerts.send(text, title="巧荷 · 周报")
         elif a.cmd == "shotlist":
-            items = json.loads(a.items)
-            card = shotlist.card(items)
-            _out({"sent": alerts.send_card(card) if a.send else False, "card": card})
+            card = shotlist.card(json.loads(a.items))
+            _out({"投递": alerts.send_card(card) if a.send else {"已发": False, "说明": "干跑,没发(加 --send 才推飞书)"},
+                  "card": card})
 
         elif a.cmd == "material.inbox":
             _out(materials.inbox(a.dir))
@@ -209,6 +219,8 @@ def main(argv: list[str] | None = None) -> int:
                                    material_ids=_csv(a.materials), keywords=_csv(a.keywords),
                                    playbook=a.playbook, qc=a.qc,
                                    note_id=a.note_id))
+        elif a.cmd == "note.get":
+            _out(notes.get(a.id))
         elif a.cmd == "note.update":
             notes.update(a.id, _kv(a.set))
             _out({"改了": a.id, "字段": _kv(a.set)})
@@ -225,6 +237,10 @@ def main(argv: list[str] | None = None) -> int:
 
         elif a.cmd == "idea.add":
             _out(trends.harvest_trends(json.loads(a.items), a.brand, a.write))
+        elif a.cmd == "idea.update":
+            trends.update_idea(a.id, _kv(a.set))
+            _out({"改了": a.id, "字段": _kv(a.set),
+                  "自证": "python3 -m orchestrator board  → 看『灵感库(未转化的爆款)』"})
         elif a.cmd == "idea.converted":
             trends.mark_converted(a.idea_id, a.note_id)
             _out({"回填了灵感": a.idea_id, "笔记": a.note_id})
@@ -255,4 +271,13 @@ def main(argv: list[str] | None = None) -> int:
     except notes.DraftPending as e:
         print(f"\n✋ 停手:\n{e}\n", file=sys.stderr)
         return 4
+    except notes.SkillMissing as e:
+        print(f"\n🧩 技能装不上(防搬运门会瞎,不能放行):\n{e}\n", file=sys.stderr)
+        return 5
+    except ValueError as e:
+        # 参数写错了(键名不对/枚举越界…)。**拦住 + 说明白 + 给出路** —— 别甩 traceback。
+        # (2026-07-14:传错键时它原样抛 ValueError,人/agent 拿到的是一屏堆栈。
+        #  "拦住 ≠ 说清楚" 这条,门自己也得守。)
+        print(f"\n✋ 参数不对:\n{e}\n", file=sys.stderr)
+        return 2
     return 0
