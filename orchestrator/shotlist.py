@@ -46,10 +46,16 @@ def card(items: list[dict]) -> dict:
         lines = [head + (f" × {s['缺']} 条" if s.get("缺") else "")]
         if s.get("拍摄要求"):
             lines.append(f"   {s['拍摄要求']}")
+        # ★harness 不许替它决定"这张参考图是拿来学的,还是拿来躲的"★
+        # (2026-07-15 数字生命撞出来的)老实现**写死了「照着这个拍：」**。
+        # 它想放一张**反例**(「别再拍这个了 —— 典型:模特全在手拎 Dior」),
+        # 渲染出来变成 **「照着这个拍：别再拍它了」** —— **摄影师真会照着那张带 Dior 的拍。**
+        # 它改不了模板,只好**把反例参考全撤掉** —— 一句写死的话,把它的一整种表达废掉了。
+        # 参考图怎么用,是它的判断。它说什么,就印什么。
         for ref in (s.get("参考") or []):
-            pic = ref.get("画面", "")
-            url = ref.get("链接", "")
-            lines.append(f"   照着这个拍：「{pic}」" + (f" → {url}" if url else ""))
+            pic, url = ref.get("画面", ""), ref.get("链接", "")
+            how = (ref.get("怎么用") or "").strip()     # 「照着这个拍」/「别再这样拍了」/… — 你说了算
+            lines.append(f"   {how + '：' if how else ''}「{pic}」" + (f" → {url}" if url else ""))
         el.append({"tag": "div", "text": {"tag": "lark_md", "content": "\n".join(lines)}})
     if not el:
         el.append({"tag": "div", "text": {"tag": "lark_md", "content": "（这次没有要补拍的）"}})

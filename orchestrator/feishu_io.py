@@ -177,6 +177,24 @@ def name_map(table_name: str, name_field: str) -> dict[str, str]:
 RECORD_NOT_FOUND = 1254043      # 飞书真码,三种写法(格式非法/同长不存在/乱编)全回它 —— 2026-07-15 真问过
 
 
+_FIELD_TYPES: dict[str, dict[str, str]] = {}
+
+
+def field_types(table_name: str) -> dict[str, str]:
+    """{字段名: ui_type}(Text / MultiSelect / SingleSelect / Checkbox / Number / …)。
+
+    **字段是什么类型,是活库里的事实** —— 别在代码里维护第二份(注定漂移)。
+    进程内缓存一次(一张表的 schema 一次跑里不会变)。
+    """
+    if table_name in _FIELD_TYPES:
+        return _FIELD_TYPES[table_name]
+    tid = config.tables()[table_name]
+    d = _call("GET", f"/open-apis/bitable/v1/apps/{config.BASE_TOKEN}/tables/{tid}/fields",
+              {"page_size": 100})
+    _FIELD_TYPES[table_name] = {f["field_name"]: f.get("ui_type", "") for f in (d.get("items") or [])}
+    return _FIELD_TYPES[table_name]
+
+
 def get_record(table_name: str, record_id: str) -> dict | None:
     """按 record_id 取**单条**(GET,不全表扫)。**只有"这条记录不存在"→None**,其余错一律抛。
 

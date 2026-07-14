@@ -162,9 +162,15 @@ def _material_stock(brand: str) -> dict:
                     if rid and accs and rid not in accs:
                         continue          # 显式标了别号=排除;没标=可用
                     avail += 1
+                # ★「已拍」是个假词★(2026-07-15 数字生命照着它去催了一张假补拍单)
+                # 这个数**只数库里登记过的**,而它读成了「摄影师拍了几条」。
+                # 真事:board 报「ootd号·视频唯美OOTD·已拍可用 **0**」→ 它信了 →
+                # 发补拍单催摄影师补 8 条视频 —— 而网盘 `/巧荷/视频底片/100EOSR6/` 下
+                # **躺着 95 条单反竖屏视频,一条都没登记**。它自己发现后把补拍单撤回了。
+                # **一个字用错,系统就去骗摄影师。** 数什么就叫什么。
                 per_account.append({"账号": name, "模式": pb.get("content_type") or pb.get("id"),
                                     "要的内容": mt, "要的形态": form or "(不限)",
-                                    "已拍可用": avail, "声明的缓冲目标": target})
+                                    "已登记可用": avail, "声明的缓冲目标": target})
     # ★每套款式被几条笔记用过★(2026-07-14 数字生命点破:「132 张」是真数字、假印象)
     # 132 张上身图里只有约 4 套衣服,其余是同一套的连拍。出完一批稿,4 套就被用遍了 ——
     # **再出稿就是同一件衣服换个角度再发一遍**,而它只能靠肉眼比对备注才发现。
@@ -175,14 +181,23 @@ def _material_stock(brand: str) -> dict:
     # 而这个数字的**唯一用途就是判撞衫**(「这套已经发过几次了?」)—— 报大三倍,
     # 它会以为这套穿滥了而避开,真正撞衫的那套反倒躲过去。**数字对不上话,就是假话。**
     # 笔记数只有一个算法:**把笔记 id 去重**。
+    #
+    # ★★ 同一句话骗了第二次 ★★(2026-07-15 数字生命把款式打满之后又对出来的)
+    # 上面修的是"笔记数怎么算";这次错的是**"什么算一套衣服"**。
+    # 『款式』改成多选之后,老实现还在 `bitable.text()` —— 它把 `["粉","浅蓝"]`
+    # **拼成字符串 `"粉,浅蓝"`** → 9 张双人同框图变成了**第三套叫「粉,浅蓝」的衣服**。
+    # 于是「浅蓝」真撞了 5 条稿,board 拆成 3 条 + 2 条,**读不出那个 5**。
+    # 一张图有两套衣服 → **它要同时进两个桶**。
     by_style: dict[str, dict] = {}
     style_notes: dict[str, set] = {}
     for r in shot:
         f = r["fields"]
-        st = bitable.text(f.get(MF.STYLE)).strip() or "(没标款式)"
-        d = by_style.setdefault(st, {"素材数": 0, "被几条笔记用过": 0})
-        d["素材数"] += 1
-        style_notes.setdefault(st, set()).update(bitable.link_record_ids(f.get(MF.BACKLINK)))
+        sts = bitable.multi(f.get(MF.STYLE)) or ["(没标款式)"]     # 多选:一张图可以进多个桶
+        notes = bitable.link_record_ids(f.get(MF.BACKLINK))
+        for st in sts:
+            d = by_style.setdefault(st.strip(), {"素材数": 0, "被几条笔记用过": 0})
+            d["素材数"] += 1
+            style_notes.setdefault(st.strip(), set()).update(notes)
     for st, d in by_style.items():
         d["被几条笔记用过"] = len(style_notes[st])      # **去重的笔记数**,不是引用次数之和
     return {"全库已拍(内容·形态)": by_tf, "总条数": len(rows),
@@ -257,6 +272,50 @@ def _feedback() -> dict:
     }
 
 
+def _netpan_unregistered() -> dict:
+    """**网盘上有,库里没有** —— 一条一条数出来。
+
+    ★为什么必须有(2026-07-15 数字生命撞出来的,而且它已经照着假数字发出去过一张单子)★
+    board 报「已登记可用 **0**」,它读成「没拍」→ **发补拍单催摄影师补 8 条视频**。
+    而网盘 `/巧荷/视频底片/100EOSR6/` 下**躺着 95 条单反竖屏视频,92 条没登记**。
+    那张单子是**骗人的话**,它自己发现后撤回了。
+
+    **两只眼睛都瞎在同一处**:`board` 只数库里的;`material.inbox` **只看 `待入库` 一个目录**。
+    而摄影师的片子在 `/巧荷/` 底下的六个目录里 —— **谁都没在看**。
+
+    **库里没有 ≠ 没拍。** 这个差,是它判"到底要不要催补拍"的**唯一依据**。
+    (催不催、先登记哪批 —— **仍然是它的判断**。这里只报事实。)
+    """
+    reg = materials.registered_names()          # 已登记的**文件名**集合
+
+    def walk(p: str, depth: int = 0) -> list[dict]:
+        out = []
+        for x in netpan.list_dir(p):
+            if x["is_dir"]:                     # ← 是 `is_dir`,不是 `isdir`(**我当场又猜错过一次**)
+                if depth < 2:
+                    out += walk(x["path"], depth + 1)
+            else:
+                out.append(x)
+        return out
+
+    # **两个根都要看。** `/巧荷素材/`(我们设计的目录,几乎是空的)+ `/巧荷/`(摄影师真在用的,479 个文件)
+    # —— 老实现只看前者,于是那 479 个文件**一只眼睛都没照到**。见 netpan.ROOTS。
+    out, tot, un = {}, 0, 0
+    for root in netpan.ROOTS:
+        for d in netpan.list_dir(root):
+            if not d["is_dir"] or d["path"] == netpan.INBOX:
+                continue
+            fs = walk(d["path"])
+            news = [f["name"] for f in fs if f["name"] not in reg]
+            tot += len(fs); un += len(news)
+            out[d["path"]] = {"文件数": len(fs), "**库里没有的**": len(news),
+                              "例": sorted(news)[:5] or "(都登记过了)"}
+    return {"各目录": out, "网盘共": tot, "**库里没有的共**": un,
+            "怎么看": "登记一条:`material.view <路径>` 自己看 → `material.register`。"
+                      "**要不要登记、先登哪批,你判断** —— 这里只报『网盘有、库里没有』这个事实。",
+            "⚠️": "**库里没有 ≠ 没拍。** 别照着『已登记可用 0』去催补拍 —— 先来这儿看一眼。"}
+
+
 def view(brand: str = "巧荷") -> dict:
     """**世界现在什么样**。一条命令看完。纯读,不写库。
 
@@ -273,6 +332,7 @@ def view(brand: str = "巧荷") -> dict:
         "人改过的稿(最值钱的信号)": _human_edits(),  # 原始生成稿 vs 文案草稿 的差 = 技能该怎么改
         "素材库存": _material_stock(brand),
         "素材类型词汇(素材表 select 的合法值)": list(ingest.MATERIAL_TYPES),
+        "网盘上有·库里没有(**别照着『已登记可用 0』去催补拍**)": _netpan_unregistered(),
         "网盘待入库箱": {"路径": netpan.INBOX,
                          "说明": "摄影师直接往这传,不管文件名。用 `material.inbox` 看里面有什么。"},
         "灵感库(未转化的爆款)": _ideas(),

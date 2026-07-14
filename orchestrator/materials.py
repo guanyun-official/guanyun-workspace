@@ -20,8 +20,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import bitable, feishu_io, media, netpan
-from .bitable import AccountFields as AF, MaterialFields as MF
+from . import bitable, config, feishu_io, media, netpan
+from .bitable import AccountFields as AF, MaterialFields as MF, NoteFields as NF
 
 
 def _fact(r: dict, acc_names: dict) -> dict:
@@ -223,14 +223,22 @@ def delete(record_id: str) -> dict:
     if not r:
         return {"没删": record_id, "因为": "库里没有这条素材(它可能已经被删了)"}
     f = r["fields"]
+
+    # ★★ 把话**在删之前**就说完 ★★(2026-07-15 数字生命当天就把这只手打穿了)
+    # 第一版是「删 → 再去拼那句『谁在用它』」,而拼的时候用了两个**没 import 的名字**
+    # (`config` / `NF`)→ **NameError**。而 `delete_record()` 在崩之前**已经执行了**。
+    # 结果:**素材真删了,agent 只拿到一个 traceback**,「哪几条笔记正在用它」一个字没吐出来
+    # —— **那恰恰是这只手唯一存在的理由。**
+    # **做了事、然后崩掉,比不做事更毒** —— 人会以为它没做。
+    # 所以:**要说的话先攒齐,最后一步才动手。**
+    out = {"删了": record_id,
+           "删掉的是": {"编号": bitable.text(f.get(MF.CODE)), "类型": bitable.text(f.get(MF.TYPE)),
+                        "形态": bitable.text(f.get(MF.FORM)), "备注": bitable.text(f.get(MF.NOTE)),
+                        "指针": bitable.text(f.get(MF.REL_PATH))}}
     cited = bitable.link_record_ids(f.get(MF.BACKLINK))
-    was = {"编号": bitable.text(f.get(MF.CODE)), "类型": bitable.text(f.get(MF.TYPE)),
-           "形态": bitable.text(f.get(MF.FORM)), "备注": bitable.text(f.get(MF.NOTE)),
-           "指针": bitable.text(f.get(MF.REL_PATH))}
-    feishu_io.delete_record(MF.TABLE, record_id)
-    out = {"删了": record_id, "删掉的是": was}
     if cited:
-        out["⚠️这条素材有 %d 条笔记在用" % len(cited)] = [
-            config.record_url(NF.TABLE, i) for i in cited]
+        out[f"⚠️这条素材有 {len(cited)} 条笔记在用"] = [config.record_url(NF.TABLE, i) for i in cited]
         out["那几条笔记现在少了一张图"] = "去看看它们还配不配得齐(note.get)"
+
+    feishu_io.delete_record(MF.TABLE, record_id)   # ← 话说完了,现在才动手
     return out

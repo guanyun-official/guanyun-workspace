@@ -28,6 +28,27 @@ def assert_base_allowed(base_token: str, test_mode: bool) -> None:
                          f"当前 {base_token[:8]}…被拒(加品牌请在 config.BRAND_BASES 登记)")
 
 
+def source_from_path(link_path: str, declared: str) -> str:
+    """★provenance 的另一半:**像素落在哪个目录,决定它的来源**★
+
+    素材落在网盘 `02-AI生成/` → **强制 AI生成**,agent 说"这是实拍"也没用。
+    (就低不就高:误标实拍 → 漏勾 AI 声明 → **合规硬伤**;误标 AI生成 → 只是多勾一下。)
+
+    ★为什么把它搬到这儿(2026-07-15)★
+    这条法律原来**内联在 `ingest.register()` 里**(`if "02-AI生成" in link_path: source = AI`)——
+    **一条红线,住在手里,不住在法律里。**
+    后果立刻显形:它没法被直接测,红线测试只能**造一条假网盘路径 + mock 掉写库**才够得着它。
+    于是我给 register 加了"文件必须真在网盘上"的校验,那条测试**当场红了** ——
+    不是因为红线破了,而是因为**测试根本没在测红线,它在测 register 的一整条流水线**。
+
+    法律归位到 guard:纯函数,一个字的 IO 都没有,**不用 mock、不用假路径,直接测**。
+    """
+    from .bitable import MaterialSource as MSrc
+    if "02-AI生成" in link_path or "/AI生成/" in link_path:
+        return MSrc.AI
+    return declared
+
+
 def derive_source(input_sources: list[str], used_ai_generation: bool = False) -> str:
     """★provenance 传播焊死★:加工产物的『来源』**随像素出处**(「媒体唯一真身仓=网盘」,沿衍生链传播)。
 

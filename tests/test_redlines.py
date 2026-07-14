@@ -197,13 +197,48 @@ class R4_provenance随像素出处(unittest.TestCase):
         self.assertEqual(guard.derive_source([MSrc.AI, MSrc.REAL], used_ai_generation=False), MSrc.AI)
 
     def test_ai_pixels_land_as_ai_even_if_the_agent_says_otherwise(self):
-        """agent 说"这是实拍"也没用:落在 02-AI生成/ 的像素**强制** AI生成(就低不就高)。"""
-        from orchestrator import feishu_io, ingest
-        cap = {}
-        with mock.patch.object(feishu_io, "create_record", lambda t, f: cap.update(f) or "rec1"):
-            ingest.register("XX-260714-001", "形象图", "baidupan:/巧荷素材/02-AI生成/x.jpg",
-                            source=MSrc.REAL)      # ← agent 硬说实拍
-        self.assertEqual(cap["来源"], MSrc.AI, "AI 目录的像素被登记成了实拍 —— 会漏勾 AI 声明")
+        """agent 说"这是实拍"也没用:落在 02-AI生成/ 的像素**强制** AI生成(就低不就高)。
+
+        ★这条测试以前是假的★ 它 mock 掉 `feishu_io.create_record`、造一条**假网盘路径**,
+        然后断言写库的字段 —— 也就是说它**测的是 register 的一整条流水线**,不是那条法律。
+        (法律那时**内联在 register 里**,根本够不着。)
+        我给 register 加了"文件必须真在网盘上"的校验,它当场红了 —— **不是红线破了**。
+        法律归位 `guard.source_from_path` 之后,它是个纯函数:**零 mock、零假路径、直接测。**
+        """
+        self.assertEqual(guard.source_from_path("baidupan:/巧荷素材/02-AI生成/x.jpg", MSrc.REAL),
+                         MSrc.AI, "AI 目录的像素被登记成了实拍 —— 会漏勾 AI 声明")
+        self.assertEqual(guard.source_from_path("baidupan:/巧荷/2026.7.1手机拍静态/a.heic", MSrc.REAL),
+                         MSrc.REAL, "实拍目录的像素被误判成 AI —— 会让人白勾声明")
+
+    def test_the_law_is_actually_wired_into_the_hand(self):
+        """**法律得真装在手上**:`ingest.register` 必须**真调**`guard.source_from_path`,
+        而且**绝不能自己再内联一份**(两份真源 = 一改必漏)。
+
+        ★这条门的第一版是**空壳**,而且是被我自己的注释骗的★(2026-07-15,当场)
+        第一版是 `assertIn("guard.source_from_path", 源码文本)`。我把那句调用**整行删掉**,
+        门**照样绿** —— 因为那个名字在我写的注释里也出现了(「已归位 guard.source_from_path」)。
+        **踩坑账 §三 白纸黑字记着这个病:「在任意文件里加一句注释提到那个函数名 → 绿」。**
+        我一边写着那条教训,一边又犯了一遍。逮住它的**只有"把 bug 塞回去,看它报不报"这一步**。
+        现在走 **AST**:注释里写一万遍也没用,**必须是一次真的函数调用**。
+        """
+        import ast as _ast
+        src = (ROOT / "orchestrator" / "ingest.py").read_text(encoding="utf-8")
+        tree = _ast.parse(src)
+        called = any(
+            isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)
+            and n.func.attr == "source_from_path"
+            for n in _ast.walk(tree))
+        self.assertTrue(called, "register 没**真调**那条法律 —— 门没装在门框上(注释不算数)")
+
+        # 而且不许自己再内联一份(法律只能有一个真源)。比字符串也要**先剥掉注释和 docstring**。
+        code = "\n".join(l for l in src.splitlines() if not l.lstrip().startswith("#"))
+        for n in _ast.walk(tree):                       # 把 docstring 也剥掉
+            if isinstance(n, (_ast.FunctionDef, _ast.Module, _ast.ClassDef)):
+                d = _ast.get_docstring(n)
+                if d:
+                    code = code.replace(d, "")
+        self.assertNotIn('"02-AI生成" in link_path', code,
+                         "register 里又内联了一份 AI 目录判定 —— 法律有了第二份真源")
 
 
 class R5_控量门且不许有旋钮(unittest.TestCase):

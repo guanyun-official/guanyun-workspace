@@ -82,6 +82,20 @@ def today_panel(brand: str = "巧荷") -> dict:
         # 所以人面必须实时判一次——不能只信落库的那个字段。
         if not mat_ids and "零素材" not in qc:
             qc = ("零素材:一张图/视频都没挂,小红书发不出去——去 base 关联素材" + ("；" + qc if qc else ""))
+
+        # ★他牌:**每次都提,不靠谁的记性**★(2026-07-15 数字生命抓到,而且是最险的一处)
+        # 三条**已经在『待发布』**的稿,『质检』**完全空白**,而配图里全是 Dior 藤格纹托特
+        # (金色 D-I-O-R 挂饰正对镜头)。同样的风险,有的稿写了满满一段,有的稿一个字没有 ——
+        # **运营会把"质检空白"读成"这条没问题",然后就发出去了。**
+        # 靠 agent 每次记得写进质检,**就一定有忘的那次**。所以它是**素材上的一个字段**,
+        # 而卡片**从字段里读**:只要配图带他牌,这句话每次都在。
+        # (**提 ≠ 拦**。能不能发,是运营的判断 —— 这里只保证他看得见。)
+        branded = [idx[m]["code"] for m in mat_ids if m in idx and idx[m].get("他牌")]
+        if branded:
+            qc = (f"画面里有别家品牌 logo（{len(branded)} 张：{'、'.join(branded)}）"
+                  f"——**发之前自己看一眼**，别家 logo 能不能出现在我们画面里，你定。"
+                  + ("\n" + qc if qc else ""))
+
         if acc in paused:                        # 暂停号的稿不进待办(运营已经把这个号关了)
             paused_notes.append({"title": title, "account": acc, "mode": mode, "open": link, "质检": qc})
         elif st == NS.DRAFT_PENDING:
@@ -91,7 +105,8 @@ def today_panel(brand: str = "巧荷") -> dict:
             mats = publish.note_materials(f, idx)
             to_publish.append({"title": title, "account": acc, "mode": mode, "open": link,
                                "需AI声明": ai_req, "质检": qc,
-                               "materials": [{"code": m["code"], "link": m["取用链接"]} for m in mats]})
+                               "materials": [{"code": m["code"], "link": m["取用链接"],
+                                              "他牌": m.get("他牌", False)} for m in mats]})
             queued[acc] = queued.get(acc, 0) + 1          # 排队待发(占额度,但**还没发**)
     for r in need_link_notes:
         f = r["fields"]

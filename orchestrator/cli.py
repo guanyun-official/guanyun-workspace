@@ -28,14 +28,36 @@ def _out(data) -> None:
     print(json.dumps(data, ensure_ascii=False, indent=1, default=str))
 
 
-def _kv(pairs: list[str]) -> dict:
-    """--set 字段=值 … → dict。"""
-    out = {}
+def _kv(pairs: list[str], table: str = "") -> dict:
+    """`--set 字段=值 …` → dict,**按活库里那个字段的真实类型转型**。
+
+    ★为什么要转型(2026-07-15 数字生命报的「缺手」)★
+    老实现**只产字符串**。而『款式』是**多选**,飞书要 list → `MultiSelectFieldConvFail`。
+    它的原话:「**这只手对『款式』完全失效,单值也写不进。**
+    我是绕过 CLI、直接调 `feishu_io` 才改成的。**服务器上的 agent 只有 CLI,它改不了款式。**」
+
+    —— 手写了,却按不下去。**字段类型是活库里的事实**(不是我猜的),
+    harness 替它把话翻译成飞书听得懂的形态,**这是手的本分,不是替它做决策**
+    (填哪个值仍然全是它的判断)。
+    多选写法:`--set 款式=粉上衣+白纱裙,浅蓝上衣+米白阔腿裤`(逗号分隔)。
+    """
+    from . import feishu_io          # 延迟 import:模块加载时别碰库(和这个文件里其余的手一致)
+    out: dict = {}
+    types = feishu_io.field_types(table) if table else {}
     for p in pairs or []:
         if "=" not in p:
             raise SystemExit(f"--set 要写成 字段=值,你给的是「{p}」")
         k, v = p.split("=", 1)
-        out[k.strip()] = v.strip()
+        k, v = k.strip(), v.strip()
+        t = types.get(k)
+        if t == "MultiSelect":
+            out[k] = [x.strip() for x in v.split(",") if x.strip()]
+        elif t == "Checkbox":
+            out[k] = v.lower() in ("1", "true", "yes", "是", "y")
+        elif t == "Number":
+            out[k] = float(v) if "." in v else int(v)
+        else:
+            out[k] = v
     return out
 
 
@@ -93,6 +115,10 @@ def build() -> argparse.ArgumentParser:
     c.add_argument("--thumb-from", default="",
                    help="缩略图用哪张本地图(视频**必给**:你挑一张最能代表它的帧;"
                         "静图不给则用它自己)。**哪一帧代表这条视频,是你的判断**")
+    c.add_argument("--other-brand", action="store_true",
+                   help="**画面里有别家品牌的 logo**(Dior/Hermès/Gucci…)。"
+                        "看见了就报 —— 这是事实,不是判断。**能不能发,运营定**;"
+                        "但你不报,运营卡片上就永远不会提这一条,它就那么发出去了")
     c.add_argument("--no-thumb", action="store_true", help="别做缩略图(默认做,base 里人瞄一眼选材用)")
     c = sub.add_parser("material.store",
                        help="【手】**你在本地做好的成片 → 回传网盘 03-成片 + 登记素材**。"
@@ -240,7 +266,8 @@ def main(argv: list[str] | None = None) -> int:
                 if src:
                     token = materials.thumb_token(src, name)
             rid = ingest.register(code, a.__dict__["type"], netpan.pointer(a.path), a.note,
-                                  a.source, thumb_token=token, style=a.style)
+                                  a.source, thumb_token=token, style=a.style,
+                                  other_brand=a.other_brand)
             _out({"素材编号": code, "record_id": rid, "类型": a.__dict__["type"], "来源": a.source,
                   "指针": netpan.pointer(a.path),
                   "自证": f"python3 -m orchestrator material.list --type {a.__dict__['type']} | grep {code}"})
@@ -258,8 +285,9 @@ def main(argv: list[str] | None = None) -> int:
                            if src == "AI生成" else "纯剪辑/拼接,像素都来自实拍 → 免勾 AI 声明"),
                   "自证": f"python3 -m orchestrator material.list --type {a.__dict__['type']}"})
         elif a.cmd == "material.update":
-            feishu_io.update_record("素材表", a.id, _kv(a.set))
-            _out({"改了": a.id, "字段": _kv(a.set)})
+            fields = _kv(a.set, "素材表")
+            feishu_io.update_record("素材表", a.id, fields)
+            _out({"改了": a.id, "字段": fields})
         elif a.cmd == "material.delete":
             _out(materials.delete(a.id))
 
@@ -275,8 +303,9 @@ def main(argv: list[str] | None = None) -> int:
         elif a.cmd == "note.list":
             _out(notes.listing(status=a.status, account=a.account, limit=a.limit))
         elif a.cmd == "note.update":
-            notes.update(a.id, _kv(a.set))
-            _out({"改了": a.id, "字段": _kv(a.set)})
+            fields = _kv(a.set, "笔记表")
+            notes.update(a.id, fields)
+            _out({"改了": a.id, "字段": fields})
         elif a.cmd == "note.link-materials":
             notes.link_materials(a.id, _csv(a.materials))
             _out({"挂上了": a.id, "素材": _csv(a.materials)})

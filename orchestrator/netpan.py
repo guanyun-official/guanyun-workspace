@@ -24,6 +24,22 @@ from . import config
 BIN = os.environ.get("GY_NETPAN_BIN", "BaiduPCS-Go")        # CLI 可执行名/路径
 ROOT = os.environ.get("GY_NETPAN_ROOT", "/巧荷素材")        # 网盘素材根(投递+归档)
 INBOX = f"{ROOT}/待入库"   # 人拍完/AI生成后统一往这丢的单一扁平投递箱(别人好弄+容错;归类交打标技能事后做)
+
+# ★★ 世界有**两个根**,而 harness 的地图上只画了一个 ★★(2026-07-15 真数出来的)
+#
+# `ROOT`(`/巧荷素材/`)是**我们设计出来的**目录(待入库/01-原始拍摄/02-AI生成/03-成片/04-工作台)。
+# 它几乎是空的 —— 里面一共 3 个文件。
+#
+# 而摄影师**真正在用的**是 `/巧荷/`(按拍摄日期分的 6 个目录,**479 个文件**)。
+# **282 条已登记素材里,280 条指向这里。**
+#
+# 后果:`material.inbox` 只看 `INBOX`,board 只数库里的 —— **谁都没在看那 479 个文件**。
+# 于是 board 说「视频已登记可用 0」,agent 读成「没拍」,**发补拍单催摄影师补 8 条视频**,
+# 而 `/巧荷/视频底片/100EOSR6/` 下**躺着 95 条单反竖屏视频**。那张单子是骗人的话。
+#
+# **不是摄影师传错地方,是我们的地图画错了。** 眼睛得看两个根。
+SHOOT_ROOT = os.environ.get("GY_NETPAN_SHOOT_ROOT", "/巧荷")   # 摄影师实际归档的根(按拍摄日期分目录)
+ROOTS = [ROOT, SHOOT_ROOT]
 CACHE = Path(os.environ.get("GY_NETPAN_CACHE", str(config.WORKSPACE / ".netpan_cache")))
 POINTER_SCHEME = "baidupan:"   # 素材记录『链接』存的耐久指针(网盘路径,不过期);分享链接用时再 mint
 

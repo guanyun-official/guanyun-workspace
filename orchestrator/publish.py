@@ -25,6 +25,7 @@ def _mat_info(r: dict) -> dict:
     # 库里那条 href 只当兜底。
     return {"source": bitable.text(f.get(MF.SOURCE)), "code": bitable.text(f.get(MF.CODE)),
             "type": bitable.text(f.get(MF.TYPE)), "note": bitable.text(f.get(MF.NOTE)),
+            "他牌": bool(f.get(MF.OTHER_BRAND)),      # 画面里有别家 logo —— 卡片上必须提
             "link": bitable.text(f.get(MF.REL_PATH)) or bitable.url(f.get(MF.LINK))}
 
 
@@ -51,7 +52,8 @@ def note_materials(note_fields: dict, idx: dict) -> list[dict]:
         if not m:
             continue
         out.append({"code": m["code"], "type": m["type"], "source": m["source"],
-                    "note": m["note"], "取用链接": netpan.take_link(m["link"]) if m["link"] else ""})
+                    "note": m["note"], "他牌": m.get("他牌", False),
+                    "取用链接": netpan.take_link(m["link"]) if m["link"] else ""})
     return out
 
 

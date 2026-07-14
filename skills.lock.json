@@ -1,12 +1,12 @@
 {
-  "_note": "技能安装清单。**技能唯一真源 = GitHub 的 qiaohe-skill 仓**;本地 `local` 只是缓存;这里的 `sha` 是钉子。`scripts/install_skills.sh` 会:本地没有→从 GitHub clone;有→fetch 并 checkout 到这个 sha;然后 symlink 进 skills/(skills/ 不入库,是产物)。**升级技能** = 在技能仓改 → push GitHub → 更新这里的 sha → 重跑 install_skills.sh。任何机器(包括服务器上的 agent)照此都拿到同一份。",
+  "_note": "技能安装清单。**技能唯一真源 = GitHub 的 `guanyun-official/qiaohe-skill`(就这一个仓)**;本地 `local` 只是缓存,`sha` 是钉子。`install_skills.sh` 会:本地没有→clone;有→fetch 并 checkout 到这个 sha;然后 symlink 进 `skills/`(产物,不入库),**并把 lock 里没有的清掉**。**升级技能** = 在技能仓改 → push GitHub → 更新这里的 sha → 重跑 install_skills.sh。⚠️ 自证只有一条:`git ls-remote <repo> refs/heads/main` —— **直接问 GitHub**(install 会把技能仓留在游离 HEAD,本地 HEAD 和本地 origin/main 缓存都会骗你)。",
   "sources": [
     {
       "name": "qiaohe-skill",
       "repo": "https://github.com/guanyun-official/qiaohe-skill.git",
       "local": "~/Githubs/qiaohe-skill",
       "ref": "main",
-      "sha": "428ca45f905f1a58d8508a2443883dc97eec7530",
+      "sha": "2f2ac97b3b1dd0439675a46f4d06fbebeb664b20",
       "skills": [
         "issue-tracker",
         "picking-materials",
@@ -14,23 +14,13 @@
         "writing-amateur-ootd",
         "writing-ootd-caption",
         "xhs-collector",
-        "xhs-extract-master"
-      ],
-      "install": "symlink"
-    },
-    {
-      "name": "video-engine",
-      "repo": "https://github.com/xinzhuwang-wxz/video-engine.git",
-      "local": "~/Githubs/video-engine",
-      "ref": "main",
-      "sha": "493ac7f8388c73612d23838c01dc41ec3e013ce6",
-      "skills": [
+        "xhs-extract-master",
         "video-storyboard",
         "video-previz",
         "video-editing"
       ],
       "install": "symlink",
-      "_note": "★技能跟着引擎走,绝不拷贝★ 这三份技能指的 `$VE/scripts/*` 就在这个仓里。以前它们被拷进 qiaohe-skill(没带引擎)→ 指着不存在的脚本 → 被误判成'教一个不存在的世界'而删掉。**那不是世界不存在,是拷贝时弄丢了。** 引擎要跑还得 `bash ~/Githubs/video-engine/setup.sh`(它会 clone VectCutAPI 基座并起 :9001 —— 我一度探 9001 没人听就断言引擎不存在,**其实只是没启动**,而且那次的 200 还是本机代理替它回的)。"
+      "_video": "★剪辑三件套的引擎就在这个仓里:`video-engine/`(技能里的 `$VE`)★ **技能和引擎同仓,走不散。** 曾经只拷技能不带引擎 → `$VE/scripts/*` 全指空 → 被误判成『教一个不存在的世界』而删掉。**世界不是不存在,是拷贝时弄丢了。** 要跑引擎:`bash <仓>/video-engine/setup.sh`(clone VectCutAPI 基座 + 起 :9001)。"
     }
   ]
 }

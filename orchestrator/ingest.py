@@ -73,7 +73,8 @@ def gen_code(mtype: str, name: str, existing: set) -> str:
 
 def register(code: str, mtype: str, link_path: str, note: str = "",
              source: str = MSrc.REAL, accounts: list | None = None,
-             thumb_token: str = "", form: str = "", style: str = "") -> str:
+             thumb_token: str = "", form: str = "", style: str = "",
+             other_brand: bool = False) -> str:
     """登记一条素材进素材表(素材按赛道存,不挂衣服)。字段归位:
     - 链接(url)= 能点开的分享链(投手一点直达);相对路径(text)= 系统耐久指针(baidupan:/...),寻址用。
     ⚠️ 没有『生成参数』字段了(0/280,**从来没有任何调用方传过它**)——
@@ -83,8 +84,27 @@ def register(code: str, mtype: str, link_path: str, note: str = "",
     ★合规红线:来源由**落点/元数据**定,不靠视觉猜★(漏判 AI → 漏勾 AI 声明 = 合规硬伤)。
     素材落在 02-AI生成/ 目录 或 带生成参数 → **强制** AI生成(就低不就高,宁可让人往下摘)。
     agent 看图说"实拍"也覆盖不掉这条 —— 它是法律,不是判断。"""
-    if "02-AI生成" in link_path or "/AI生成/" in link_path:
-        source = MSrc.AI
+    # ★法律在任何 IO 之前★:像素落在 02-AI生成/ → 强制 AI生成(agent 说实拍也没用)。
+    # 这条以前**内联在这儿**,是一条住在手里、不住在法律里的红线 —— 已归位 guard.source_from_path。
+    from . import guard
+    source = guard.source_from_path(link_path, source)
+
+    # ★手不许撒谎:登记之前,先确认那个文件真在网盘上★
+    # (2026-07-15 数字生命验出来的洞 —— 它昨天不敢验,因为没有 material.delete 收不回来)
+    # 老实现**完全不校验**:一个根本不存在的路径**静默入库**,照发编号,
+    # 还打印一句"自证"命令 —— 而库里从此多了一条**指向虚空的假素材**。
+    # 下游谁也不知道:选材选中它、出稿配上它、运营点开发现是 404。
+    # **登记 = 往世界里写一条事实。写不实的事实,比不写更毒。**
+    if link_path.startswith(netpan.POINTER_SCHEME) or link_path.startswith("/"):
+        rp = netpan.pointer_path(link_path) if link_path.startswith(netpan.POINTER_SCHEME) else link_path
+        parent = rp.rsplit("/", 1)[0] or "/"
+        names = {x["name"] for x in netpan.list_dir(parent)}      # 读不到会炸,不会静默当空
+        if rp.rsplit("/", 1)[-1] not in names:
+            raise ValueError(
+                f"网盘上没有这个文件,不给登记:\n  {rp}\n"
+                f"  它的目录 {parent} 下有 {len(names)} 个东西,里面没有它。\n"
+                f"  → 用 `material.inbox --dir {parent}` 看看真实文件名(别照文件名猜,复制粘贴)。")
+
     # **形态由文件本身定,不猜也不问**(.MP4 就是视频,.jpg 就是图 —— 这是事实,不是判断)。
     # 显式传了就用传的(段素材等特殊情况);没传就从扩展名推。
     from . import media
@@ -103,7 +123,10 @@ def register(code: str, mtype: str, link_path: str, note: str = "",
         MF.NOTE: note,
     }
     if style:
-        fields[MF.STYLE] = style   # **这是哪一套衣服** —— 同一套写同一个名(撞衫/补拍靠它算)
+        # 『款式』是**多选**(一张图可以有两套衣服 —— 双人同框)。传字符串会被飞书拒。
+        fields[MF.STYLE] = [x.strip() for x in style.split(",") if x.strip()]
+    if other_brand:
+        fields[MF.OTHER_BRAND] = True   # 画面里有别家 logo —— **事实**。能不能发,运营定
     if form:
         fields[MF.FORM] = form   # 图 / 视频 —— 从文件形态推,**不再靠"视频文件强制落视频类"那条钳制**
     if thumb_token:
