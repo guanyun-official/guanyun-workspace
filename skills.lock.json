@@ -6,19 +6,31 @@
       "repo": "https://github.com/guanyun-official/qiaohe-skill.git",
       "local": "~/Githubs/qiaohe-skill",
       "ref": "main",
-      "sha": "eb07b0f104b4a33c1f075a7c842e38a09d5f2ae7",
+      "sha": "7475938ed382bd9a0f615af7b4aecf5f7120ee70",
       "skills": [
         "issue-tracker",
         "picking-materials",
         "tagging-material",
-        "video-editing",
-        "video-storyboard",
         "writing-amateur-ootd",
         "writing-ootd-caption",
         "xhs-collector",
         "xhs-extract-master"
       ],
       "install": "symlink"
+    },
+    {
+      "name": "video-engine",
+      "repo": "https://github.com/xinzhuwang-wxz/video-engine.git",
+      "local": "~/Githubs/video-engine",
+      "ref": "main",
+      "sha": "493ac7f8388c73612d23838c01dc41ec3e013ce6",
+      "skills": [
+        "video-storyboard",
+        "video-previz",
+        "video-editing"
+      ],
+      "install": "symlink",
+      "_note": "★技能跟着引擎走,绝不拷贝★ 这三份技能指的 `$VE/scripts/*` 就在这个仓里。以前它们被拷进 qiaohe-skill(没带引擎)→ 指着不存在的脚本 → 被误判成'教一个不存在的世界'而删掉。**那不是世界不存在,是拷贝时弄丢了。** 引擎要跑还得 `bash ~/Githubs/video-engine/setup.sh`(它会 clone VectCutAPI 基座并起 :9001 —— 我一度探 9001 没人听就断言引擎不存在,**其实只是没启动**,而且那次的 200 还是本机代理替它回的)。"
     }
   ]
 }

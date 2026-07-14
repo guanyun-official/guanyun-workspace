@@ -88,7 +88,10 @@ guanyun-workspace/            ← harness(领域那一半)
 │                             **运营侧一个脚本都没有** —— 导轨已拆完(2026-07-14)。
 │                             ⚠️ **审查不在这里** —— 审查是**每轮派子 agent**(见 docs/架构.md 六)
 ├── skills/                   **Knowledge(按需加载)**;install_skills.sh 按 skills.lock.json 装出的符号链接
-│                             唯一真源 = qiaohe-skill 仓。**不入库**
+│                             **两个真源**(lock 的 `sources` 是数组):
+│                               · `qiaohe-skill`  出稿 / 打标 / 选材 / 采集 / 需求
+│                               · `video-engine`  分镜 / AI参考片 / **可审计精剪**(cutlist + 剪映草稿)
+│                             **技能跟着它的引擎走,绝不拷贝**(拷过一次,把引擎弄丢了)。**不入库**
 ├── brands/巧荷/              账号声明(画像 + playbooks)· formulas(标题/正文/视觉公式)
 ├── schema/test/              Bitable 字段契约 dump(漂移用 git diff 兜底)
 └── tests/                    回归锁。**只测法律/手/眼睛,不测判断**(见 CLAUDE.md「测试测什么」)
@@ -98,7 +101,9 @@ guanyun-workspace/            ← harness(领域那一半)
 
 - **加账号 / 加模式**:写 `brands/巧荷/accounts/{号}.md` 的 playbook 声明 + 建对应 gen_skill。**不改 schema、不改代码。**
 - **加 base 字段**:`lark-cli base +field-create`(读回自证)→ `dump_schema.py --base test` → 登记 `bitable.py` 常量。
-- **加技能**:进 `qiaohe-skill` 仓 → `skills.lock.json` 锁 sha → `install_skills.sh`。**技能唯一真源,workspace 不藏技能。**
+- **加技能**:进它**自己的真源仓**(`qiaohe-skill` 或 `video-engine`)→ `skills.lock.json` 锁 sha → `install_skills.sh`。
+  **workspace 不藏技能,也绝不把别的仓的技能拷贝进来**(拷过一次,拷的时候把引擎弄丢了,
+  于是技能指着不存在的脚本 —— 我据此把它删了,还挂账说"这个能力没接线"。见 `docs/架构.md` 4.3c)。
 
 ## 门
 

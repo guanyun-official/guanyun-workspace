@@ -62,14 +62,23 @@ if [ "$FULL" = "1" ]; then
   # install_skills.sh 会把技能仓 checkout 到锁定 sha → **HEAD 游离**。
   # 这时 commit 落在游离 HEAD 上,`git push origin main` **静默无操作,退出码 0**。
   # 所以只有一条自证:**直接问 GitHub**(本地 HEAD 和本地 origin/main 缓存都会骗你)。
-  hr; echo "③ 技能真源同步(skills.lock.json 的 sha == GitHub 上的 main?)"
-  gate "lock sha == 远端 main(直接问 GitHub)" bash -c '
-    repo=$(python3 -c "import json;print(json.load(open(\"skills.lock.json\"))[\"sources\"][0][\"repo\"])")
-    lock=$(python3 -c "import json;print(json.load(open(\"skills.lock.json\"))[\"sources\"][0][\"sha\"])")
-    for i in 1 2 3; do remote=$(git ls-remote "$repo" refs/heads/main 2>/dev/null | cut -f1); [ -n "$remote" ] && break; done
-    [ -n "$remote" ] || { echo "问不到 GitHub(网络?)—— **不能证实就不能放行**"; exit 1; }
-    [ "$lock" = "$remote" ] || { echo "lock=$lock"; echo "远端=$remote"; echo "→ 技能没推上去(或忘了更新 lock)。**服务器会装到另一份技能。**"; exit 1; }
-    echo "lock == 远端 main == $remote"'
+  # ⚠️ **每一个源都要对**(2026-07-14:挂上 video-engine 之后,这道门差点只查第一个源)
+  # `sources` 是数组:qiaohe-skill(出稿/打标/选材…)+ video-engine(分镜/previz/精剪)。
+  # 只查 sources[0] = **第二个源的技能可以随便漂移,门一声不吭**。
+  hr; echo "③ 技能真源同步(**每个源**的 sha == GitHub 上的 main?)"
+  gate "所有源的 lock sha == 远端 main(直接问 GitHub)" bash -c '
+    n=$(python3 -c "import json;print(len(json.load(open(\"skills.lock.json\"))[\"sources\"]))")
+    for i in $(seq 0 $((n-1))); do
+      name=$(python3 -c "import json;print(json.load(open(\"skills.lock.json\"))[\"sources\"][$i][\"name\"])")
+      repo=$(python3 -c "import json;print(json.load(open(\"skills.lock.json\"))[\"sources\"][$i].get(\"repo\",\"\"))")
+      lock=$(python3 -c "import json;print(json.load(open(\"skills.lock.json\"))[\"sources\"][$i][\"sha\"])")
+      [ -n "$repo" ] || { echo "  · $name: 没有 repo(本地源),跳过"; continue; }
+      remote=""
+      for t in 1 2 3; do remote=$(git ls-remote "$repo" refs/heads/main 2>/dev/null | cut -f1); [ -n "$remote" ] && break; done
+      [ -n "$remote" ] || { echo "  ✗ $name: 问不到 GitHub —— **不能证实就不能放行**"; exit 1; }
+      [ "$lock" = "$remote" ] || { echo "  ✗ $name: lock=${lock:0:8} 远端=${remote:0:8} → **服务器会装到另一份技能**"; exit 1; }
+      echo "  ✓ $name: ${remote:0:8}"
+    done'
 
   # ── ④ 真跑冒烟(零 mock,真测试库:**agent 的眼睛真的睁得开吗**)────────
   hr; echo "④ 真跑冒烟(真库)"
