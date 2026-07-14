@@ -137,7 +137,11 @@ def get(note_id: str) -> dict:
         "账号": bitable.link_names(f.get(NF.ACCOUNT), acc_names),
         "内容类型": bitable.link_names(f.get(NF.CONTENT_TYPE), ct_names),
         "方法论": bitable.text(f.get(NF.PLAYBOOK)),
-        "文案草稿": bitable.text(f.get(NF.DRAFT)),      # ★正文★ —— 这就是它读不回来的那个东西
+        "文案草稿": bitable.text(f.get(NF.DRAFT)),        # ★正文★ —— 运营改的、最终发的就是它
+        "原始生成稿": bitable.text(f.get(NF.ORIGINAL)),    # agent 出稿那一刻的原文
+        # **人改过吗** —— 两者不一样,就说明运营动过手。**他改的每一处,都是技能该怎么改的答案。**
+        "人改过": (bitable.text(f.get(NF.ORIGINAL)).strip() != bitable.text(f.get(NF.DRAFT)).strip()
+                   and bool(bitable.text(f.get(NF.ORIGINAL)).strip())),
         "质检": bitable.text(f.get(NF.QC)),
         "AI声明": bool(f.get(NF.AI_DECLARED)),          # **人勾的**;你写不了这个字段
         "关联素材": [{"id": i, "编号": bitable.text(
@@ -181,6 +185,33 @@ def _find_inflight(account: str, content_type: str) -> str:
     return ""
 
 
+def _assert_materials_exist(material_ids: list[str]) -> None:
+    """挂上去的素材 id **必须真的存在** —— 不存在就当场拒,绝不静默挂个空的。
+
+    ★这是零素材门的地基,而它曾经是漏的★(2026-07-14 数字生命上班第二天撞到)
+
+    它给 `note.draft --materials` 传了两个**自己编的** record id(只查了一个,另两个想当然)。
+    **飞书照单全收,一声不吭。** 真跑复现:连 `recFAKE111111` 这种明显是假的都能挂上去。
+
+    后果不是"少了两张图",是**base 在骗人**:
+      · 笔记的『关联素材』字段里**明晃晃挂着 3 条**,运营在 base 里看到"有素材"
+      · 点开一看 —— **空的**。那两条 record 根本不存在
+      · 而零素材门数的是"**能解析出来的**"素材数 —— 它以为有 1 条,于是放行
+      · **一条实际上发不出去的稿,就这么进了『待发布』**
+
+    "静默接受不存在的引用"和它昨天抓到的"静默吞掉不认识的键",是**同一族病**:
+    **静默 = 往真库灌残数据,而且没有任何人会发现。**
+    (它的原话:"响的能自己发现,静默的会把脏数据写进真库 —— 静默那个毒得多。")
+    """
+    from .bitable import MaterialFields as MF
+    missing = [i for i in material_ids if not feishu_io.get_record(MF.TABLE, i)]
+    if missing:
+        raise ValueError(
+            f"这些素材 record_id **在素材表里根本不存在**:{missing}\n"
+            f"飞书会照单收下 —— 笔记在 base 里看起来「挂着素材」,点开却是空的。**人面上就成了谎话。**\n"
+            f"出路:用 `material.list` 把真的 id 查出来(别凭记忆编),再挂。")
+
+
 def new(account: str, content_type: str, title: str = "", status: str = NS.NEED_COPY) -> str:
     """建一行笔记(派活占位『待出文案』/ 想法储备 / …)。返回 record_id。
     **派不派、派给谁、派什么模式 —— 全是 agent 的判断**,这里只负责写下来。"""
@@ -218,7 +249,10 @@ def write_draft(account: str, content_type: str, title: str, body: str, *,
 
     fields: dict = {
         NF.TITLE: title[:60],
-        NF.DRAFT: draft_text,
+        NF.DRAFT: draft_text,             # 运营改的、最终发的就是它
+        NF.ORIGINAL: draft_text,          # ★同时留一份原文,之后不动★
+        # 两者的差 = **人改了什么** = 这个系统里最值钱的信号(直接告诉技能该怎么改)。
+        # 老实现只有一个字段:人一改,原文就没了;agent 一重出稿,人的修改就没了。**信号一落地就被抹掉。**
         NF.STATUS: NS.DRAFT_PENDING,      # 草稿待发=待人审;绝不越过审核门
         NF.QC: qc,                        # agent 自己看出的问题(它想让运营重点看什么)
     }
@@ -229,6 +263,7 @@ def write_draft(account: str, content_type: str, title: str, body: str, *,
     if ct_ids := resolve_link(CTF.TABLE, CTF.NAME, content_type):
         fields[NF.CONTENT_TYPE] = ct_ids
     if material_ids:
+        _assert_materials_exist(material_ids)   # ★不存在的 id 当场拒,绝不静默挂个空的★
         fields[NF.LINKED_MATERIALS] = material_ids
     if keywords:
         # **关键词回程**(架构.md 第五节那个活标本):base 里一直有这个 link 字段,
@@ -259,5 +294,7 @@ def update(note_id: str, fields: dict) -> None:
 
 
 def link_materials(note_id: str, material_ids: list[str]) -> None:
-    """给笔记挂素材(『关联素材』link 字段,写 record_id 列表)。**挂哪几张是 agent 的判断。**"""
+    """给笔记挂素材(『关联素材』link 字段,写 record_id 列表)。**挂哪几张是 agent 的判断。**
+    但 **id 必须真的存在** —— 飞书连 `recFAKE111111` 都照收(见 `_assert_materials_exist`)。"""
+    _assert_materials_exist(material_ids)
     update(note_id, {NF.LINKED_MATERIALS: material_ids})

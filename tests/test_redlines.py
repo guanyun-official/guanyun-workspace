@@ -263,6 +263,44 @@ class R7_零素材门(unittest.TestCase):
         guard.assert_has_material(3, "正常稿")
 
 
+class R7b_挂上去的素材必须真的存在(unittest.TestCase):
+    """**零素材门的地基**:笔记『关联素材』里的 record_id 必须真的在素材表里。
+
+    真事(2026-07-14 数字生命上班第二天):它给 `note.draft --materials` 传了两个**自己编的** id
+    (只查了一个,另两个想当然)。**飞书照单全收,一声不吭** —— 真跑复现:连 `recFAKE111111` 都能挂上。
+
+    后果不是"少了两张图",是**base 在骗人**:
+      · 笔记的『关联素材』字段里明晃晃挂着 3 条,运营在 base 里看到"有素材"
+      · 点开一看 —— **空的**
+      · 零素材门数的是"能解析出来的"素材数 → 它以为有 1 条 → **放行**
+      · **一条实际发不出去的稿,就这么进了『待发布』**
+    """
+
+    def test_nonexistent_material_id_is_refused(self):
+        from orchestrator import feishu_io
+        with mock.patch.object(feishu_io, "get_record", lambda t, rid: None), \
+                self.assertRaises(ValueError) as cm:
+            notes._assert_materials_exist(["recFAKE111111"])
+        self.assertIn("recFAKE111111", str(cm.exception))
+
+    def test_real_material_id_passes(self):
+        """**不误伤**:真存在的 id 照常放行。"""
+        from orchestrator import feishu_io
+        with mock.patch.object(feishu_io, "get_record", lambda t, rid: {"record_id": rid, "fields": {}}):
+            notes._assert_materials_exist(["recREAL1", "recREAL2"])   # 不抛
+
+    def test_both_write_paths_check_it(self):
+        """**两条挂素材的路都得查**(write_draft 和 link_materials)——漏一条,洞就还在。"""
+        src = (ROOT / "orchestrator" / "notes.py").read_text(encoding="utf-8")
+        tree = ast.parse(src)
+        for fn_name in ("write_draft", "link_materials"):
+            fn = next(n for n in ast.walk(tree)
+                      if isinstance(n, ast.FunctionDef) and n.name == fn_name)
+            called = {getattr(n.func, "id", "") for n in ast.walk(fn) if isinstance(n, ast.Call)}
+            self.assertIn("_assert_materials_exist", called,
+                          f"{fn_name} 没查素材 id 是否真实存在 —— 假 id 能被飞书照单收下")
+
+
 class R8_绝不覆盖运营待审的稿(unittest.TestCase):
     """『待出文案』= 派活占位(还没内容)→ 可推进;
     『草稿待发』= **人正等着审** → 再写一条 update 上去 = **把他等着审的稿悄悄换掉**。

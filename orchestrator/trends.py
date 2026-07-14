@@ -100,13 +100,23 @@ def update_idea(idea_id: str, fields: dict) -> None:
     它按纪律没有绕过去写脚本,就把残数据留在库里等我给一只手。**这就是那只手。**
     """
     guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)   # 红线:只写测试库
-    KEYS = {IF.TITLE, IF.BODY, IF.MERITS, IF.LINK}
-    bad = set(fields) - KEYS
+    # ★两个 idea 动词,键名必须一样★(2026-07-14 数字生命第二天撞到)
+    # 老实现:`idea.add` 收 {标题,文案,可借鉴,源链接},`idea.update` 收 {标题,文案,优点,链接}
+    # —— **两个动词的键名正好相反**,而 help 给的示例又是 add 那套。
+    # 它照着 help 写 `--set 可借鉴=...`,当场被拒:"灵感库没有这些字段:['可借鉴','源链接']"。
+    # (好在这次**它响了、还说清了合法键**,它 30 秒就绕过去了,没写进库 —— 门是对的,**示例在骗人**。)
+    # 现在:**统一用 add 那套输入契约**(标题/文案/可借鉴/源链接),内部再映射到 base 的字段名。
+    IN2FIELD = {"标题": IF.TITLE, "文案": IF.BODY, "可借鉴": IF.MERITS, "源链接": IF.LINK}
+    bad = set(fields) - set(IN2FIELD)
     if bad:
-        raise ValueError(f"灵感库没有这些字段:{sorted(bad)}。可改的:{sorted(KEYS)}")
-    patch = dict(fields)
-    if IF.LINK in patch and isinstance(patch[IF.LINK], str):
-        patch[IF.LINK] = bitable.url_value(patch[IF.LINK])   # 链接是 URL 字段,写字符串会炸
+        raise ValueError(
+            f"灵感的键写错了:{sorted(bad)} 不认识。\n"
+            f"合法的键只有这四个(**和 idea.add 完全一样**):"
+            f"标题 · 文案(原帖正文)· 可借鉴(它凭什么火)· 源链接(溯源)")
+    patch = {}
+    for k, v in fields.items():
+        fld = IN2FIELD[k]
+        patch[fld] = bitable.url_value(v) if fld == IF.LINK and isinstance(v, str) else v
     feishu_io.update_record(IF.TABLE, idea_id, patch)
 
 

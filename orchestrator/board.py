@@ -70,15 +70,57 @@ def _accounts(brand: str) -> list[dict]:
 
 
 def _notes_by_status() -> dict:
-    """笔记表状态分布(状态机哪一环堵着)。热态服务端过滤,不整拉表。"""
+    """笔记表状态分布(状态机哪一环堵着)。热态服务端过滤,不整拉表。
+
+    ⚠️ **『暂缓归档』必须在里面。** 老实现的 8 个格子里没有它,`inflight()` 也不列它 ——
+    于是**运营退回的稿在 board 上是隐形的**。数字生命的话:
+    "换一个新 agent 明天上班,它根本不知道有两条被退回的稿子躺在那儿。"
+    退回 ≠ 消失。**人说了话,系统就得让下一个人看见。**
+    """
     hot = [NS.IDEA, NS.NEED_SHOOT, NS.NEED_COPY, NS.DRAFT_PENDING,
-           NS.APPROVED, NS.TO_PUBLISH, NS.PUBLISHED, NS.LOOPED_BACK]
+           NS.APPROVED, NS.TO_PUBLISH, NS.PUBLISHED, NS.LOOPED_BACK, NS.ON_HOLD]
     cnt = {s: 0 for s in hot}
     for r in feishu_io.search_in(NF.TABLE, NF.STATUS, hot):
         s = bitable.text(r["fields"].get(NF.STATUS)).strip()
         if s in cnt:
             cnt[s] += 1
     return cnt
+
+
+def _on_hold() -> list[dict]:
+    """**被运营退回的稿**(暂缓归档)—— 带上他为什么退。**别让它们隐形。**"""
+    acc_names = feishu_io.name_map(AF.TABLE, AF.NAME)
+    out = []
+    for r in feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.ON_HOLD]):
+        f = r["fields"]
+        out.append({"id": r["record_id"], "标题": bitable.text(f.get(NF.TITLE)),
+                    "账号": bitable.link_names(f.get(NF.ACCOUNT), acc_names),
+                    "为什么退回": bitable.text(f.get(NF.QC)),
+                    "打开": config.record_url(NF.TABLE, r["record_id"])})
+    return out
+
+
+def _human_edits() -> list[dict]:
+    """**人改了什么** —— 『原始生成稿』和『文案草稿』的差。
+
+    ★这是整个系统里最值钱的信号★
+    运营把哪句话改掉了,**直接告诉你技能该怎么改**(不用猜、不用开复盘会)。
+    老实现只有一个『文案草稿』字段:人一改,原文就没了 —— **信号一落地就被抹掉**。
+    现在留住了。**它改的每一处,都是下一版技能的答案。**
+    """
+    out = []
+    for r in feishu_io.search_in(NF.TABLE, NF.STATUS,
+                                 [NS.DRAFT_PENDING, NS.APPROVED, NS.TO_PUBLISH,
+                                  NS.PUBLISHED, NS.LOOPED_BACK]):
+        f = r["fields"]
+        orig = bitable.text(f.get(NF.ORIGINAL)).strip()
+        final = bitable.text(f.get(NF.DRAFT)).strip()
+        if orig and final and orig != final:
+            out.append({"id": r["record_id"], "标题": bitable.text(f.get(NF.TITLE)),
+                        "状态": bitable.text(f.get(NF.STATUS)),
+                        "提示": "人动过这条稿。用 `note.get` 对一遍『原始生成稿』和『文案草稿』——"
+                                "**他改的每一处,都是技能该怎么改的答案**"})
+    return out
 
 
 def _material_stock(brand: str) -> dict:
@@ -170,6 +212,8 @@ def view(brand: str = "巧荷") -> dict:
         "账号": _accounts(brand),
         "笔记状态分布": _notes_by_status(),
         "在途(还没审完/发完的)": notes.inflight(),
+        "被运营退回的(暂缓归档)": _on_hold(),      # **别让它们隐形** —— 人说了话,下一个人得看得见
+        "人改过的稿(最值钱的信号)": _human_edits(),  # 原始生成稿 vs 文案草稿 的差 = 技能该怎么改
         "素材库存": _material_stock(brand),
         "素材类型词汇(素材表 select 的合法值)": list(ingest.MATERIAL_TYPES),
         "网盘待入库箱": {"路径": netpan.INBOX,

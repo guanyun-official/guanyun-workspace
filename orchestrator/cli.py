@@ -129,7 +129,9 @@ def build() -> argparse.ArgumentParser:
     c.add_argument("--write", action="store_true", help="不给 = 干跑(返回值里 `写库了: false`)")
     c = sub.add_parser("idea.update", help="【手】改灵感库的一行(补『可借鉴』『源链接』『文案』)")
     c.add_argument("id")
-    c.add_argument("--set", nargs="+", required=True, help="字段=值,如 可借鉴=... 源链接=https://...")
+    c.add_argument("--set", nargs="+", required=True,
+                   help="键=值。**键和 idea.add 完全一样**:标题 / 文案 / 可借鉴 / 源链接。"
+                        "例:--set 可借鉴='标题堆检索标签' 源链接=https://...")
     c = sub.add_parser("idea.converted", help="【手】灵感转化成笔记了 → 回填灵感库(闭环)")
     c.add_argument("idea_id")
     c.add_argument("note_id")
