@@ -18,6 +18,9 @@ Harness = Tools + Knowledge + Observation + Action Interfaces + Permissions
 - **Observation** — 它的眼睛:`cockpit`(今日卡片)`shotlist`(补拍单)`report`(周报)+ base 视图
 - **Permissions** — 它的法律:`guard.py` 五道红线门
 
+**Base 不是 harness,是世界。** 飞书 Base `ZhzJbf` / 百度网盘 / 小红书 = **状态 · 唯一真源**,是 agent 作用的对象。Base **同时是人的驾驶舱** —— 人和 agent 看同一张表,**不搞两套真源**。
+全景图(Agent / Harness / workspace / skills / Base 各在哪):`docs/架构.md`。
+
 **技能是 Knowledge,不是函数。** agent 把 `SKILL.md` 读进上下文(渐进披露),它变成模型此时的知识,**然后模型自己动手**。不是 `result = skill.f(x)` 等返回值——那等于又把决策从模型手里拿走。
 
 ## 唯一判据(动手前必过)
