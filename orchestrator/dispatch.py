@@ -5,9 +5,26 @@
 
 sourcing 决定这活『素材怎么来』(不冲突,只是第一步不同,下游出稿→审→发→回流一致):
 - shoot_then_drip:从已拍素材池挑着出稿(ootd/图文)
-- curated:等新品/文物到位再策展出稿(官号)
+- curated:等新品/文物到位再策展出稿
 - trend_imitate:先跑爆款雷达找对标爆款→反推要拍什么→提醒拍→再出稿(爆款驱动)
 """
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  ⚠️  【导轨】判断藏在 harness 里 —— **下个 session 要把它交回模型**              ║
+# ║                                                                              ║
+# ║  `orchestrator/` 本该只有:Tools(手)· Observation(眼)· Permissions(法)   ║
+# ║  · Knowledge(常驻知识)。**判断不该在这里。**                                  ║
+# ║                                                                              ║
+# ║  本文件里的判断:                                                              ║
+# ║    · daily_assignments / _should_dispatch —— cadence 权重轮转                 ║
+# ║      = **"今天派什么活"**(队列积压了也照派 —— 它压根不看积压)                ║
+# ║                                                                              ║
+# ║  该留的原子(Tools/Permissions):                                              ║
+# ║    · _open_slots(读在途,确定性事实)· dispatch 的写库 + 红线门 + 并发锁       ║
+# ║                                                                              ║
+# ║  ⚠️ **不是"删",是"换"** —— 先造出"agent 上班"的入口,再把判断交出去。          ║
+# ║     详见 docs/架构.md 第四节。判据:CLAUDE.md「唯一判据」。                     ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
 from __future__ import annotations
 
 from . import accounts, bitable, config, feishu_io, guard, lock
@@ -75,39 +92,6 @@ def pending_ideas(brand: str = "巧荷") -> list[dict]:
                     "可借鉴": bitable.text(f.get(IF.MERITS)).strip(),
                     "文案": bitable.text(f.get(IF.BODY)).strip(),   # 防搬运源正文:出稿传 draft_one(source_text=)
                     "爆款源": bitable.text(f.get(IF.LINK)).strip()})
-    return out
-
-
-def run_day(brand: str = "巧荷", llm_mode: str = "stub", write: bool = False) -> list[dict]:
-    """跑一天(人只管头尾的『中间』一条龙):排期(daily_assignments,尊重 base 自动排产)
-    → 每条活 出文案(generate_draft)+ 挂素材(create_draft_note 内含 select_materials)→ 推进『草稿待发』。
-    **一条命令产出"今天每号要发什么(草稿+素材,待人审)"**,人打开 base 就能审。
-    - write=False 干跑:只算今天的活,不写库;write=True 落『草稿待发』。
-    - llm_mode=real 出真文案(≈2元/条,走 llm.run_prompt=画像+skill few-shot+配方);stub 零成本占位验证接线。
-    红线不变:只推到『草稿待发』,**绝不自动发布、绝不代勾 AI 声明**。
-    注:run_day 是**批量从零出稿**(画像+skill 原创),不传 source_text,故防搬运门对它 no-op(本就无对标源可搬)。
-    **蹭爆款(trend_imitate)走 draft_one --source-text 传灵感库正文**,防搬运门才比对得到爆款正文——不要用 run_day 蹭稿。"""
-    from . import draft
-    assigns = daily_assignments(brand)
-    if not write:                                        # 干跑:不写库,不加锁
-        return [{"account": a["account"], "content_type": a["content_type"],
-                 "gen_skill": a["gen_skill"], "material_needs": a["material_needs"],
-                 "status": "(干跑)"} for a in assigns]
-    out: list[dict] = []
-    with lock.write_lock():                              # 并发锁(ADR-0009):防两个自动化写进程并发重复派活
-        for a in assigns:
-            entry = {"account": a["account"], "content_type": a["content_type"],
-                     "gen_skill": a["gen_skill"], "material_needs": a["material_needs"]}
-            try:
-                r = draft.generate_draft(a["account"], brand, llm_mode=llm_mode,
-                                         content_type=a["content_type"])
-                rid = draft.create_draft_note(r)   # upsert 待出文案→草稿待发 + 挂货对板素材
-                entry.update(note_id=rid, title=r["title"], status=NS.DRAFT_PENDING)
-                if r.get("quality_flags"):
-                    entry["质检"] = r["quality_flags"]   # #42 出稿即评:问题顶给人重点看(不阻塞)
-            except Exception as e:  # noqa: BLE001  单号失败不拖垮整天,记下继续
-                entry.update(status="✗失败", error=str(e)[:120])
-            out.append(entry)
     return out
 
 

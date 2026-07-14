@@ -11,6 +11,28 @@
 红线:只在测试库写(guard.assert_base_allowed);发布与 AI 声明是人手,本执行器只推到「草稿待发」,
 绝不代勾 AI 声明、绝不自动发布。
 """
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  ⚠️  【导轨】判断藏在 harness 里 —— **下个 session 要把它交回模型**              ║
+# ║                                                                              ║
+# ║  `orchestrator/` 本该只有:Tools(手)· Observation(眼)· Permissions(法)   ║
+# ║  · Knowledge(常驻知识)。**判断不该在这里。**                                  ║
+# ║                                                                              ║
+# ║  本文件里的判断:                                                              ║
+# ║    · _material_hits / _spread_by_scene —— **"配哪些素材"**(6 条过滤规则)     ║
+# ║    · quality_flags                 —— **"稿子行不行"**                       ║
+# ║    · _fit_to_spec                  —— **"超长了要不要回炉"**                 ║
+# ║    · _rewrite_if_leaked            —— **"抄了要不要重写"**                   ║
+# ║    · compose_prompt                —— **组 prompt**(写作 SOP 在 SKILL.md 里, ║
+# ║                                       这里又拼了一遍 = 方法有两份真源)        ║
+# ║                                                                              ║
+# ║  该留的原子(Tools/Permissions):                                              ║
+# ║    · create_draft_note 的写库 + 五道红线门 · load_gen_skill(装技能)          ║
+# ║    · select_material_rows 的**读库**部分(取素材行是 IO,选哪几条才是判断)     ║
+# ║                                                                              ║
+# ║  ⚠️ **不是"删",是"换"** —— 先造出"agent 上班"的入口,再把判断交出去。          ║
+# ║     详见 docs/架构.md 第四节。判据:CLAUDE.md「唯一判据」。                     ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
 from __future__ import annotations
 
 from . import accounts, config, guard, llm
@@ -123,16 +145,6 @@ def _rewrite_if_leaked(draft_text: str, sources: list, prompt: str) -> tuple[str
     return fixed, cost
 
 
-def load_clothes(clothes_code: str, brand: str = "巧荷") -> str:
-    """加载知识库里某件真实衣服的 know-how(款式/面料/工艺/卖点/形制/文物出处/纹样)。
-    官号品牌新作/需具体产品的模式按此写**真实产品**,不编造。knowledge_base/衣服/{编号}.md;无则空串。
-    编号只认干净标识(含 / \\ .. 的一律拒,防路径穿越读到知识库外的文件)。"""
-    if not clothes_code or any(c in clothes_code for c in ("/", "\\", "..")):
-        return ""
-    p = config.WORKSPACE / "brands" / brand / "knowledge_base" / "衣服" / f"{clothes_code}.md"
-    return p.read_text(encoding="utf-8") if p.exists() else ""
-
-
 def pick_playbook(acc, content_type: str = "") -> dict:
     """取该号 playbook:content_type 给定→**复用 accounts.resolve_playbook**(id 优先、同类取最高权重,
     统一选择语义,不再第二套 first-match);否则第一套。无 playbook / 指定内容类型不存在 → 报错(不静默漏)。"""
@@ -161,14 +173,14 @@ def load_keywords(brand: str = "巧荷", limit: int = 18) -> list[str]:
     return out[:limit]
 
 
-def compose_prompt(acc, pb: dict, skill_text: str, title_seed: str = "", clothes_text: str = "",
+def compose_prompt(acc, pb: dict, skill_text: str, title_seed: str = "",
                    keywords: list | None = None, material_text: str = "", source_text: str = "") -> str:
     """把账号画像 + 该模式配方 + gen_skill few-shot + **本条要配的真实素材画面** + (可选)衣服 know-how 拼成 prompt。
 
     **material_text 是文案的事实底座**(dogfood 2026-07-14 补):gen_skill 要求写「面料质感」又要求
     「看不出的留白、严禁编造」——"看不出的"预设了作者看得见画面。原来 prompt 里**没有素材**(素材是生成
     完才挑的),LLM 眼前空白却被要求写质感 → 只能编。喂了 material_facts 后,文案是**配**这些画面写的。
-    clothes_text 给定=另有知识库真身可依(官号品牌新作);两者都没有才退回"别写具体断言、留白"。"""
+    没有素材(stub)→ 退回"别写具体断言、留白、严禁编造"。"""
     profile = (acc.profile_text or "")[:1200]
     fewshot = (skill_text or "")[:4000]  # 放宽:整份 gen_skill 配方(标题+逐字稿等)进 prompt,不截尾
     ctype = pb.get("content_type") or pb.get("id") or ""
@@ -207,10 +219,7 @@ def compose_prompt(acc, pb: dict, skill_text: str, title_seed: str = "", clothes
                      "\n**文案必须配着这些画面写**:颜色/光泽/质感/场景/光线**只写画面里看得出的**;"
                      "画面里看不出的(具体面料成分、克重、朝代形制、非遗工序)**一律留白,严禁编造**——"
                      "宁可少写一层,也不许写出与画面对不上的东西(货不对板)。")
-    if clothes_text:
-        parts.append("【本条要展示的真实衣服(朝代/形制/工艺/纹样/面料/款式**严格以此为准,不得编造**)】\n"
-                     + clothes_text[:1500])
-    if not material_text and not clothes_text:
+    if not material_text:
         parts.append("【无素材、也未绑衣服=没有任何事实来源】**严禁编造**具体产品名/朝代/形制/工艺/面料质感"
                      "(别凭空说'宋制褙子'、别说'料子很轻/垂坠感好'——你没见过这件衣服)——只写该号通用调性、留白。")
     body_len = pb.get("body_len") if isinstance(pb.get("body_len"), (list, tuple)) else None
@@ -272,10 +281,6 @@ def quality_flags(draft_text: str, pb: dict | None = None, material_count: int |
     lines = [ln.strip() for ln in t.splitlines() if ln.strip()]
 
     # ⓪ **零素材 = 这条稿发不出去**(小红书图文/视频都必须有图/视频)。
-    # 真跑实证(2026-07-14 全真实测):官号「品牌新作展示」绑了 --clothes GY-001,而 #36 货对板规则是
-    # "只选标了该衣服的素材,否则**宁可 0 条不挂错图**"——素材库里没有任何素材标了 GY-001 → 选出 0 条 →
-    # 一条**没有任何图的稿**落进『草稿待发』,而质检当时说「✅ 无问题」。运营拿到手根本发不了。
-    # 规则本身没错(不挂错图),错在**没人把"这稿是废的"喊出来**。
     if material_count == 0:
         flags.append("零素材:一张图/视频都没挂,小红书发不出去——去素材表给这件衣服标上素材,或改用别的模式")
 
@@ -319,10 +324,9 @@ def _split_title(draft_text: str, fallback: str) -> str:
 
 
 def generate_draft(account_name: str, brand: str = "巧荷", llm_mode: str = "stub",
-                   title_seed: str = "", clothes: str = "", content_type: str = "",
+                   title_seed: str = "", content_type: str = "",
                    source_text: str = "", material_rows: list[dict] | None = None) -> dict:
     """读声明 → 加载 gen_skill few-shot(+可选真实衣服 know-how)→ 组稿 → 生成 → 组一条待审笔记字段。
-    clothes=知识库衣服编号(如 GY-001):绑定后按真实产品写、防编造(官号品牌新作应绑)。
     content_type=指定模式(一号多模式时选哪个 playbook;空=第一套)。
     source_text=**对标源完整正文**(蹭爆款出稿时的情报)。空且给了 title_seed → **自动去灵感库取**
     (以前要人手 --source-text 粘正文,而库里明明有 —— 又一个"想起来方便"的断链)。
@@ -338,7 +342,6 @@ def generate_draft(account_name: str, brand: str = "巧荷", llm_mode: str = "st
     pb = pick_playbook(acc, content_type)
     gen_skill = accounts.gen_skill_of(pb)
     skill_text = load_gen_skill(gen_skill)
-    clothes_text = load_clothes(clothes, brand)
     keywords = load_keywords(brand) if llm_mode == "real" else []  # 关键词只在真跑注入(stub 保持离线不触网)
     # **先挑素材,再配文**(dogfood 2026-07-14 修的顺序 bug):原来是先生成、后挑素材(create_draft_note 里),
     # 于是 prompt 里没有素材 → LLM 没见过要配的画面,却被 gen_skill 要求写「面料质感」→ 只能编 → 货不对板。
@@ -350,9 +353,9 @@ def generate_draft(account_name: str, brand: str = "巧荷", llm_mode: str = "st
     if material_rows is None and llm_mode == "real":
         acc_ids = _resolve_link(AF.TABLE, AF.NAME, account_name)
         material_rows = select_material_rows(pb.get("material_needs") or [],
-                                             acc_ids[0] if acc_ids else "", clothes=clothes)
+                                             acc_ids[0] if acc_ids else "")
     mat_rows = material_rows
-    prompt = compose_prompt(acc, pb, skill_text, title_seed, clothes_text, keywords=keywords,
+    prompt = compose_prompt(acc, pb, skill_text, title_seed, keywords=keywords,
                             material_text=material_facts(mat_rows or []),   # stub 未取素材→无事实底座→走禁编造分支
                             source_text=source_text)   # 爆款正文进 prompt 只作情报(学结构);抄句子由出口门拦死
     if llm_mode == "real":
@@ -393,8 +396,6 @@ def generate_draft(account_name: str, brand: str = "巧荷", llm_mode: str = "st
         "material_needs": pb.get("material_needs") or [],   # #32 选素材的 key(类型 vocab)
         "gen_skill": gen_skill,
         "skill_loaded": bool(skill_text),
-        "clothes": clothes,
-        "clothes_grounded": bool(clothes_text),   # 是否绑定了真实衣服 know-how(官号应为 True 防编造)
         # **文案是配着这批素材写的**(不是写完再挑图)→ create_draft_note 直接挂这批,绝不重选,
         # 否则发布时配的图和文案里写的画面对不上(货不对板)。
         # stub 未取素材(mat_rows=None)→ 不给 material_ids,create_draft_note 走老路自己选(行为不变)。
@@ -423,11 +424,10 @@ def _resolve_link(table: str, name_field: str, name: str) -> list[str]:
 
 
 def _material_hits(records: list[dict], material_needs: list[str], account_rec_id: str = "",
-                   limit: int = 3, clothes: str = "", content: str = "") -> list[str]:
+                   limit: int = 3, content: str = "") -> list[str]:
     """#32 选素材的**纯过滤谓词**(零 IO,records 由调用点注入)→ 命中 record_id(≤limit)。
     这里是全仓分支最密、最易错的一段(6 条过滤 + 排序),抽成纯函数直测(不必 mock list_records):
       ① 类型 ∈ material_needs ② 拍摄状态=已拍 ③ 赛道投影(显式标别号排除、未标可用)
-      ④ #36 货对板(clothes 给定:只选编号/备注标了该衣服的,否则宁可 0 条不挂错图)
       ⑤ #38 内容寻址(content 给定:按备注内容标签如'逆光'选)⑥ #36 少用优先(被引次数升序,素材分散防撞图)。
     空 material_needs / 无候选 → [](不炸)。"""
     from . import bitable
@@ -445,8 +445,6 @@ def _material_hits(records: list[dict], material_needs: list[str], account_rec_i
         accs = bitable.link_record_ids(f.get(MF.ACCOUNTS))
         if account_rec_id and accs and account_rec_id not in accs:
             continue                       # 显式标了别号=排除;没标=可用
-        if clothes and clothes not in (bitable.text(f.get(MF.CODE)) + "|" + bitable.text(f.get(MF.NOTE))):
-            continue                       # #36 品牌新作:只选标了该衣服的素材,否则货不对板
         if content and content not in (bitable.text(f.get(MF.CODE)) + "|" + bitable.text(f.get(MF.NOTE))):
             continue                       # #38 内容寻址:按备注里的内容标签(场景/调性/衣服)选,如'逆光'
         cands.append(m)
@@ -488,22 +486,22 @@ def _spread_by_scene(cands: list[dict], limit: int) -> list[dict]:
 
 
 def select_material_rows(material_needs: list[str], account_rec_id: str = "", limit: int = 3,
-                         clothes: str = "", content: str = "") -> list[dict]:
+                         content: str = "") -> list[dict]:
     """#32 选素材,返回**完整行**(不只 record_id)——出稿要拿它们的 vision 标签(『备注』)当**事实底座**。
     类型∈material_needs 服务端过滤(不全表拉,规模M2)→ 交纯谓词 `_material_hits` 决策,保持其排序。"""
     from . import feishu_io
     from .bitable import MaterialFields as MF
     rows = feishu_io.search_in(MF.TABLE, MF.TYPE, material_needs)   # 类型∈needs 下推
-    hit_ids = _material_hits(rows, material_needs, account_rec_id, limit, clothes, content)
+    hit_ids = _material_hits(rows, material_needs, account_rec_id, limit, content)
     by_id = {r["record_id"]: r for r in rows}
     return [by_id[i] for i in hit_ids if i in by_id]                # 保 _material_hits 的少用优先序
 
 
 def select_materials(material_needs: list[str], account_rec_id: str = "", limit: int = 3,
-                     clothes: str = "", content: str = "") -> list[str]:
+                     content: str = "") -> list[str]:
     """同上,只要 record_id(向后兼容的薄壳)。"""
     return [r["record_id"] for r in
-            select_material_rows(material_needs, account_rec_id, limit, clothes, content)]
+            select_material_rows(material_needs, account_rec_id, limit, content)]
 
 
 def material_facts(rows: list[dict]) -> str:
@@ -612,13 +610,11 @@ def create_draft_note(result: dict) -> str:
     # 绝不重选:重选可能挑出另一批(少用优先序会随被引次数变)→ 配的图和文案写的画面对不上,货不对板。
     mat_ids = result.get("material_ids")
     if mat_ids is None:
-        mat_ids = select_materials(result.get("material_needs") or [], acc_ids[0] if acc_ids else "",
-                                   clothes=result.get("clothes", ""))  # #36 品牌新作按衣服选素材,货对板
+        mat_ids = select_materials(result.get("material_needs") or [], acc_ids[0] if acc_ids else "")
     from . import processing
     decide, execute = processing.default_hooks() if processing.processing_enabled() else (None, None)
     proc_report: list[str] = []
     mat_ids = processing.maybe_process(mat_ids, account=account_name, mode=content_type_name,
-                                       clothes=result.get("clothes", ""),
                                        decide=decide, execute=execute,
                                        report=proc_report)   # gated 加工步(默认关=原样返回)
     if proc_report:

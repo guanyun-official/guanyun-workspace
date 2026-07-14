@@ -40,4 +40,4 @@
 
 ## 影响
 - keep 门:98 单测 / ar_check 100(14项)/ 6 check_p 全绿。
-- 权威:`docs/SOURCE_OWNERSHIP.md` + `docs/架构一图流.md`。
+- 权威:`CONTEXT.md「唯一源边界」` + `docs/架构.md`。

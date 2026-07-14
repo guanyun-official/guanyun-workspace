@@ -1,112 +1,99 @@
-# AGENTS.md · 巧荷 Workspace 环境事实
+# AGENTS.md · 环境事实
 
-> 任何 agent(Claude Code / Codex / headless)进入本仓库先读这份。搭建计划与阶段验收见 `docs/PLAN.md`。
-> 方法论一句话:**飞书当脸,CLI agent 当手,Bitable 当账本,git skills 当大脑,人当质检员和发布键。**
+> 任何 agent(Claude Code / Codex / headless / 服务器 agent)进本仓库先读这份。
+> **这份只讲"这里有什么"(环境事实)。** 心智和判据在 `CLAUDE.md`;全景架构在 `docs/架构.md`;病例在 `docs/踩坑账.md`。
 
-## 六角色一览
+本仓 = **harness 的领域那一半**(Tools / Observation / Permissions / 常驻 Knowledge)。
+Agent 是模型;Base、网盘、小红书是**世界**,不是 harness。
 
-| 角色 | 承担者 | 铁律 |
+---
+
+## Base(世界 · 唯一真源)
+
+| | token | 用途 |
 |---|---|---|
-| 账本(唯一真相源) | 飞书 Bitable 生产 Base(见下) | 一条内容一行,状态列是唯一真值;不当队列、不当媒体库 |
-| 大脑(能力) | git 技能仓库(qiaohe-skill、video-engine),经 `skills.lock.json` 安装 | 只装"怎么做";实例配置一律外置注入 |
-| 手(执行壳) | Claude Code 主力,Codex 备用 | 易耗品,双入口,换壳成本趋近零 |
-| 推进器(loop) | 大刀阔斧后=薄执行器 `orchestrator/draft.py`(按需/手动跑;数据备份+周复盘走 cron,内容 cron 待轻调度器见 #8) | 只推到草稿待发,绝不自动发布 |
-| 脸(员工界面) | 飞书原生:表单/看板/仪表盘/审批卡片 | 员工永不直接碰 agent |
-| 人 | 拍素材、审内容、点发布(勾 AI 声明) | 两个人审硬门不可自动化 |
+| **测试 Base(= 运营库)** | `ZhzJbfkOsafwevsWkW8cfoILnfb` | **一切写操作只进这里。** `TEST_MODE=1` **本身就是上线态** |
+| 生产 Base | `N9IVbi6pTatJG5sqyTTcc0vSn4g` | **焊死不碰**(读也不行)。红线守卫在任何 IO 之前拦住 |
 
-## Base 事实
+- 表:笔记表(状态机脊柱)· 素材表 · 账号表 · 内容类型表 · 灵感库 · 关键词库 · 运行日志表 · 目标客户 · 素人推广案例 · Issue 表(共 13 表)。
+- 字段契约 dump 在 `schema/test/`(`scripts/dump_schema.py` 产出);**取表一律按表名经 schema 解析,不硬编码 table_id**(测试库 table_id 与生产不同)。
+- **Base 同时是人的驾驶舱** —— 人和 agent 看同一张表,不搞两套真源。
+- 旧 Base `ITz4bsLSWaKuSqsuUaocmEC0nXe` 已废弃,不管理。
 
-- **生产 Base(巧荷 Qiaohe-official-beta)**:`N9IVbi6pTatJG5sqyTTcc0vSn4g`,共 14 表。
-- **测试 Base**:`ZhzJbfkOsafwevsWkW8cfoILnfb`(曾复制自生产；2026-07-10 起按 SourceOwnership 重构为新体系工作台,当前 13 表,不再追求生产 14 表保真)。
-- **默认一切写操作只进测试 Base**(`.env` 的 `LARK_APP_TOKEN` 默认=测试 Base;`TEST_MODE=1`)。
-  生产 Base 只读(dump schema 等);生产变更一律走"迁移清单 + 人工确认"(见 docs/PLAN.md P7)。
-- 旧巧荷 Base `ITz4bsLSWaKuSqsuUaocmEC0nXe` 已废弃,不纳入 schema 管理。
+## 账号(3 个;**以账号表为准**,此处仅快照)
 
-### 生产 Base 14 表 table_id 清单(2026-07-08 lark-cli 实拉)
+`ootd号`(视频唯美OOTD / 图文唯美OOTD)· `图文号1`(素人图文种草)· `图文号2`(素人图文种草)
 
-| 表名 | table_id |
+**官号已下线**(2026-07-14 删除:账号声明 + base 记录 + 『品牌新作展示』模式 + 衣服知识库整条支线)。
+**日常不注册衣服** —— 就是拍素材、打标、配文案发。
+
+账号声明(画像 + strategy/playbooks)在 `brands/巧荷/accounts/{号}.md` —— **它是常驻 Knowledge**,agent 读它。
+
+## 红线(Permissions · `orchestrator/guard.py`)
+
+- **只写测试库 `ZhzJbf`**;生产库读也不碰。
+- **绝不自动发布** —— 一律止于『草稿待发』。发布是人的动作。
+- **绝不代勾 AI 声明**(《AI 生成合成内容标识办法》2025-09 生效)。AI 像素 → 素材『来源=AI生成』→ 门要求声明 → **人勾**。
+- **单号 ≤3 篇/天**(平台风控)。**这个阈值焊成常量,不许 env 覆盖** —— 红线不许有旋钮。
+- **防搬运**:爆款只当情报,产出不得含任何进过 prompt 的外来文本的 ≥10 连续实义字符片段(`guard.assert_no_source_leak`;抄了会自动回炉重写,再抄真拒)。
+- **零素材门**:一张图/视频都没挂的稿,小红书发不出去 → 拦在待发布门外。
+- 明文凭证只从 env 读,绝不入代码/库。
+
+## 媒体(网盘 = 媒体唯一真身仓,ADR-0004)
+
+`/巧荷素材/` 下:`待入库`(摄影师直接传,不用管文件名)· `01-原始素材` · `02-AI生成` · `03-成片`
+**Bitable 不当媒体库** —— 表里只存网盘指针 + 小缩略图(附件字段,给人在 base 里瞄一眼)。
+
+## 工具
+
+| 工具 | 注意 |
 |---|---|
-| 衣服总表 | `tbl2ZnYoLX3d0QtE` |
-| 账号表 | `tblveO3Wzm3Foo6v` |
-| 内容类型表 | `tblWZgMpWNqfHabt` |
-| 面料·工艺库 | `tbljjcr9gLk7cPbn` |
-| 素材表 | `tbles5eiDykCBxD1` |
-| 笔记表 | `tblHi1Htg5wntydY` |
-| 关键词库 | `tblaiG8bQumH5CQW` |
-| 目标客户 | `tblM6EDqDdcPYIxO` |
-| 灵感库 | `tblP4jlRNZGCiIU2` |
-| 技能表 | `tblSidOqOT1B4dj9` |
-| Issue 表 | `tblcvycKVdY3IF7A` |
-| 修订日志 | `tbleWyxtJD57a59X` |
-| 素人推广案例 | `tblj8q46icA5YZoM` |
-| 运行日志表 | `tblgZRFvZiZtfxNN` |
-
-> 字段级契约(field_name/type/select 枚举)在 `schema/prod/<表名>.json`(`scripts/dump_schema.py` 产出);
-> 测试 Base 契约 dump 到 `schema/test/`。**测试 Base 的 table_id 与生产不同**,且测试 Base 可为验证新体系删表/删字段；写代码取表一律按表名经 schema 解析,不硬编码 table_id。
-
-## 小红书账号(4 个;**以账号表 `tblveO3Wzm3Foo6v` 为准**,此处仅快照)
-
-| 账号 | 备注 |
-|---|---|
-| `63068651425` | 小红书号 |
-| `26507264096` | 小红书号 |
-| `60befdfd000000000101cc10` | user id |
-| 官号 @巧荷·东方美学 | 品牌官号 |
-
-## 红线(所有 agent 必须遵循)
-
-- **绝不自动发布**:AI 只做到"待发布包",人手机发布并**必勾 AI 声明**(《AI 生成合成内容标识办法》2025-09 生效;小红书 2026-02 强化公告)。
-- **单号 ≤3 篇/天**,间隔 ≥2h + 随机延迟;多号内容强差异化(账号表调性字段 + 内容类型元模版注入)。
-- **防搬运**:爆款只当情报,产出绝不含原帖原文片段(出口闸把关,`lib/skill_gate.no_source_leak`)。
-- **Bitable 单 writer 串行 + 429 退避 + 业务键幂等**;自动化只挂关键状态。
-- **素材库约定**:大文件走本地素材库 + 表存相对路径,目录 `素材库/{SKU}/01-原始拍摄|02-AI生成|03-成片|04-工作台`,命名 `{SKU}-{排期编号}-S{n}_{AI|实拍}.mp4`;搬家只改根前缀。
-  - **生成媒体同拍摄媒体,一视同仁走盘**:AI 生成图/草稿落 `02-AI生成`、最终成片落 `03-成片`;素材表 `链接`(text) 存相对路径、`来源`=AI生成、`生成参数` 记 prompt/模型。**Bitable 不当媒体库**——成片视频/高清图这类大文件绝不进表;`文件`(attachment) 字段只放能在飞书直接预览的小图。无数据盘时就本地,将来迁 NAS/对象存储只改根前缀。
-- 密钥只存 `.env`(不入库),泄漏即在飞书后台/各平台轮换。
-
-## 工具清单
-
-| 工具 | 用法/注意 |
-|---|---|
-| `lark-cli` | 飞书读写统一走它。**一律 `--as bot`(璃奈,app `cli_a965851065381ccb`)+ `LARK_CLI_NO_PROXY=1`**(宿主机代理会弄挂它)。gotchas:`+record-get` 字段直接挂 `data.record` 下;`+record-delete` 要 `--yes`;建带 property 字段走 bitable v1,公式走 base v3 |
-| `hermes` | 飞书消息网关(告警/日报投递) |
-| `ffmpeg` | 视频直出成片(video-editing 技能的基座之一) |
-| `BaiduPCS-Go` | 百度网盘全盘 CLI(netpan real 的运行依赖;ADR-0004)。装:`bash scripts/install_netpan.sh`(mac=brew/Linux 服务器=release,幂等)。**真跑需人工一次** `BaiduPCS-Go login -bduss=<BDUSS>`(凭证人工,机器不碰)+ `.env` 设 `GY_NETPAN_MODE=real`。BDUSS 会过期→`netpan.logged_in()` 前置检查+告警重登。默认 stub(离线开发全链不需它) |
-| `sips` | mac 自带,livp/heic→jpg 转码(`orchestrator/media.py`;Linux 服务器换 heif-convert/ImageMagick,改 `media._run_convert`) |
-| VectCutAPI | `:9001` 本地服务,剪映草稿物化(video-editing);P4b 起 launchd 守护 |
-| `.mcp.json` | MCP 连接器声明(密钥按名引 env);当前为空骨架,后续接 xiaohongshu-mcp 等 |
+| `lark-cli` | 飞书读写走它。**一律 `--as bot`**(app `cli_a965851065381ccb`)**+ `LARK_CLI_NO_PROXY=1`**(宿主机代理会弄挂它)。gotcha:`+record-get` 字段挂 `data.record` 下;删除类要 `--yes`;建带 property 字段走 bitable v1、公式走 base v3 |
+| `hermes` | 飞书消息网关(告警/日报投递到人眼前) |
+| `ARK`(火山方舟) | 出稿 + 看图 + 生图。key 从 env `ARK_API_KEY` 读。**`claude -p` 实测贵 577 倍**(每次吞 33K 系统提示),已弃 |
+| `BaiduPCS-Go` | 网盘 CLI。装:`bash scripts/install_netpan.sh`。**真跑需人工一次** `BaiduPCS-Go login -bduss=<BDUSS>` + `.env` 设 `GY_NETPAN_MODE=real`。BDUSS 会过期 |
+| `ffmpeg` / `sips` | 转码、抽关键帧、缩略图(`orchestrator/media.py`;Linux 换 heif-convert/ImageMagick) |
+| `xhs-extract-master` | 小红书非登录抓取(技能)。**`note` 原子取正文必须带 `xsec_token`**,正文在 `note.desc` |
 
 ## 仓库结构
 
 ```
-guanyun-workspace/
-├── AGENTS.md            # 本文件:环境事实(Codex/CC 通用)
-├── CLAUDE.md            # → 薄指针指向本文件
-├── .mcp.json            # MCP 连接器声明(最小骨架)
-├── .env.example         # 全量 env 键说明;真值在本地 .env(不入库)
-├── schema/              # Bitable 字段契约(prod/ + test/ + snapshots/)
-├── skills.lock.json     # 技能安装清单(锁 repo+sha+skills)
-├── skills/              # install_skills.sh 产出的 symlink(不入库)
-├── scripts/             # draft_one.py(薄执行器CLI)/ ingest.py / dump_schema.py / install_skills.sh / check_p*.sh
-├── orchestrator/        # 薄执行器 draft.py + 已验证原语(accounts/llm/guard/feishu_io/bitable/config/metrics/alerts/skills_lock)
-├── lib/                 # ⚠️技能层共享运行库,非死码——qiaohe-skill 的 Python 技能(立号/爆款拆解/选题深化)
-│                        #   经三级路径定位(parents/…/lib)注入 sys.path 后 import:feishu_workbench 写库/
-│                        #   xhs_fetch 取数/skill_gate 校验+防搬运/skill_io I/O契约/brand_kb 品牌注入(apify_xhs 供 xhs_fetch)。
-│                        #   orchestrator 不 import 它(两个独立子系统,各有一套写库/取数/防搬运),但删了会断技能层(check_p3⑥ 会红)。
-├── local-skills/        # 号/模式特化 skill(writing-{amateur-ootd,ootd-caption,brand-newpiece};compose 通用+真实帖 few-shot)
-├── brands/              # 账号声明·画像 + knowledge_base 内容 know-how(衣服考据)
-└── docs/                # 交接文档.md(权威)/ 架构与方法论.md / PLAN.md 等
+guanyun-workspace/            ← harness(领域那一半)
+├── CLAUDE.md                 心智 · 唯一判据 · 红线 · 纪律  ← **每轮都进上下文**
+├── AGENTS.md                 本文件:环境事实
+├── CONTEXT.md                领域词汇(给 seam 起名)
+├── docs/架构.md              全景图 · 技能是 Knowledge · **欠账(唯一一份)**
+├── docs/踩坑账.md            病例(形态陷阱 / 人面缺陷 / 检查器自己得病)
+├── docs/adr/                 已定的决策,别翻案
+│
+├── orchestrator/             **Tools + Observation + Permissions**
+│   ├── guard.py              ← Permissions:五道红线门
+│   ├── feishu_io netpan ark media   ← Tools:它的手
+│   ├── cockpit shotlist report      ← Observation:它的眼睛
+│   ├── bitable                      ← 常驻 Knowledge:schema 常量
+│   └── accounts config draft dispatch publish collect compose processing …
+│
+├── scripts/                  CLI + 门(check_p*.sh / review_gate.sh / alignment_audit.py)
+│                             ⚠️ tag_materials / daily_dispatch / draft_one 是**三条导轨**
+│                                (替模型做了决策,该拆 —— 见 docs/架构.md 第四节)
+├── skills/                   **Knowledge(按需加载)**;install_skills.sh 按 skills.lock.json 装出的符号链接
+│                             唯一真源 = qiaohe-skill 仓。**不入库**
+├── lib/                      ⚠️**技能层共享运行库,非死码**。qiaohe-skill 的 Python 技能 import 它
+│                             (feishu_workbench / xhs_fetch / skill_gate / brand_kb)。
+│                             orchestrator 不 import 它(两个独立子系统)。删了会断技能层
+├── brands/巧荷/              账号声明(画像 + playbooks)· formulas(标题/正文/视觉公式)
+├── schema/test/              Bitable 字段契约 dump(漂移用 git diff 兜底)
+└── tests/                    回归锁。**只测法律/手/眼睛,不测判断**(见 CLAUDE.md「测试测什么」)
 ```
 
-## 开发 or 运营?（先读 docs/运行模式.md）
-- **运营环境 = 测试库 `ZhzJbf…`**(当前 .env + TEST_MODE=1 即上线态);生产库 `N9IVbi…` 焊死不碰。**"上线"= 在测试库挂 cron,不是切生产库。**
-- 改系统 → 开发 loop(check_p* 全绿 + ar_check 100 + issue 清零);跑内容 → 运营 loop(`install_cron.sh --install`)。
+## 加东西的流程
 
-## 架构现状（2026-07-11，大刀阔斧后·薄执行器骨架）
+- **加账号 / 加模式**:写 `brands/巧荷/accounts/{号}.md` 的 playbook 声明 + 建对应 gen_skill。**不改 schema、不改代码。**
+- **加 base 字段**:`lark-cli base +field-create`(读回自证)→ `dump_schema.py --base test` → 登记 `bitable.py` 常量。
+- **加技能**:进 `qiaohe-skill` 仓 → `skills.lock.json` 锁 sha → `install_skills.sh`。**技能唯一真源,workspace 不藏技能。**
 
-领域词汇见 `CONTEXT.md`;方法论见 `docs/架构与方法论.md`;权威依据 `docs/交接文档.md`。
-重引擎(engine/planner/推进器)、素材视图层(material_view/Clip/usage)、契约锁三层、审计工具(account_kernel/base_workbench)已删(净删~4000行,git history 可查)。要点:
-- **薄执行器 `orchestrator/draft.py`**(CLI `scripts/draft_one.py`)= 体系核心:读账号声明 → 取该号 playbook 的 gen_skill → `load_gen_skill` 加载其 `SKILL.md` 真实帖 few-shot → 组稿(画像+few-shot+配方)→ 过 base 红线闸 → 写笔记表「草稿待发」。stub 默认零成本,`--llm real` 走 `llm.run_prompt` 预算帽。**只推到草稿待发,绝不代勾 AI 声明、绝不自动发布**;发布与 AI 声明是人手。第一目标 A 已真跑通(ootd号 真出可发草稿,4 号泛化验证过)。
-- **已验证原语**(§5 移植保留):`feishu_io`(lark-cli api 底座)、`guard`(红线闸:只写测试库/AI声明门/控量)、`accounts`(声明加载)、`llm.run_prompt`(real 生成)、`bitable`(字段词汇 + text/parse_ts/link_record_ids 多形态收窄函数)、`metrics`(extract 采集 xhs-extract-master 非登录,默认 stub)、`alerts`(hermes 薄网关)、`ingest`(scan/link/register 素材摄入)、`netpan`(百度网盘薄桥:list/pull/upload/share/logged_in,subprocess seam+默认 stub;ADR-0004 网盘=媒体真身仓)、`media`(livp/heic→jpg 转码+形态判断)。
-- **playbook 指向 gen_skill,gen_skill 是 skill**(特化住 `local-skills/`、通用在 qiaohe-skill remote);`skills.lock.json` 按 source(remote/local)统一管。加发法=写 playbook 声明 + 建 gen_skill,**不改 schema**。
-- **加测试库字段流程**:`lark-cli base +field-create`(读回自证)→ `dump_schema.py --base test` → 登记 `bitable.py` 字段常量。漂移检测用 `dump_schema + git diff schema/test`(git 兜底)。
-- **keep 门**:6 个 `check_p*.sh`(p2 测试库健康 / p4 薄执行器 A 验收 等)+ `ar_check`(12 项精简痛点:A可跑 / few-shot 真进 prompt / 唯一源 / 红线…)=100 + 单测全绿。加能力必带测试。
+## 门
+
+`bash scripts/review_gate.sh --full` —— 单测 + ar_check(=100)+ dogfood 真库冒烟 + check_p1-6 + verify_usable + **机器审 `alignment_audit.py`** + **17 条链路真跑(真库/真ARK/真网盘)**。
+
+**全绿才提交。红=不留,别拿"部分绿"充数。**

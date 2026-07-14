@@ -43,6 +43,21 @@ Harness = Tools + Knowledge + Observation + Action Interfaces + Permissions
 - **红线不许有旋钮。** 阈值焊成常量;要改就改代码 + commit + 留痕。
 - 明文凭证只从 env 读,绝不入代码/库。
 
+## 测试(**只写红线。其余靠子 agent 真跑**)
+
+> **除了红线,别写测试。** 探索靠真跑,实测派**子 agent** 去做。
+
+为什么:为了让东西"可测",你会本能地把它写成**给定输入 → 确定输出**的纯函数。
+于是你不断**把判断从模型手里拿出来**做成规则 —— **因为只有那样才好测。测试驱动了导轨。**
+`test_dispatch` 断言"cadence 会派出这 4 条" —— 那条测试**就是把轮转规则焊死的钉子**。
+
+而且测试反复在**测措辞**(grep 源码/文档里有没有某句话),一改用词就红,却拦不住真事故。
+
+- ✅ **只测红线** —— 红线不许被软化:五道门、provenance、只写测试库、绝不自动发布、**红线不许有旋钮**。
+- ❌ **不测判断** —— "给定这些素材必须选这 3 条""今天必须派这 4 条"。**那是模型的事。**
+- ❌ **不测措辞** —— grep 源码/文档里有没有某句话。**那是保护我的用词,不是保护正确性。**
+- ✅ **实测 = 派子 agent 真跑**(真库 / 真 ARK / 真网盘),我当外部观察者验收。**零 mock 零 stub。**
+
 ## 实测纪律
 
 - **不搞 mock、不搞 stub。** 绿门只证明"代码和 mock 自洽";交付只认真跑(真库/真 ARK/真网盘/真小红书)。
@@ -70,6 +85,15 @@ Harness = Tools + Knowledge + Observation + Action Interfaces + Permissions
 **中文**(注释/commit/issue)。**commit / push / issue 自动做,别问。**
 提交前:`bash scripts/review_gate.sh --full` + `python3 scripts/alignment_audit.py` **全绿**。红=不留,别拿"部分绿"充数。
 
-## 已知欠账
+## 已知欠账(唯一一份在 `docs/架构.md` 第四节)
 
-`scripts/tag_materials.py` `daily_dispatch.py` `draft_one.py` —— **把驾驶者换成了导轨**:它们替模型决定了"这张图是什么""今天派什么活""选哪些素材""稿子行不行"。该拆成:**手留 harness,决策还给模型,方法进技能**。详见 `docs/架构.md` 第四节。
+**导轨 —— 判断被写死的地方,下个 session 的主战场:**
+
+- **心脏在 `orchestrator/` 里**(最要命,那里本该只有 Tools/Observation/Permissions/Knowledge):
+  `dispatch.py`(cadence 轮转 = "今天派什么活")· `draft.py`(选材 / 稿子行不行 / 超长回炉 / 抄了重写 / 组 prompt)
+- CLI 薄壳:`tag_materials.py`(看图分类)· `daily_dispatch.py` · `draft_one.py`
+- **心跳也是导轨** —— cron 不是心跳,是**我替数字生命排的作息表**。已全部卸掉。
+  "能设定时器"是 harness 的手;**"几点醒、醒来干什么"是 agent 的判断**。
+
+⚠️ **拆的时候最容易犯的错**:拆掉规则后,本能地想"那得给模型一个规则去决定" ——
+**那就是又把导轨装回去了。给它眼睛、给它手、给它知识,然后闭嘴。**

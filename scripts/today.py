@@ -3,7 +3,7 @@
   python3 -m scripts.today            # 打印今日:待审/待发/待回填链接/要补拍
   python3 -m scripts.today --alert     # 顺带推飞书(hermes),手机上一眼看完
 
-替代挨个敲 run_day/publish_ready/shot_list——人/接手 agent 每天就看这一个。
+替代挨个敲 today/publish_ready/shot_list——人/接手 agent 每天就看这一个。
 """
 from __future__ import annotations
 

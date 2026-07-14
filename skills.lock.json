@@ -1,39 +1,38 @@
 {
- "_note": "技能安装清单(docs/PLAN.md §P1 / 审查 C1)。scripts/install_skills.sh 按此把技能 symlink 进 skills/(不入库)。**技能唯一真源 = qiaohe-skill 仓**(2026-07-14 归一:原 workspace/local-skills 的 4 个巧荷写作/打标技能已收编进技能仓,workspace 不再藏技能)。升级技能 = 源仓库拉新 → 更新 sha → 重跑 install。",
- "sources": [
-  {
-   "name": "qiaohe-skill",
-   "repo": "https://github.com/guanyun-official/qiaohe-skill.git",
-   "local": "~/Githubs/qiaohe-skill",
-   "ref": "main",
-   "sha": "af6921f89c99c2020141036ac95a1eb653dee225",
-   "skills": [
-    "content-writing",
-    "feishu-requirement-manager",
-    "issue-tracker",
-    "qiaohe-amateur-miner",
-    "qiaohe-video-script",
-    "searxng",
-    "write-xiaohongshu",
-    "xhs-audience-miner",
-    "xhs-extract-master",
-    "xiaohongshu",
-    "xiaohongshu-cover-generator",
-    "xiaohongshu-images",
-    "xiaohongshu-note-analyzer",
-    "explosive-teardown",
-    "account-teardown",
-    "topic-deepening",
-    "xhs-collector",
-    "video-editing",
-    "video-previz",
-    "video-storyboard",
-    "writing-ootd-caption",
-    "writing-amateur-ootd",
-    "writing-brand-newpiece",
-    "tagging-material"
-   ],
-   "install": "symlink"
-  }
- ]
+  "_note": "技能安装清单。**技能唯一真源 = GitHub 的 qiaohe-skill 仓**;本地 `local` 只是缓存;这里的 `sha` 是钉子。`scripts/install_skills.sh` 会:本地没有→从 GitHub clone;有→fetch 并 checkout 到这个 sha;然后 symlink 进 skills/(skills/ 不入库,是产物)。**升级技能** = 在技能仓改 → push GitHub → 更新这里的 sha → 重跑 install_skills.sh。任何机器(包括服务器上的 agent)照此都拿到同一份。",
+  "sources": [
+    {
+      "name": "qiaohe-skill",
+      "repo": "https://github.com/guanyun-official/qiaohe-skill.git",
+      "local": "~/Githubs/qiaohe-skill",
+      "ref": "main",
+      "sha": "1b00b061e991dd251f8e64ccb953ce498357998d",
+      "skills": [
+        "content-writing",
+        "feishu-requirement-manager",
+        "issue-tracker",
+        "qiaohe-amateur-miner",
+        "qiaohe-video-script",
+        "searxng",
+        "write-xiaohongshu",
+        "xhs-audience-miner",
+        "xhs-extract-master",
+        "xiaohongshu",
+        "xiaohongshu-cover-generator",
+        "xiaohongshu-images",
+        "xiaohongshu-note-analyzer",
+        "explosive-teardown",
+        "account-teardown",
+        "topic-deepening",
+        "xhs-collector",
+        "video-editing",
+        "video-previz",
+        "video-storyboard",
+        "writing-ootd-caption",
+        "writing-amateur-ootd",
+        "tagging-material"
+      ],
+      "install": "symlink"
+    }
+  ]
 }

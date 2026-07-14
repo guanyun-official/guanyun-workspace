@@ -39,7 +39,7 @@ def default_hooks():
     return compose.ai_decide, compose.execute
 
 
-def maybe_process(material_ids: list[str], *, account: str = "", mode: str = "", clothes: str = "",
+def maybe_process(material_ids: list[str], *, account: str = "", mode: str = "",
                   decide: Callable | None = None, execute: Callable | None = None,
                   report: list | None = None) -> list[str]:
     """gated 加工步(select_materials 之后、挂笔记之前)。**默认关或缺钩子 → 原样返回原始素材**。
@@ -57,7 +57,7 @@ def maybe_process(material_ids: list[str], *, account: str = "", mode: str = "",
         return material_ids
     say = report if report is not None else []
     try:
-        plan = decide(material_ids, account=account, mode=mode, clothes=clothes)
+        plan = decide(material_ids, account=account, mode=mode)
     except Exception as e:  # noqa: BLE001
         say.append(f"加工判断失败({type(e).__name__}),按不加工处理:{str(e)[:80]}")
         return material_ids

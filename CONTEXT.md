@@ -1,28 +1,67 @@
-# CONTEXT · 领域词汇（巧荷 Workspace）
+# CONTEXT · 领域词汇
 
-> 给好 seam 起名的地方。架构评审与新代码用这些词，别漂成 component/service/handler。
-> **2026-07-11 大刀阔斧后**：重引擎(engine/planner/推进器)、素材视图层(View/Clip/UsageLedger)、
-> MediaTask、AccountKernel、Runbook 已删。下面是精简骨架的现行词汇。
+> 给好 seam 起名的地方。写代码/评审用这些词,**别漂成 component / service / handler**。
+> 心智和判据:`CLAUDE.md`。全景架构:`docs/架构.md`。
+
+## 三层(先记住这个,别混)
+
+- **Agent = 模型** —— 做**一切需要判断的事**。
+- **Skill = Knowledge** —— 它此时的**指导**(方法论/SOP/范例)。**技能不是函数**:agent 把 `SKILL.md` 读进上下文,然后**自己动手**。
+- **Harness = 本仓 + 运行时** —— **Tools + Knowledge + Observation + Action Interfaces + Permissions**。**harness 不思考。**
 
 ## 领域概念
 
-- **Note（笔记）** — 一条内容一行，状态机脊柱（想法储备→待拍素材→待出文案→草稿待发→已批准→待发布→已发→已回流；暂缓归档旁路）。飞书「笔记表」一行 = 一个 Note。**薄执行器只把 Note 推到「草稿待发」**，后面靠人审+人发。
-- **Account（账号）** — 一个小红书号。**两张脸**（皆 data）：画像 `brands/巧荷/accounts/{号}.md` 正文（发什么/怎么写，喂生成）+ strategy frontmatter（怎么运营 cadence/autonomy/sourcing，含 **playbooks[]**）。`orchestrator/accounts` 加载。
-- **薄执行器（ThinExecutor）** — `orchestrator/draft.py`（CLI `scripts/draft_one.py`）= 体系核心。读账号声明 → 取该号 playbook 的 gen_skill → 加载其 SKILL.md（真实帖 few-shot）→ 组稿（画像+few-shot+配方）→ 过 base 红线闸 → 写笔记表一行「草稿待发」。stub 默认零成本，`--llm real` 走 `llm.run_prompt` 预算帽。不走重引擎、不排产、不建视图。
-- **Playbook（方法论）** — 账号声明的一套发布方法论（`strategy.playbooks[]`）= 内容类型 content_type + **gen_skill**（产这套笔记的技能）+ material_needs + 调性。一号可多套（现一号一套）；`orchestrator/accounts.playbooks_of/resolve_playbook/gen_skill_of`。加一套=写声明零代码。
-- **gen_skill（生成技能）** — 一套 playbook 指向的生成能力。特化的住 `local-skills/`（如 writing-ootd-caption，compose 通用能力 + 该号真实帖 few-shot）、通用的在 qiaohe-skill remote。薄执行器 `load_gen_skill` 读其 `SKILL.md` 正文注入生成 prompt（补上「gen_skill 曾只是标签」的缺口）。
-- **SourceOwnership（唯一源边界）** — Base / workspace / skill / 素材盘的 owner 规则。Base owner=运营事实、状态、员工界面索引；workspace owner=画像、strategy、playbooks、**内容 know-how**；skill owner=可复用“怎么做”；素材盘 owner=媒体文件。非 owner 只能存外键/索引/派生快照。审计已从重型 AccountKernel 收敛为 ar_check 的「唯一源」检查（Base 账号表名 ⊆ workspace 声明）。详见 `docs/SOURCE_OWNERSHIP.md`。
-- **知识库 know-how** — `brands/巧荷/knowledge_base/衣服/{衣服编号}.md`：从 Base 衣服总表迁出的**内容 know-how**（卖点内核/形制·设计理念/文物出处·文化依据/纹样），写考据文案用。§4：衣服/工艺/文物出处是内容 know-how，归 workspace，不进 Base 商品目录。
-- **Material（素材）** — 一个图/视频**整文件**，软链上墙（原件不动）+ 登记「素材表」。`scripts/ingest.py` 的 scan/link/register/orphans 是安全摄入原语。（薄执行器 A 当前只产文案、尚未接素材选择，见 issue #32。）
-- **SKU / 衣服** — 一件衣服。Base「衣服总表」已瘦身为身份/关系字段（衣服编号/款式名称/启用账号/工艺·面料 link/生命周期状态），内容 know-how 迁 workspace 知识库。
-- **记录收窄函数** — `orchestrator/bitable` 的自由函数 `text/parse_ts/link_record_ids`：飞书多形态 record dict（标量/dict/list[dict]/lookup·公式形态）的收窄 seam。调用点统一 `bitable.text(f.get(字段常量))`，字段名走 `NoteFields/MaterialFields/AccountFields/ContentTypeFields` 词汇常量。（旧 `Record` 类是套在这三个函数外、全仓仅一处用的浅壳，已删——自由函数才是真收口。）
+- **Note(笔记)** — 一条内容一行,**状态机脊柱**:想法储备 → 待拍素材 → 待出文案 → 草稿待发 → 已批准 → 待发布 → 已发 → 已回流(暂缓归档旁路)。飞书「笔记表」一行 = 一个 Note。
+  **模型只把 Note 推到『草稿待发』** —— 后面的审和发是**人的动作**(红线)。
+  『待出文案』= 派活占位(**还没内容**);『草稿待发』= **已有稿子,人正等着审**。这俩是两回事:占位可推进,**待审稿不许覆盖**。
 
-## 架构词汇（见 /codebase-design）
+- **Account(账号)** — 一个小红书号。两张脸(皆 data):
+  画像 = `brands/巧荷/accounts/{号}.md` 正文(发什么/怎么写);
+  strategy = 同文件 frontmatter(cadence / autonomy / sourcing / **playbooks[]**)。
+  `orchestrator/accounts` 加载。**它是常驻 Knowledge,不是配置文件。**
+
+- **Playbook(方法论)** — 账号的一套发布方法论 = `content_type` + **`gen_skill`** + `material_needs` + 调性 + `body_len`。
+  一号可多套。**加一套 = 写声明,零代码。**
+
+- **gen_skill(生成技能)** — 一套 playbook 指向的写作技能(`skills/writing-*`)。
+  模型加载它的 `SKILL.md`(含**该号真实帖 few-shot**),照它写。
+  **技能唯一真源 = `qiaohe-skill` 仓**;`skills/` 是装出来的符号链接。**workspace 不藏技能。**
+
+- **Material(素材)** — 一个图/视频**整文件**。真身在网盘(`/巧荷素材/`),表里只存**网盘指针** + 小缩略图。
+  『类型』(12 类)· 『来源』(实拍 / **AI生成** —— 决定要不要勾 AI 声明)· 『备注』(vision 打的标,**分发选材靠它语义寻址**)。
+  **视频的备注只描述一帧关键帧** —— 所以它标着 `(视频关键帧)`,别当成整条视频。
+
+- **provenance(来源传播)** — `processing.derive_source`:成片来源**随像素出处**。
+  纯拼接/剪辑(像素全来自实拍)→ 『实拍』(免声明);**任一输入是 AI、或过程用了 AI 生成新画面 → 『AI生成』**(下游必须人勾声明)。
+  **这是合规,不是判断。焊死在代码里,绝不给模型决定。**
+
+- **加工环(ADR-0006)** — 选材之后、挂笔记之前的 gated 一步。
+  **决策(要不要加工/哪种)= 模型**(`compose.ai_decide`,看素材的 vision 标注);
+  **执行 = 手**(拼图 / AI封面);**provenance + AI声明 = 代码焊死**。
+  默认关(`GY_PROCESSING_ENABLED`)—— 关的**不是"要不要加工"这个判断**,关的是"这条能力放不放出去"。
+
+- **文案的事实底座 = 素材备注**(**这是唯一在跑的机制,别搞混**)
+  拍素材 → vision 打标出『备注』(颜色 / 光泽 / 垂坠 / 场景 / 光线 / 姿势 / 氛围)
+  → `draft.material_facts()` 把**这条稿真正要配的那几张图/视频的备注**喂进 prompt
+  → **文案是配着这些画面写的**。
+  **写画面里看得出的;看不出的(面料成分、克重、朝代形制、非遗工序)一律留白,严禁编造** —— 否则货不对板。
+  ⚠️ 顺序焊死:**先挑素材,再写文案**。反过来(先生成后挑图)LLM 眼前一片空白却被要求写质感 → 它只能编。
+
+- **衣服知识库(暂停的支线,不是核心机制)** — `brands/巧荷/knowledge_base/衣服/{编号}.md`:卖点 / 形制 / 文物出处 / 纹样。
+  **只有官号「品牌新作展示」需要**(写真实产品要考据),经 `draft_one --clothes GY-001` 手动传入。
+  **当前零自动调用者**,且官号在 base 里『自动排产=暂停』。
+  **日常四个号不注册衣服** —— 就是拍素材、打标、配文案发。别把它当成"文案怎么和图片关联"的答案。
+
+- **唯一源边界** — Base owner = **运营事实与状态**(它同时是人的驾驶舱);
+  workspace owner = 画像 / strategy / playbooks / 内容 know-how;
+  skill owner = 可复用的"怎么做";网盘 owner = **媒体真身**。
+  **非 owner 只能存指针/索引/派生快照。**
+
+- **记录收窄函数** — `orchestrator/bitable` 的 `text / parse_ts / link_record_ids`:
+  飞书多形态 record dict 的收窄 seam。**调用点一律 `bitable.text(f.get(字段常量))`**,字段名走 `NoteFields / MaterialFields / …` 常量。
+  ⚠️ **link 字段的形态是陷阱**:`search` 返回 `{link_record_ids}`(无 text),`list/get` 返回 `[{record_ids, text}]`。
+  **别信形态,先真读一遍返回**(这个坑栽过四次,见 `docs/踩坑账.md`)。
+
+## 架构词汇
 
 module / interface / depth / seam / adapter / leverage / locality / 删除测试。
-
-## 三层分离
-
-能力=skill（怎么做，git 锁版 `skills.lock.json`）· 模式=data（每号 strategy/画像 + Bitable 状态）· 引擎=**薄执行器**（`orchestrator/draft.py`，泛化：读声明/状态执行，零账号特定代码，已在 4 号泛化验证）。加账号/加模式=改 data 零代码；新需求=加 skill 不改 schema。
-
-详见 `docs/架构与方法论.md`。

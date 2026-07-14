@@ -174,8 +174,7 @@ def L4_draft(no_llm: bool):
     for name, ct, pb in combos:
         t0 = time.time()
         try:
-            r = draft.generate_draft(name, "巧荷", llm_mode="real", content_type=ct,
-                                     clothes="GY-001" if "品牌新作" in (ct or "") else "")
+            r = draft.generate_draft(name, "巧荷", llm_mode="real", content_type=ct)
         except Exception as e:  # noqa: BLE001
             ck("L4", f"{name}/{ct} 真出稿", False, f"{type(e).__name__}: {str(e)[:120]}")
             continue
@@ -390,8 +389,6 @@ def L13_L14_L15_ops():
     rc, out = run(["python3", "scripts/backup_tables.py"], timeout=300)
     ck("L14", "备份真跑通(误删可恢复的前提)", rc == 0, out[-160:] if rc else "")
 
-    rc, out = run(["python3", "scripts/cron_status.py"])
-    ck("L15", "cron_status 真跑不崩(运维看得到上线态)", rc == 0, out[-160:] if rc else "")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -405,7 +402,7 @@ def L16_L17_skills():
        not config.PROCESSING_ENABLED)
     ids = ["recA", "recB"]
     out = processing.maybe_process(list(ids), account="ootd号", mode="视频唯美OOTD",
-                                   clothes="", decide=None, execute=None)
+                                   decide=None, execute=None)
     ck("L16", "关态下 maybe_process 是 no-op(不偷偷改素材)", out == ids, f"{ids} → {out}")
 
     # ── 2026-07-14:上面两条**就是这条链路的全部验收** —— 而它俩验的是

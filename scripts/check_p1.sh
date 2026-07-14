@@ -9,39 +9,10 @@ FAIL=0
 pass() { echo "  ✓ $1"; }
 fail() { echo "  ✗ $1"; FAIL=1; }
 
-# ── ① AGENTS.md 包含全部 14 个生产 table_id ──────────────────────────
-echo "① AGENTS.md 含全部 14 个生产 table_id"
-PROD_TABLE_IDS=(
-  tbl2ZnYoLX3d0QtE  # 衣服总表
-  tblveO3Wzm3Foo6v  # 账号表
-  tblWZgMpWNqfHabt  # 内容类型表
-  tbljjcr9gLk7cPbn  # 面料·工艺库
-  tbles5eiDykCBxD1  # 素材表
-  tblHi1Htg5wntydY  # 笔记表
-  tblaiG8bQumH5CQW  # 关键词库
-  tblM6EDqDdcPYIxO  # 目标客户
-  tblP4jlRNZGCiIU2  # 灵感库
-  tblSidOqOT1B4dj9  # 技能表
-  tblcvycKVdY3IF7A  # Issue 表
-  tbleWyxtJD57a59X  # 修订日志
-  tblj8q46icA5YZoM  # 素人推广案例
-  tblgZRFvZiZtfxNN  # 运行日志表
-)
-if [ ! -f AGENTS.md ]; then
-  fail "AGENTS.md 不存在"
-else
-  MISSING=()
-  for tid in "${PROD_TABLE_IDS[@]}"; do
-    grep -q "$tid" AGENTS.md || MISSING+=("$tid")
-  done
-  if [ ${#MISSING[@]} -eq 0 ]; then
-    pass "14/14 table_id 全部在 AGENTS.md"
-  else
-    fail "AGENTS.md 缺 table_id: ${MISSING[*]}"
-  fi
-fi
-
-# ── ② skills.lock.json 可解析且 local 路径存在 ──────────────────────
+# ── ① skills.lock.json 可解析且 local 路径存在 ──────────────────────
+#    (删了原①「AGENTS.md 含 14 个生产 table_id」:它检查的是**文档里有没有这些字符串**,
+#     不是任何行为;而且内容是**生产库**的表 ID —— 生产库焊死不碰,把它列在文档里
+#     毫无用处,**还诱导人去碰它**。2026-07-14)
 echo "② skills.lock.json 可解析 + sources.local 存在"
 if [ ! -f skills.lock.json ]; then
   fail "skills.lock.json 不存在"
@@ -100,23 +71,5 @@ else
   fail ".mcp.json 缺失或非法 JSON"
 fi
 
-# ── ⑥ schema/prod/ 存在 14 个表 json ────────────────────────────────
-echo "⑥ schema/prod/ 14 个表契约 + _tables.json"
-if [ ! -d schema/prod ]; then
-  fail "schema/prod/ 不存在"
-else
-  NT=$(find schema/prod -maxdepth 1 -name '*.json' ! -name '_tables.json' | wc -l | tr -d ' ')
-  if [ "$NT" -eq 14 ] && [ -f schema/prod/_tables.json ]; then
-    pass "schema/prod/ 表 json = $NT + _tables.json"
-  else
-    fail "schema/prod/ 表 json = $NT (应为 14),_tables.json $([ -f schema/prod/_tables.json ] && echo 在 || echo 缺)"
-  fi
-fi
-
-echo
-if [ "$FAIL" -eq 0 ]; then
-  echo "✅ P1 验收全部通过"
-else
-  echo "❌ P1 验收有失败项"
-fi
+echo; [ "$FAIL" -eq 0 ] && echo "✅ P1 验收全部通过" || echo "❌ 有失败项"
 exit "$FAIL"

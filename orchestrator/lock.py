@@ -1,7 +1,7 @@
 """进程级互斥锁(flock,ADR-0009 P1 并发裸奔):防两个自动化写进程并发造重复派活/后写覆盖。
 
 人在飞书里并发编辑安全(Base 是唯一真值、字段级 last-write-wins);此锁只护**自动化写路径**
-(dispatch/run_day 这类"读在途→建行"的 TOCTOU)。非阻塞:拿不到锁=另一个写进程在跑→抛 LockBusy 跳过,
+(dispatch 这类"读在途→建行"的 TOCTOU)。非阻塞:拿不到锁=另一个写进程在跑→抛 LockBusy 跳过,
 不排队不重复。用现成的空文件 locks/orchestrator.lock。
 """
 from __future__ import annotations

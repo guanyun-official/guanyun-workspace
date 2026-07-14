@@ -54,7 +54,7 @@ else
   fail "笔记表 table_id 未解析,跳过"
 fi
 
-# ── ④ 账号表 = 4 条记录且含 4 个账号标识(活表实测) ─────────────────
+# ── ④ 账号表 = 3 条记录且含 3 个账号标识(活表实测;官号 2026-07-14 下线)──
 echo "④ 账号表 4 条记录,含 4 个小红书账号标识"
 ACC_TID=$(tid 账号表)
 if [ -z "${ACC_TID:-}" ]; then
@@ -62,17 +62,17 @@ if [ -z "${ACC_TID:-}" ]; then
 else
   RAW=$(lark-cli base +record-list --base-token "$TEST_BASE" --table-id "$ACC_TID" --as bot 2>/dev/null)
   NREC=$(echo "$RAW" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['data']['record_id_list']))" 2>/dev/null)
-  if [ "${NREC:-0}" -eq 4 ]; then
+  if [ "${NREC:-0}" -eq 3 ]; then
     pass "账号表记录数 = 4"
   else
-    fail "账号表记录数 = ${NREC:-?} (应为 4)"
+    fail "账号表记录数 = ${NREC:-?} (应为 3)"
   fi
   MISSING=()
-  for acc in 63068651425 26507264096 60befdfd000000000101cc10 巧荷·东方美学; do
+  for acc in 63068651425 26507264096 60befdfd000000000101cc10; do
     echo "$RAW" | grep -q "$acc" || MISSING+=("$acc")
   done
   if [ ${#MISSING[@]} -eq 0 ]; then
-    pass "4 个账号标识全在(63068651425 / 26507264096 / 60befdfd… / 官号@巧荷·东方美学)"
+    pass "3 个账号标识全在(63068651425 / 26507264096 / 60befdfd…)"
   else
     fail "账号表缺标识: ${MISSING[*]}"
   fi

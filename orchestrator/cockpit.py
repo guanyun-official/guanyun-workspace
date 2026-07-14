@@ -1,4 +1,4 @@
-"""今日驾驶舱(顺手:人/接手 agent 一条命令看完今日,不用挨个敲 run_day/publish_ready/shot_list)。
+"""今日驾驶舱(顺手:人/接手 agent 一条命令看完今日,不用挨个敲 today/publish_ready/shot_list)。
 
 聚合人只管头尾要看的四件事(纯读,不写库、不触 LLM):
 - 待审:草稿待发的笔记(你点批准)

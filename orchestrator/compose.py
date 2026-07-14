@@ -40,8 +40,7 @@ def grid_compose(image_paths: list[str], out_path: str, cell: int = 640,
     return out_path
 
 
-def simple_decide(material_ids: list[str], *, account: str = "", mode: str = "",
-                  clothes: str = "") -> dict:
+def simple_decide(material_ids: list[str], *, account: str = "", mode: str = "") -> dict:
     """保守规则版决策(留作 ai_decide 的离线兜底/单测对照):模式含『搭配』且 ≥2 张 → 拼图。
     **它不是"像人一样判断"** —— 一条死规则而已。生产走 ai_decide。"""
     if "搭配" in (mode or "") and len(material_ids) >= 2:
@@ -72,8 +71,7 @@ _DECIDE_PROMPT = """你是巧荷(汉服/新中式服装品牌)的内容运营,�
 {{"加工": true/false, "kind": "AI封面" 或 "拼图" 或 "", "理由": "一句话,人能看懂", "封面提示词": "若 kind=AI封面,给一句中文文生图提示词,须贴合上面素材的真实颜色/衣服/场景,不许凭空编造别的衣服"}}"""
 
 
-def ai_decide(material_ids: list[str], *, account: str = "", mode: str = "",
-              clothes: str = "") -> dict:
+def ai_decide(material_ids: list[str], *, account: str = "", mode: str = "") -> dict:
     """**AI 像人一样看一眼素材,再决定这条要不要加工**(加工环的智能叶子)。
 
     以前这里是 `simple_decide` —— 一条死规则("模式含『搭配』且≥2张 → 拼图")。

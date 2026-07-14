@@ -8,6 +8,23 @@
 红线:发布与 AI 声明是人手;本执行器只推到「草稿待发」,绝不代勾 AI 声明、绝不自动发布。
 --write 只在测试库(TEST_MODE)——写库闸拒生产 Base。
 """
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  ⚠️  这是一条【导轨】—— 它把驾驶者换成了轨道。**下个 session 要换掉它。**        ║
+# ║                                                                              ║
+# ║  它里面搅着三种性质完全不同的东西:                                             ║
+# ║    ✅ 原子(Tools)     —— 留在 harness                                        ║
+# ║    ❌ 判断(该归模型)   —— 选哪些素材 · 稿子行不行 · 超长要不要回炉 · 抄了要不要重写        ║
+# ║    ❌ 方法(该进技能)   —— 组 prompt —— **写作 SOP 在 SKILL.md 里,这里又拼了一遍**        ║
+# ║                                                                              ║
+# ║  **拆完之后,全景图里没有"脚本"这一层**:cron 只负责叫醒 agent,不含任何判断。   ║
+# ║  agent 读面板(Observation)、读技能(Knowledge)、用原子(Tools)、撞红线。   ║
+# ║                                                                              ║
+# ║  ⚠️ **不是"删",是"换"** —— 现在删掉它,内容工厂当场没有心跳。                   ║
+# ║     先造出"agent 上班"这个入口,再把 cron 指过去。                             ║
+# ║                                                                              ║
+# ║  详见 docs/架构.md 第四节。判据:CLAUDE.md「唯一判据」。                        ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
 from __future__ import annotations
 
 import argparse
@@ -29,7 +46,6 @@ def main() -> int:
     ap.add_argument("--title-seed", default="")
     ap.add_argument("--source-text", default="",
                     help="蹭爆款时传对标源完整正文(灵感库『文案』)——防搬运门比对它,逐字搬即拒")
-    ap.add_argument("--clothes", default="", help="绑定知识库真实衣服编号(如 GY-001);官号品牌新作应绑,防编造")
     ap.add_argument("--content-type", default="", help="一号多模式时选哪个模式(内容类型名);空=第一套")
     ap.add_argument("--write", action="store_true", help="过红线闸写测试库笔记表(默认干跑不写)")
     a = ap.parse_args()
@@ -39,10 +55,9 @@ def main() -> int:
         warn = cost.budget_alert()
         if warn:
             print(f"⚠️ {warn}(本条仍出;如需收口降 GY_BUDGET_MONTHLY_CNY 或先停真出稿)")
-    r = draft.generate_draft(a.account, a.brand, a.llm, a.title_seed, clothes=a.clothes,
+    r = draft.generate_draft(a.account, a.brand, a.llm, a.title_seed,
                              content_type=a.content_type, source_text=a.source_text)
-    print(f"gen_skill={r['gen_skill']} few-shot载入={r['skill_loaded']} 绑定衣服={r['clothes'] or '无'}"
-          f"({'真实事实✓' if r['clothes_grounded'] else '未绑·禁编造'}) "
+    print(f"gen_skill={r['gen_skill']} few-shot载入={r['skill_loaded']} "
           f"playbook={r['playbook_id']} 内容类型={r['content_type']} 成本_元={r['cost']}")
     print("--- 标题 ---")
     print(r["title"])

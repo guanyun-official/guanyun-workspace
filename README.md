@@ -1,17 +1,57 @@
 # guanyun-workspace
-巧荷内容运营 Workspace:环境事实+薄执行器+契约——飞书当脸,CLI agent 当手,Bitable 当账本,git skills 当大脑
 
-进门先读 `AGENTS.md`(环境事实);搭建计划在 `docs/PLAN.md`;P1 验收 `bash scripts/check_p1.sh`。
+巧荷内容工厂的 **harness** —— 给模型双手、双眼、知识和法律的那个仓。
 
-## .mcp.json 说明
+> **Agency 来自模型。Agent 产品 = 模型 + Harness。**
+> **我们不"开发 agent",我们造 harness。造好 harness,模型会完成剩下的。**
 
-`.mcp.json` 当前是**最小合法骨架**(`{"mcpServers": {}}`——JSON 不支持注释,说明写在这里):
+```
+Harness = Tools + Knowledge + Observation + Action Interfaces + Permissions
+```
 
-- 后续在此声明 MCP 连接器,**密钥一律按名引用 env**(如 `"env": {"TIKHUB_API_KEY": "${TIKHUB_API_KEY}"}`),真值只存本地 `.env`。
-- 计划接入:`xiaohongshu-mcp`(本地 `:18060`,采集/发布小红书,发布硬门=人确认+AI 声明)等;接入时机见 `docs/PLAN.md` P3-P6。
+**Agent 是模型**(做一切判断)。**Base / 网盘 / 小红书是世界**(状态 · 唯一真源),不属于 harness。
 
-## 技能安装
+## 进门读什么
+
+| | |
+|---|---|
+| `CLAUDE.md` | **心智 · 唯一判据 · 红线 · 实测纪律**(每轮自动进上下文) |
+| `AGENTS.md` | 环境事实:Base / 账号 / 凭证 / 工具 / 仓库结构 |
+| `docs/架构.md` | **全景图** · 技能是 Knowledge 不是函数 · **欠账(唯一一份)** |
+| `docs/踩坑账.md` | 病例:形态陷阱 / 人面缺陷 / 检查器自己得了它要抓的病 |
+| `CONTEXT.md` | 领域词汇(给 seam 起名) |
+| `docs/adr/` | 已定的决策,别翻案 |
+
+## 红线
+
+**只写测试库 `ZhzJbf`**(生产库读也不碰)· **绝不自动发布** · **绝不代勾 AI 声明** · **红线不许有旋钮**
+
+## 门
 
 ```bash
-bash scripts/install_skills.sh   # 按 skills.lock.json symlink 技能进 skills/(remote qiaohe-skill/video-engine + local 特化;不入库,幂等)
+bash scripts/review_gate.sh --full   # 单测 + ar_check + 真库冒烟 + check_p1-6 + 机器审
+                                     # + 17条链路真跑(真库 / 真 ARK / 真网盘)
 ```
+
+**全绿才提交。红=不留。**
+
+## 运营
+
+运营库 = 测试库 `ZhzJbf`(当前 `.env` 即对;**`TEST_MODE=1` 本身就是上线态**)。
+**"上线" ≠ 切生产库**(生产库焊死不碰)。
+
+**心跳由 agent 自己管** —— harness 给它 shell(能读写 crontab、能订阅事件);
+**几点醒、醒来干什么,是它的判断**。人只需说一句「每天早上看看有没有活」。
+
+## 技能
+
+唯一真源 = `qiaohe-skill` 仓。`skills/` 是 `install_skills.sh` 按 `skills.lock.json` 装出来的符号链接(不入库)。
+**workspace 不藏技能。**
+
+```bash
+bash scripts/install_skills.sh
+```
+
+## .mcp.json
+
+当前是最小合法骨架(`{"mcpServers": {}}`)。后续声明 MCP 连接器时,**密钥一律按名引用 env**,真值只存本地 `.env`。

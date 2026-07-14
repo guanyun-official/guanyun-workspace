@@ -84,15 +84,16 @@ PER_ACCOUNT_DAILY_PUBLISH = 3          # 单号每日发布上限(平台风控�
 #     · GY_PROCESSING_ENABLED         加工环默认关。**关的不是"要不要加工"这个判断**(那归 ai_decide),
 #       关的是"这条能力放不放出去" —— 它会生成 AI 像素、连带触发 AI 声明手续。验证通过再开。
 #
-#   【欠账 · 本该归 agent,现在还是旋钮】
-#     · GY_COLLECT_REFRESH_DAYS=30    "老帖还值不值得重采"**是判断**,该由 agent 看数据决定。
-#       现在采集是脚本不是 agent,所以暂留。**cron 入口换成 agent 上班后,这个旋钮就该删。**
-#     · GY_METRICS_MODE=stub          默认"不真采"。真采是零凭证、几乎免费的 —— 默认关只是我保守。
-#       同上:agent 该判断"有真链接的已发帖就去采",不需要开关。**暂留,标为欠账。**
+
+#   【留 · 规模护栏,不是判断】(2026-07-14 重新判过:我之前把它记成"欠账",判错了)
+#     · GY_COLLECT_REFRESH_DAYS=30    它拦的是"别把累积态整张表全拉回来"(API/成本约束)。
+#       **这是 Tools 的护栏,不是内容判断。** 留。
+#   【已删】GY_METRICS_MODE —— 它存在的唯一理由是"让离线单测不触网"。**单测已全删**(只剩红线),
+#           这个理由没了。有真链接就真采(零凭证、几乎免费)。
 # ══════════════════════════════════════════════════════════════════════════════
 
 # 阈值(可 env 覆盖)
-COLLECT_REFRESH_DAYS = int(os.environ.get("GY_COLLECT_REFRESH_DAYS", "30"))  # 回流刷新窗(⚠️欠账:该归 agent 判断)
+COLLECT_REFRESH_DAYS = int(os.environ.get("GY_COLLECT_REFRESH_DAYS", "30"))  # 回流刷新窗(规模护栏:别把累积态整张表全拉回来)
 # 删了两个**死配置**(2026-07-14 全体系对齐审查):它们承诺了数据根本支撑不了的功能,和 base 里那几个
 # 空壳视图(「按颜色分组」——素材表没有颜色字段)是同一个病:**人想起来方便,就先把名字写上,功能从没做**。
 #   · GY_REVIEW_OVERDUE_H(待审超时催审):要算"躺了多久"需要**进入待审的时间戳**,
@@ -111,7 +112,6 @@ DRAFT_BACKEND = os.environ.get("GY_DRAFT_BACKEND", "ark")            # ark(直�
 # **lite=0.0057元,四层最齐、标题吃进粉+木、细闪场景都中**(用户拍板)。三者成本一个量级,取质量最好的。
 DRAFT_MODEL = os.environ.get("GY_DRAFT_MODEL", "doubao-seed-2-0-lite-260428")
 DRAFT_COST_PER_1K_CNY = float(os.environ.get("GY_DRAFT_COST_PER_1K_CNY", "0.002"))  # 出稿成本估:元/1K token
-METRICS_MODE = os.environ.get("GY_METRICS_MODE", "stub")  # 效果采集:stub 零成本 / real 走 metrics 直连 xhs-extract-master 非登录取数(G7)
 
 # 看图打标(多模态)后端(vision.py seam):doubao(ARK,便宜,默认)/ claude(claude -p 兜底,零 key)。
 # ARK_API_KEY 从 env 读——明文凭证绝不入代码/库;doubao 后端缺 key 时 vision 报错(不静默)。

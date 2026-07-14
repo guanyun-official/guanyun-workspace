@@ -57,9 +57,8 @@ def main() -> int:
     # 覆盖所有『活跃(未暂停)』账号×模式;数量随 base 暂停开关变,不焊死(暂停号退出要求是功能非缺陷)
     ck(f"覆盖 {len(combos)} 个活跃账号×模式组合", bool(combos), str([f"{a}/{c}" for a, c in combos]))
     for name, ct in combos:
-        clothes = "GY-001" if "品牌新作" in ct else ""
-        r = draft.generate_draft(name, llm_mode="stub", content_type=ct, clothes=clothes)
-        mats = draft.select_materials(r["material_needs"], _acc_id(name), clothes=r.get("clothes", ""))
+        r = draft.generate_draft(name, llm_mode="stub", content_type=ct)
+        mats = draft.select_materials(r["material_needs"], _acc_id(name))
         ok = r["skill_loaded"] and r["playbook_id"] == ct and len(mats) >= 1
         ck(f"{name}/{ct}: few-shot={r['skill_loaded']} 完整包素材={len(mats)}条", ok)
 
@@ -111,8 +110,9 @@ def main() -> int:
 
     # 6) 人只管头尾:头=拍素材(拍摄需求单)· 中间系统全包(找热点/排期出稿/AI声明判定)· 尾=审发(base点)· 每周总结
     print("⑥ 人只管头尾全链就位")
-    ck("中·跑一天脊梁(排期→出稿→挂素材→草稿待发,一条命令)",
-       hasattr(dispatch, "run_day") and all(r["status"] == "(干跑)" for r in dispatch.run_day("巧荷", write=False)))
+    # 2026-07-14 删:`dispatch.run_day()` 是**导轨** —— "一条命令跑完一天" = 我替 agent 排好了流程。
+    # 全景图里没有"一条命令跑完一天"这种东西:agent 醒来 → 看板 → **自己判断今天干什么** → 用原子干。
+    # 派活(dispatch)本身留着当原子;把"批量跑完一整天"这个流程删了。
     ai_rule = (not guard.ai_declaration_required([MSrc.REAL, MSrc.REAL])) and guard.ai_declaration_required([MSrc.AI])
     ck("尾·AI声明按素材来源自动判定(实拍免勾/AI合成强制勾,机器不代勾)",
        ai_rule and hasattr(publish, "review_approved"))
@@ -123,7 +123,7 @@ def main() -> int:
     ck("中·找热点→灵感库落库去重在位(trend_imitate 前置)",
        trends.harvest_trends([{"标题": "验收探针热点X"}], write=False)["新增"] == ["验收探针热点X"])
 
-    # 7) 顺手:一条命令看完今日头尾(替代挨个敲 run_day/publish_ready/shot_list)——防"绿≠可用"照不到人机可用性
+    # 7) 顺手:一条命令看完今日头尾(替代挨个敲 today/publish_ready/shot_list)——防"绿≠可用"照不到人机可用性
     print("⑦ 顺手·驾驶舱(一条命令看完今日)")
     panel = cockpit.today_panel("巧荷")
     ck("今日面板一条命令聚合 待审/待发/待回填链接/要补拍",
