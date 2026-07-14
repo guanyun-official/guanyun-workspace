@@ -3,22 +3,6 @@
   "table_name": "运行日志表",
   "fields": [
     {
-      "field_name": "automation_id",
-      "type": "text"
-    },
-    {
-      "field_name": "duration_ms",
-      "type": "number"
-    },
-    {
-      "field_name": "error_type",
-      "type": "text"
-    },
-    {
-      "field_name": "run_id",
-      "type": "text"
-    },
-    {
       "field_name": "动作",
       "type": "text"
     },
@@ -37,15 +21,6 @@
     {
       "field_name": "摘要",
       "type": "text"
-    },
-    {
-      "field_name": "数据用途",
-      "type": "select",
-      "options": [
-        "真实运营",
-        "演练",
-        "压测"
-      ]
     },
     {
       "field_name": "时间",

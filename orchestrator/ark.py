@@ -1,4 +1,4 @@
-"""ARK(火山方舟/豆包)薄客户端:**全仓唯一真网络 seam**(HTTP POST),看图(vision)与出稿(llm)共用。
+"""ARK(火山方舟/豆包)薄客户端:**全仓唯一真网络 seam**(HTTP POST),生图(AI 封面)。
 
 为什么存在(dogfood 2026-07-14 真跑实证):出稿原走 `claude -p`,**每次调用吞 ~33K token 的 Claude Code
 系统提示/工具定义**(实测:让它只回"测试成本"四个字,cache_creation_input_tokens=32766,花 1.48 元)。

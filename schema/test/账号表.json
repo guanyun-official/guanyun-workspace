@@ -3,18 +3,6 @@
   "table_name": "账号表",
   "fields": [
     {
-      "field_name": "workspace_ref",
-      "type": "text"
-    },
-    {
-      "field_name": "上线状态",
-      "type": "select",
-      "options": [
-        "launch先上",
-        "远期"
-      ]
-    },
-    {
       "field_name": "主页链接",
       "type": "url"
     },
@@ -26,23 +14,6 @@
     {
       "field_name": "小红书号",
       "type": "text"
-    },
-    {
-      "field_name": "投手",
-      "type": "text"
-    },
-    {
-      "field_name": "画像更新时间",
-      "type": "datetime"
-    },
-    {
-      "field_name": "画像状态",
-      "type": "select",
-      "options": [
-        "占位",
-        "已拆解",
-        "需重跑"
-      ]
     },
     {
       "field_name": "目标客户-适用账号",

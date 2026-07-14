@@ -109,7 +109,7 @@ def search_records(table_name: str, conditions: list[dict], conjunction: str = "
                    page_size: int = 100) -> list[dict]:
     """服务端过滤查询(飞书 records/search API):按字段条件**下推**,只拉命中行(不全表拉)。
     conditions=[{"field_name":.., "operator":"is"/"isNot"/"isEmpty"/.., "value":[...]}];conjunction="and"/"or"。
-    返回 record 列表,形态经 bitable 收窄 seam(text/link_record_ids/parse_ts)与 list_records **等价**
+    返回 record 列表,形态经 bitable 收窄 seam(text/link_record_ids)与 list_records **等价**
     (search 返回字段是富文本数组,bitable.text 已归一化;调用点一律走 bitable seam,不裸取字段)。
     **空 conditions → 退化 list_records(全表)**,语义不变。"""
     if not conditions:
@@ -181,16 +181,10 @@ def create_record(table_name: str, fields: dict) -> str:
     return d["record"]["record_id"]
 
 
-def delete_record(table_name: str, record_id: str) -> None:
-    _guard_write()
-    tid = config.tables()[table_name]
-    _call("DELETE", f"/open-apis/bitable/v1/apps/{config.BASE_TOKEN}/tables/{tid}/records/{record_id}")
-
-
 def log_run(summary: str, action: str, result: str = "成功", *, skill: str = "", note_ref: str = "",
             table: str, detail: str = "", cost: float | None = None) -> None:
     """写运行日志表。日志失败只打印不阻断主流程。
-    cost 给定则写结构化 成本_元 数值字段(M3);月成本核算优先读它,弃脆弱的 detail 解析。
+    cost 给定则写结构化 成本_元 数值字段。**没有月度硬闸** —— agent 看日志事实自己判断。
 
     **table 必填,没有默认值**(2026-07-14 全体系对齐审查):原来它默认 `"笔记表"`,而 9 个调用点
     **一个都没传** → 全部静默落进默认值。于是日志里写着:

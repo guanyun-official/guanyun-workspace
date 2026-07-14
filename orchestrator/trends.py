@@ -1,6 +1,6 @@
 """找热点 → 灵感库(系统化热点采集的『落库』一环)。
 
-**『找』是 agent 的事**(它用 xhs-extract-master / explosive-teardown 技能去抓、判断哪条值得学);
+**『找』是 agent 的事**(它用 `xhs-extract-master` / `xhs-collector` 技能去抓、自己判断哪条值得学);
 **『落』由本函数收口** —— 按标题去重、URL 字段正确包装、只写测试库。
 落库后 `board` 会把未转化的灵感摆给它看,它自己决定拿哪条来出稿(闭环靠 `mark_converted` 回填)。
 """

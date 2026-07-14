@@ -63,7 +63,6 @@ class MaterialFields:
     REL_PATH = "相对路径"   # text 字段:系统耐久指针(baidupan:/... 或 file://);寻址用,不被 url 改写
     SHOT_STATUS = "拍摄状态"
     SOURCE = "来源"
-    GEN_PARAMS = "生成参数"  # text:仅 AI 素材填(生成/加工参数=provenance 细节,「媒体唯一真身仓=网盘」 来源随像素)
     NOTE = "备注"
     THUMB = "缩略图"        # 附件字段:降采样预览图(base 驾驶舱瞄一眼选材,不用点开网盘)
     ACCOUNTS = "适用账号"   # 赛道(账号×模式)投影;打标留空,分发选材时按类型+备注语义现选并回填(消费即记录)
@@ -141,7 +140,7 @@ class RunLogFields:
     RECORD_REF = "涉及记录"
     RESULT = "结果"
     DETAIL = "详情"
-    COST = "成本_元"  # 数值成本(M3 已在测试库落字段);_cost_of_log 优先读它
+    COST = "成本_元"  # 这次花了多少钱(元)。**没有硬闸** —— agent 看它自己判断要不要停手
 
 
 class ContentTypeFields:
@@ -214,23 +213,6 @@ def day_start_ms(d) -> int:
     return int(datetime(d.year, d.month, d.day).timestamp() * 1000)
 
 
-def parse_ts(v) -> datetime | None:
-    """日期字段 → datetime。容错 int(毫秒)/数字串/list[dict]/dict(lookup·公式形态)。"""
-    if isinstance(v, list):
-        v = v[0] if v else None
-    if isinstance(v, dict):
-        v = v.get("value") or v.get("text")
-        if isinstance(v, list):
-            v = v[0] if v else None
-    if not v:
-        return None
-    if isinstance(v, (int, float)):
-        return datetime.fromtimestamp(v / 1000)
-    if isinstance(v, str) and v.isdigit():
-        return datetime.fromtimestamp(int(v) / 1000)
-    return None
-
-
 def link_names(v, id_name: dict | None = None) -> str:
     """link 字段 → 显示名(逗号连)。**三形态通吃**(dogfood 坑:search 回 id 无 text):
     - records/search:`{link_record_ids:[id..]}` → 用 id_name({id:名})还原;
@@ -245,7 +227,7 @@ def link_record_ids(v) -> list[str]:
     """关联字段 → 目标 record_id 列表。**飞书两套 API 形态不同,必须都认**(否则 search 读 link 全空):
     - list_records / get_record:`list[{record_ids:[...], text:..}]`
     - records/search:`{link_record_ids:[...]}`(dict,无 text!)——只认前者会让 search 路径素材/账号全断(dogfood 实测坑)。
-    这几个自由函数 text/parse_ts/link_record_ids = 飞书多形态 record dict 的**唯一收窄 seam**。"""
+    这几个自由函数 text/link_record_ids = 飞书多形态 record dict 的**唯一收窄 seam**。"""
     if isinstance(v, dict):                       # records/search 形态:{'link_record_ids': [...]}
         return list(v.get("link_record_ids") or v.get("record_ids") or [])
     out = []

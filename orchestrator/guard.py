@@ -107,8 +107,8 @@ def assert_no_source_leak(sources, payload: str, n: int = 10) -> None:
          (note 原子带 xsec_token 读 note.desc),是我调错了、读错了键。现在正文既进 prompt 当情报,
          这道门就必须、也确实在守它。
 
-    契约:调用方把**所有进了 prompt 的外来文本**都传进来,门逐个比。
-    `scripts/alignment_audit.py` 有一条结构不变式在机器层面盯着这件事(进 prompt 的必须进门)。
+    ★守着这道门的是红线测试 R6★ —— 一条 AST 不变式:**比对源不许来自调用方的入参**
+    (否则门就有了一个『被监管者自己填的申报表』入口,当场作废)。
     """
     if isinstance(sources, str):
         sources = [sources]

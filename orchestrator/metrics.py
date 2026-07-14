@@ -13,11 +13,6 @@ import sys
 from . import bitable, config
 from .bitable import NoteFields as NF, NoteStatus as NS
 
-# xhs-extract-master note 原子的 interactInfo.* → 笔记表数值字段(热度分是 formula,Bitable 自算,不写)
-_METRIC_MAP = {"likedCount": NF.LIKED, "collectedCount": NF.COLLECTED,
-               "commentCount": NF.COMMENTS, "shareCount": NF.SHARED}
-
-
 def _cn_num(v) -> int | None:
     """小红书中文计数 → int:'8.5万'→85000,'1.2亿'→120000000,'815'→815,'-'/''→None。"""
     if isinstance(v, (int, float)) and not isinstance(v, bool):
@@ -75,21 +70,8 @@ def _extract_note(url: str) -> dict:
     return json.loads(r.stdout[i:]) if i >= 0 else {}
 
 
-def _note_metrics(d: dict) -> dict:
-    """xhs-extract-master 的 note 原始 dict → {笔记表数值字段: 值} 契约 dict(**纯函数,可直测**)。
-    形态漂移集中一处:实测互动数据有 note.interactInfo(--url 返回)与顶层 interactInfo 两种壳,都吃;
-    skill 改输出结构只动这里(把'形态猜测'从 subprocess 里拆出来,不必 mock 就能锁形态)。"""
-    ii = (d.get("note") or {}).get("interactInfo") or d.get("interactInfo") or {}
-    out = {}
-    for k, field in _METRIC_MAP.items():
-        n = _cn_num(ii.get(k))
-        if n is not None:
-            out[field] = n
-    return out
-
-
 def _note_source(d: dict) -> dict:
-    """note 原始 dict → {标题, 文案}(**纯函数**,形态归一集中一处,同 _note_metrics 的路子)。
+    """note 原始 dict → {标题, 文案}(**纯函数**,形态归一集中一处)。
     实测形态:`xhs note --url <带xsec_token的URL>` → {"note": {"title":…, "desc": 真正文, …}, …};
     也吃顶层壳(不同原子/版本的两种返回)。"""
     n = d.get("note") or d

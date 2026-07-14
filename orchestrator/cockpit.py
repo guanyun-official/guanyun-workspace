@@ -1,14 +1,14 @@
-"""今日驾驶舱(顺手:人/接手 agent 一条命令看完今日,不用挨个敲 today/publish_ready/shot_list)。
+"""今日卡片(**给运营看的** · Observation · 人面)。纯读,不写库。
 
-聚合人只管头尾要看的四件事(纯读,不写库、不触 LLM):
-- 待审:草稿待发的笔记(你点批准)
-- 待发:待发布的笔记 + 每条『用哪张素材+可开链接』(你手机发)
-- 待回填链接:已发但还没贴发布链接的(不贴回流采集抓不到数据)
-- 要补拍:库存见底的拍摄需求(你按需拍)
+他只管头尾,不敲终端。这张卡告诉他今天要做的三件事:待审 / 待发 / 待回填链接,
+外加**卡住的稿**(他批了、但被门拦下 —— 不喊出来,稿子在人面上就消失了)、控量预警、暂停号。
+
+★门的判定只有一份真源★ ——「为什么卡住」直接转达 `publish.review_approved()` 的话,
+这里**绝不自己再判一遍**(那会让人面和门说不一样的话)。
 """
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date
 
 from . import bitable, config, feishu_io, guard, publish
 from .bitable import NoteFields as NF, NoteStatus as NS
@@ -19,10 +19,6 @@ _day_start_ms = bitable.day_start_ms   # 冷热分离日期窗共用(bitable 收
 
 
 _link_names = bitable.link_names   # link 字段→显示名(三形态通吃);search 回 id 靠 name_map 还原(dogfood 坑)
-
-# 排期视图里算「待发流程中」的状态(未发未归档;想法/待拍属前置,已发/回流/暂缓已出流程)
-_SCHED_ACTIVE = frozenset({NS.NEED_COPY, NS.DRAFT_PENDING, NS.APPROVED, NS.TO_PUBLISH})
-
 
 def _note_link(record_id: str) -> str:
     """这条笔记在 base 里的深链(飞书聊天里一点直达该行去审/改)——『引导到 base 操作』。"""
@@ -110,24 +106,26 @@ def today_panel(brand: str = "巧荷") -> dict:
     # 『待发布』,但被门拦下时(AI声明未勾 / 控量已满)它就**停在这儿**。而 today_panel 原来只看
     # 『草稿待发』和『待发布』两个状态 → 这条稿**在人面上彻底消失**:运营批准完就再也看不到它,
     # 会以为发出去了。门拦住不等于事情办完了——**拦住 + 告诉人为什么 + 告诉人该干什么**,才算数。
+    # ★门的判定只有一份真源:`publish.review_approved()`★(2026-07-14 verify 抓到)
+    #
+    # 老实现在这里**把三道门又写了一遍**(零素材 → AI声明 → 控量的 if/elif),还**自己重算了额度**。
+    # 而且两边的**键不一样**:`publish._account_load()` 按 **record_id** 记额度,这里按**账号显示名**记
+    # —— 同名 / 改名 / link 解析不出来的时候,**两个数会分叉**,
+    # 于是**人面上写的"卡住原因"会和门的真实判定说不一样的话**。
+    #
+    # 门是什么、为什么拦、怎么办 —— **只有门自己知道**。这里只负责**把它的话转达给人**。
+    verdicts = {e["note_id"]: e["verdict"] for e in publish.review_approved(brand, write=False)}
     stuck: list[dict] = []
     for r in approved:
+        v = verdicts.get(r["record_id"], "")
+        if not v.startswith("⚠️"):          # 门放行了 → 不是"卡住",它只是还没被推进
+            continue
         f = r["fields"]
-        acc = _link_names(f.get(NF.ACCOUNT), acc_names)
-        mat_ids = bitable.link_record_ids(f.get(NF.LINKED_MATERIALS))
-        ai_req = guard.ai_declaration_required([idx[m]["source"] for m in mat_ids if m in idx])
-        why = ""
-        if not mat_ids:
-            why = "一张图/视频都没挂,小红书发不出去——先去 base 关联素材"
-        elif ai_req and not f.get(NF.AI_DECLARED):
-            why = "含 AI 合成素材,发前你得先在 base 勾『AI声明』"
-        elif published.get(acc, 0) + queued.get(acc, 0) >= config.PER_ACCOUNT_DAILY_PUBLISH:
-            why = (f"该号今日额度满了(已发 {published.get(acc, 0)} + 排队 {queued.get(acc, 0)} "
-                   f"≥ 上限 {config.PER_ACCOUNT_DAILY_PUBLISH})——先发掉排队的,或明天再说")
-        if why:
-            stuck.append({"title": bitable.text(f.get(NF.TITLE)), "account": acc,
-                          "mode": _link_names(f.get(NF.CONTENT_TYPE), ct_names),
-                          "open": _note_link(r["record_id"]), "卡住原因": why})
+        stuck.append({"title": bitable.text(f.get(NF.TITLE)),
+                      "account": _link_names(f.get(NF.ACCOUNT), acc_names),
+                      "mode": _link_names(f.get(NF.CONTENT_TYPE), ct_names),
+                      "open": _note_link(r["record_id"]),
+                      "卡住原因": v.lstrip("⚠️")})   # ← 门自己的话,一个字不改
     cap = config.PER_ACCOUNT_DAILY_PUBLISH
     # **把"已发"和"排队"拆开说**(2026-07-14 运营视角实测):原来两者相加塞进一个数、还叫「今日」,
     # 卡片上写「ootd号:今日 4/3 已达上限」——可 ootd号今天**一条都没发**,那 4 是排队待发的稿数。

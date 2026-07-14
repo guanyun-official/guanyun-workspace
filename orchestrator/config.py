@@ -70,9 +70,9 @@ PER_ACCOUNT_DAILY_PUBLISH = 3          # 单号每日发布上限(平台风控�
 #     · GY_TENANT_HOST / GY_ARK_IMAGE_ENDPOINT   部署环境(区域、域名)
 #     · GY_IMAGE_MODEL                            供应商模型名(会改名、会下线)
 #
-#   【留 · 人的决策,不是 agent 的】
-#     · GY_BUDGET_MONTHLY_CNY  花多少钱是**老板定**,不是 agent 定
-#       (⚠️ 默认 300 元/月是我拍的,不是你定的 —— 该由你确认)
+#   【删】GY_BUDGET_MONTHLY_CNY —— 判过"留 · 老板定",可**全仓零读者**:
+#         成本写进运行日志了,**没有任何东西拿它跟预算比**。一个"月度硬闸"只活在两句 docstring 里。
+#         要不要因为花超了停手 —— **agent 看运行日志的事实,自己判断**(它有眼睛)。
 #
 # ── 2026-07-14 拆导轨这一轮**删掉的**(它们服务的那段代码没了,留着就是死配置)──────
 #   【删】GY_DRAFT_BACKEND / GY_DRAFT_MODEL / GY_DRAFT_COST_PER_1K_CNY / GY_PER_RUN_BUDGET_USD
@@ -95,8 +95,6 @@ PER_ACCOUNT_DAILY_PUBLISH = 3          # 单号每日发布上限(平台风控�
 #   【已删】GY_METRICS_MODE —— 它存在的唯一理由是"让离线单测不触网"。**单测已全删**(只剩红线),
 #           这个理由没了。有真链接就真采(零凭证、几乎免费)。
 # ══════════════════════════════════════════════════════════════════════════════
-
-BUDGET_MONTHLY_CNY = float(os.environ.get("GY_BUDGET_MONTHLY_CNY", "300"))  # 月度成本告警阈值(老板定)
 
 # 加工环生图(AI 封面)。**agent 画不了图,这是它真正缺的一只手。**
 # Seedream 4.0 在方舟**存在但需账号开通**(控制台一次点击,人做)。

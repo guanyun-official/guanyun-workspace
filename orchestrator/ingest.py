@@ -73,16 +73,17 @@ def gen_code(mtype: str, name: str, existing: set) -> str:
 
 def register(code: str, mtype: str, link_path: str, note: str = "",
              source: str = MSrc.REAL, accounts: list | None = None,
-             gen_params: str = "", thumb_token: str = "", form: str = "") -> str:
+             thumb_token: str = "", form: str = "") -> str:
     """登记一条素材进素材表(素材按赛道存,不挂衣服)。字段归位:
     - 链接(url)= 能点开的分享链(投手一点直达);相对路径(text)= 系统耐久指针(baidupan:/...),寻址用。
-    - 生成参数(text)只在 source=AI生成 时填(provenance 细节)。
+    ⚠️ 没有『生成参数』字段了(0/280,**从来没有任何调用方传过它**)——
+      AI 像素的 provenance 由『来源=AI生成』承载,生成提示词写进『备注』。
     accounts=适用账号 record_id 列表——**打标时留空**(消费在分发选材时决定并回填)。
 
     ★合规红线:来源由**落点/元数据**定,不靠视觉猜★(漏判 AI → 漏勾 AI 声明 = 合规硬伤)。
     素材落在 02-AI生成/ 目录 或 带生成参数 → **强制** AI生成(就低不就高,宁可让人往下摘)。
     agent 看图说"实拍"也覆盖不掉这条 —— 它是法律,不是判断。"""
-    if "02-AI生成" in link_path or "/AI生成/" in link_path or gen_params:
+    if "02-AI生成" in link_path or "/AI生成/" in link_path:
         source = MSrc.AI
     # **形态由文件本身定,不猜也不问**(.MP4 就是视频,.jpg 就是图 —— 这是事实,不是判断)。
     # 显式传了就用传的(段素材等特殊情况);没传就从扩展名推。
@@ -105,8 +106,6 @@ def register(code: str, mtype: str, link_path: str, note: str = "",
         fields[MF.FORM] = form   # 图 / 视频 —— 从文件形态推,**不再靠"视频文件强制落视频类"那条钳制**
     if thumb_token:
         fields[MF.THUMB] = [{"file_token": thumb_token}]   # 缩略图(附件),base 驾驶舱瞄一眼
-    if source == MSrc.AI and gen_params:
-        fields[MF.GEN_PARAMS] = gen_params   # 仅 AI 素材:生成/加工参数(provenance)
     if accounts:
         fields[MF.ACCOUNTS] = accounts
     return feishu_io.create_record(MF.TABLE, fields)   # feishu_io 内部过 assert_base_allowed(只写测试库)

@@ -93,13 +93,6 @@ def _run(args: list[str]) -> str:
     return r.stdout
 
 
-def _who_logged_in(out: str) -> bool:
-    """解析 BaiduPCS-Go `who` 输出判是否已登录(纯函数,真跑实测校准):
-    未登录 → 『当前帐号 uid: 0, 用户名: ,…』;已登录 → uid 非 0 + 有用户名。**uid:0 = 未登录**(不能只匹配"uid"字样)。"""
-    m = re.search(r"uid:\s*(\d+)", out)
-    return bool(m) and m.group(1) != "0"
-
-
 def list_dir(remote_path: str = "") -> list[dict]:
     """列网盘目录。返回 [{name, path, size, is_dir}]。
     **没登录/网盘挂了 → 炸**(NetpanError),**绝不静默返回 []** —— 那会让"箱子是空的"和
