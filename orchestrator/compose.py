@@ -66,6 +66,12 @@ def _resolve(material_ids: list[str]) -> tuple[list[str], list[str]]:
     return imgs, sources
 
 
+# ★产物的『类型』由 agent 给,不写死★(2026-07-14 架构审查)
+# 老实现写死成 `"搭配图"` / `"形象图"` —— **这两个值在素材表里根本不存在**
+# (词汇已改成纯内容:上身/商品/形象/搭配/…,不带"图"),真跑要么炸、要么给 select 悄悄加个新选项。
+# 而且"这张拼图算什么内容"**本来就是它看图之后的判断**。
+
+
 def compose_execute(plan: dict) -> str | None:
     """kind='拼图':PIL 网格合成(确定性,像素全来自输入)。
     素材不足 → None,**如实报"没做成"**(绝不静默退回原图假装做好了)。"""
@@ -77,8 +83,8 @@ def compose_execute(plan: dict) -> str | None:
     out = str(netpan.CACHE / f"拼图-{plan['inputs'][0]}.jpg")
     grid_compose(imgs, out)
     source = guard.derive_source(sources, used_ai_generation=False)   # 纯拼图无AI→随输入像素出处
-    rid, _ = ingest.store_produced(out, "搭配图", source=source,
-                                   note=f"拼图 源自 {'+'.join(plan['inputs'])}")
+    rid, _ = ingest.store_produced(out, plan.get("类型") or "搭配", source=source,
+                                   note=plan.get("备注") or f"拼图 源自 {'+'.join(plan['inputs'])}")
     netpan.clear_cache()
     return rid
 
@@ -105,8 +111,9 @@ def cover_execute(plan: dict) -> str | None:
         fh.write(r.read())
     _, sources = _resolve(plan.get("inputs") or [])
     source = guard.derive_source(sources, used_ai_generation=True)   # 必然=AI生成(像素是生的)
-    rid, _ = ingest.store_produced(str(out), "形象图", source=source,
-                                   note=f"AI封面(豆包 Seedream 生成)· 提示词:{prompt[:80]} · 发布时放第一张")
+    rid, _ = ingest.store_produced(str(out), plan.get("类型") or "形象", source=source,
+                                   note=(plan.get("备注") or
+                                         f"AI封面 · 提示词:{prompt[:80]} · 发布时放第一张"))
     netpan.clear_cache()
     return rid
 

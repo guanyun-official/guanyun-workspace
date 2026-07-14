@@ -83,5 +83,25 @@ PY
   echo "  ✓ skills/$skill → $src"
 done
 
+# ── ③ **把 lock 里没有的清掉**(不只是"加",是"让 skills/ 等于 lock")────────────
+#
+# ★老实现只 `ln -sfn`,从不删★(2026-07-14 架构审查删了 15 个技能之后当场撞到)
+# 技能仓里删掉一个技能 → `skills/` 下那条 symlink **原样留着,指向一个不存在的目录**。
+# 后果:harness 扫 `skills/` 注入目录时,**模型的 system prompt 里还挂着 15 个已经不存在的技能名**
+# —— 它会去加载,然后拿到一个空。**"装出来的" ≠ "锁里写的",而没有任何东西会说话。**
+#
+# 安装器的本分是让 `skills/` **等于** lock,不是"至少包含" lock。
+WANT=$(python3 -c "import json;print(' '.join(sorted(s for src in json.load(open('$LOCK'))['sources'] for s in src['skills'])))")
+for p in "$DEST"/*; do
+  [ -e "$p" ] || [ -L "$p" ] || continue
+  b=$(basename "$p")
+  case " $WANT " in
+    *" $b "*) ;;                                  # lock 里有 → 留
+    *) rm -rf "$p"; echo "  ✗ 清掉 skills/$b(lock 里没有它了)";;
+  esac
+done
+
 N=$(find "$DEST" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) | wc -l | tr -d ' ')
-echo "✅ 安装完成:skills/ 下技能数 = $N(真源=GitHub,本地是缓存,sha 由 skills.lock.json 钉死)"
+W=$(echo "$WANT" | wc -w | tr -d ' ')
+[ "$N" = "$W" ] || { echo "❌ 装出来 $N 个,锁里写着 $W 个 —— **对不上就别装完**" >&2; exit 1; }
+echo "✅ 安装完成:skills/ 下技能数 = $N == lock 里的 $W(真源=GitHub,sha 由 skills.lock.json 钉死)"

@@ -67,18 +67,6 @@ def facts(types: list[str] | None = None, status: str = "", account: str = "",
     return out
 
 
-def by_ids(ids: list[str]) -> list[dict]:
-    """按 record_id 取素材事实(按 id 取单条,不全表扫)。保持传入顺序。"""
-    acc_names = feishu_io.name_map(AF.TABLE, AF.NAME)
-    out = []
-    for rid in ids:
-        r = feishu_io.get_record(MF.TABLE, rid)
-        if r:
-            r.setdefault("record_id", rid)
-            out.append(_fact(r, acc_names))
-    return out
-
-
 def registered_names() -> set[str]:
     """已登记素材的**网盘文件名**集合 —— 打标去重的**事实**(不是决定)。
 

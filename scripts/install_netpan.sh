@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 装 BaiduPCS-Go(netpan real 的运行依赖;ADR-0004 / EPIC #40)。
+# 装 BaiduPCS-Go(netpan real 的运行依赖;「媒体唯一真身仓=网盘」 / EPIC #40)。
 # 幂等:已装则跳过。mac=brew;Linux 服务器=brew(若有)否则下 GitHub release。
 # 装完仍需**人工**一次:  BaiduPCS-Go login -bduss=<你的BDUSS>   (凭证人工,机器不碰)
 set -euo pipefail
@@ -45,5 +45,5 @@ fi
 echo
 echo "✅ 安装完成。真跑还需两步(人工):"
 echo "   1) 登录(凭证只你输): BaiduPCS-Go login -bduss=<你的BDUSS>"
-echo "   2) .env 里设:        GY_NETPAN_MODE=real   (可选 GY_NETPAN_BIN=<可执行绝对路径>)"
-echo "   之后 python3 -m scripts.ingest_incremental --from netpan 即真跑网盘增量入库。"
+
+echo "   登录完成后,agent 就能用 `python3 -m orchestrator material.inbox` 看待入库箱了。"

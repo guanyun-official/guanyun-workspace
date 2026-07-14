@@ -15,20 +15,12 @@
       ]
     },
     {
-      "field_name": "拍摄人",
-      "type": "text"
-    },
-    {
       "field_name": "拍摄状态",
       "type": "select",
       "options": [
         "待拍",
         "已拍"
       ]
-    },
-    {
-      "field_name": "拍摄要求",
-      "type": "text"
     },
     {
       "field_name": "来源",

@@ -15,7 +15,8 @@ Agent 是模型;Base、网盘、小红书是**世界**,不是 harness。
 | **测试 Base(= 运营库)** | `ZhzJbfkOsafwevsWkW8cfoILnfb` | **一切写操作只进这里。** `TEST_MODE=1` **本身就是上线态** |
 | 生产 Base | `N9IVbi6pTatJG5sqyTTcc0vSn4g` | **焊死不碰**(读也不行)。红线守卫在任何 IO 之前拦住 |
 
-- 表:笔记表(状态机脊柱)· 素材表 · 账号表 · 内容类型表 · 灵感库 · 关键词库 · 运行日志表 · 目标客户 · 素人推广案例 · Issue 表(共 13 表)。
+- 表:笔记表(状态机脊柱)· 素材表 · 账号表 · 内容类型表 · 灵感库 · 关键词库 · 运行日志表 · 目标客户 · 素人推广案例 · Issue 表。
+  (**活库以 `python3 scripts/dump_schema.py` 的产出为准** —— 别在文档里手抄表数,一改必漏。)
 - **素材表『类型』= 纯内容,『形态』= 图/视频**(2026-07-14 分开的两维)。
   类型 11 值:上身 · 商品 · 形象 · 搭配 · 细节 · 面料·纹理 · 工艺 · 制作过程 · 空镜·场景 · 文物原件 · 文物对照。
   **名字里不带"图"/"视频"** —— 那是形态,由文件本身推。(混在一起时代码里长出过钳制,见 `docs/踩坑账.md`。)
@@ -44,7 +45,7 @@ Agent 是模型;Base、网盘、小红书是**世界**,不是 harness。
 - **零素材门**:一张图/视频都没挂的稿,小红书发不出去 → 拦在待发布门外。
 - 明文凭证只从 env 读,绝不入代码/库。
 
-## 媒体(网盘 = 媒体唯一真身仓,ADR-0004)
+## 媒体(网盘 = 媒体唯一真身仓,「媒体唯一真身仓=网盘」)
 
 `/巧荷素材/` 下:`待入库`(摄影师直接传,不用管文件名)· `01-原始素材` · `02-AI生成` · `03-成片`
 **Bitable 不当媒体库** —— 表里只存网盘指针 + 小缩略图(附件字段,给人在 base 里瞄一眼)。
@@ -56,7 +57,7 @@ Agent 是模型;Base、网盘、小红书是**世界**,不是 harness。
 | `lark-cli` | 飞书读写走它。**一律 `--as bot`**(app `cli_a965851065381ccb`)**+ `LARK_CLI_NO_PROXY=1`**(宿主机代理会弄挂它)。gotcha:`+record-get` 字段挂 `data.record` 下;删除类要 `--yes`;建带 property 字段走 bitable v1、公式走 base v3 |
 | `hermes` | 飞书消息网关(告警/日报投递到人眼前) |
 | `ARK`(火山方舟) | **只剩生图**(AI 封面;agent 画不了图,这是它真缺的一只手)。key 从 env `ARK_API_KEY` 读。<br>**出稿/看图的 ARK 调用已删** —— agent 自己就是模型:它自己看图、自己写稿,不需要 harness 替它去问另一个模型 |
-| `BaiduPCS-Go` | 网盘 CLI。装:`bash scripts/install_netpan.sh`。**真跑需人工一次** `BaiduPCS-Go login -bduss=<BDUSS>` + `.env` 设 `GY_NETPAN_MODE=real`。BDUSS 会过期 |
+| `BaiduPCS-Go` | 网盘 CLI。装:`bash scripts/install_netpan.sh`。**真跑需人工一次** `BaiduPCS-Go login -bduss=<BDUSS>`。**没有 stub 模式** —— 没登录就炸,绝不静默返回空。BDUSS 会过期 |
 | `ffmpeg` / `sips` | 转码、抽关键帧、缩略图(`orchestrator/media.py`;Linux 换 heif-convert/ImageMagick) |
 | `xhs-extract-master` | 小红书非登录抓取(技能)。**`note` 原子取正文必须带 `xsec_token`**,正文在 `note.desc` |
 
@@ -69,7 +70,7 @@ guanyun-workspace/            ← harness(领域那一半)
 ├── CONTEXT.md                领域词汇(给 seam 起名)
 ├── docs/架构.md              全景图 · 技能是 Knowledge · **欠账(唯一一份)**
 ├── docs/踩坑账.md            病例(形态陷阱 / 人面缺陷 / 检查器自己得病)
-├── docs/adr/                 已定的决策,别翻案
+├── docs/踩坑账.md                 已定的决策,别翻案
 │
 ├── orchestrator/             **Action Interface + Tools + Observation + Permissions**
 │   ├── cli.py __main__.py    ← **Action Interface**:`python3 -m orchestrator <动词>`
@@ -82,14 +83,12 @@ guanyun-workspace/            ← harness(领域那一半)
 │   ├── bitable                      ← 常驻 Knowledge:schema 常量
 │   └── accounts config publish collect metrics trends cost lock alerts …
 │
-├── scripts/                  **只剩开发期的门**(review_gate.sh / alignment_audit.py /
-│                             backup_tables / dump_schema / install_skills.sh)。
-│                             **运营侧一个脚本都没有** —— 导轨已拆完(2026-07-14)
+├── scripts/                  **只剩开发期的门**(review_gate.sh / backup_tables /
+│                             dump_schema / check_schema_drift / install_skills.sh)。
+│                             **运营侧一个脚本都没有** —— 导轨已拆完(2026-07-14)。
+│                             ⚠️ **审查不在这里** —— 审查是**每轮派子 agent**(见 docs/架构.md 六)
 ├── skills/                   **Knowledge(按需加载)**;install_skills.sh 按 skills.lock.json 装出的符号链接
 │                             唯一真源 = qiaohe-skill 仓。**不入库**
-├── lib/                      ⚠️**技能层共享运行库,非死码**。qiaohe-skill 的 Python 技能 import 它
-│                             (feishu_workbench / xhs_fetch / skill_gate / brand_kb)。
-│                             orchestrator 不 import 它(两个独立子系统)。删了会断技能层
 ├── brands/巧荷/              账号声明(画像 + playbooks)· formulas(标题/正文/视觉公式)
 ├── schema/test/              Bitable 字段契约 dump(漂移用 git diff 兜底)
 └── tests/                    回归锁。**只测法律/手/眼睛,不测判断**(见 CLAUDE.md「测试测什么」)
@@ -106,13 +105,18 @@ guanyun-workspace/            ← harness(领域那一半)
 `bash scripts/review_gate.sh --full` ——
 ① **红线测试**(`tests/`,只测红线,不测判断)
 ② schema 契约(代码消费的字段 ⊆ 活库)
-③ 机器审 `alignment_audit.py`(死码/死配置/悬空引用/空门)
-③b **技能真源同步**(`skills.lock.json` 的 sha == **GitHub 上的 main**,直接问 GitHub)
+③ **技能真源同步**(`skills.lock.json` 的 sha == **GitHub 上的 main**,直接问 GitHub)
 ④ **真跑冒烟**(零 mock,真测试库:`python3 -m orchestrator board` 必须真跑得通)
-⑥ 末尾跑 `ask.sh` 架构自问
+⑤ **备份**(schema 操作抹掉过 280 行,是 `backups/` 救回来的)
+末尾跑 `ask.sh` 架构自问
 
-老的门(`ar_check` / `verify_usable` / `dogfood_smoke` / `check_p1-6`)**已删** ——
-它们断言的正是刚拆掉的导轨("cadence 会派这 4 条"、"draft_one 干跑通"),
-而且**测的是措辞不是正确性**。实测 = **派子 agent 真跑**。
+★门里**只有对账和真跑**,一个"预测系统会怎么错"的检查器都没有。★
+
+老的门(`ar_check` / `verify_usable` / `dogfood_smoke` / `check_p1-6` / 机器审)**全删了**:
+它们断言的正是拆掉的导轨,而且**测的是措辞不是正确性**;机器审自己三个核心检查都是空壳
+(加一句**注释**就能骗过去),它还 import 过已删的模块 —— 那一刻它根本不设防。
+
+**审查 = 每轮派子 agent**(见 `docs/架构.md` 第六节)。
+机械匹配永远查不出「这段 if 是不是在替模型做决策」「这句话是不是在骗人」—— **只有模型答得了。**
 
 **全绿才提交。红=不留,别拿"部分绿"充数。**

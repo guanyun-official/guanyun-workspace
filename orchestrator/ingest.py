@@ -20,7 +20,7 @@ from .bitable import MaterialStatus as MS
 
 
 def _as_pointer(link_path: str) -> str:
-    """素材『相对路径』值(ADR-0004):已是指针/URL 原样;裸本地路径→file://(向后兼容本地样片)。
+    """素材『相对路径』值:已是指针/URL 原样;裸本地路径→file://(向后兼容本地样片)。
     网盘素材传 netpan.pointer(远端路径)=耐久指针;分享链接用时再 mint,不入库。"""
     if "://" in link_path or link_path.startswith(netpan.POINTER_SCHEME):
         return link_path
@@ -30,7 +30,7 @@ def _as_pointer(link_path: str) -> str:
 def _resolve_link(link_path: str) -> str:
     """素材『链接』**存能点开的值**:网盘指针(real 模式)→ mint 永久分享链接(投手一点直达该图/视频);
     本地/stub → 退化成指针/file://。失败兜底存指针(不丢)。"""
-    if link_path.startswith(netpan.POINTER_SCHEME) and netpan.MODE == "real":
+    if link_path.startswith(netpan.POINTER_SCHEME):
         try:
             return netpan.share_link(netpan.pointer_path(link_path))   # 永久分享(share set --period 0)
         except netpan.NetpanError:
@@ -71,20 +71,12 @@ def gen_code(mtype: str, name: str, existing: set) -> str:
     return f"{stem}{(max(nums) + 1 if nums else 1):03d}"
 
 
-def segment_note(parent_code: str, in_ts: str, out_ts: str, extra: str = "") -> str:
-    """段指针素材的『备注』(ADR-0004 §4:用某段不物化新文件,记原片+区间,来源继承原片)。
-    例:『段 00:12-00:27 源自 M-013』。人/agent 一看就知道用哪段。"""
-    seg = f"段 {in_ts}-{out_ts} 源自 {parent_code}"
-    return f"{seg};{extra}" if extra else seg
-
-
 def register(code: str, mtype: str, link_path: str, note: str = "",
              source: str = MSrc.REAL, accounts: list | None = None,
-             shooter: str = "", gen_params: str = "", thumb_token: str = "",
-             form: str = "") -> str:
+             gen_params: str = "", thumb_token: str = "", form: str = "") -> str:
     """登记一条素材进素材表(素材按赛道存,不挂衣服)。字段归位:
     - 链接(url)= 能点开的分享链(投手一点直达);相对路径(text)= 系统耐久指针(baidupan:/...),寻址用。
-    - 生成参数(text)只在 source=AI生成 时填(provenance 细节);拍摄人可空。
+    - 生成参数(text)只在 source=AI生成 时填(provenance 细节)。
     accounts=适用账号 record_id 列表——**打标时留空**(消费在分发选材时决定并回填)。
 
     ★合规红线:来源由**落点/元数据**定,不靠视觉猜★(漏判 AI → 漏勾 AI 声明 = 合规硬伤)。
@@ -111,8 +103,6 @@ def register(code: str, mtype: str, link_path: str, note: str = "",
     }
     if form:
         fields[MF.FORM] = form   # 图 / 视频 —— 从文件形态推,**不再靠"视频文件强制落视频类"那条钳制**
-    if shooter:
-        fields[MF.SHOOTER] = shooter
     if thumb_token:
         fields[MF.THUMB] = [{"file_token": thumb_token}]   # 缩略图(附件),base 驾驶舱瞄一眼
     if source == MSrc.AI and gen_params:
@@ -124,7 +114,7 @@ def register(code: str, mtype: str, link_path: str, note: str = "",
 
 def store_produced(local_path: str, mtype: str, source: str = MSrc.AI, note: str = "",
                    accounts: list | None = None, remote_dir: str | None = None) -> tuple[str, str]:
-    """加工产出(拼图/AI 封面/成片)**回传网盘 03-成片** + 登记素材(ADR-0004)。
+    """加工产出(拼图/AI 封面/成片)**回传网盘 03-成片** + 登记素材。
     **来源随像素出处**:纯剪辑实拍=`实拍`(免声明)、含 AI 合成=`AI生成`(需声明)——调用方按事实传 source。
     需 netpan real+STOKEN(写)。返回 (record_id, 网盘耐久指针)。"""
     remote = remote_dir or f"{netpan.ROOT}/03-成片"

@@ -49,7 +49,14 @@ def build() -> argparse.ArgumentParser:
     sub.add_parser("board", help="【眼】世界现在什么样(账号/在途/素材/灵感/回流/作息/红线)。纯读")
     c = sub.add_parser("card", help="【眼·人面】今日卡片(运营看的)。--send 推到飞书")
     c.add_argument("--send", action="store_true")
-    c = sub.add_parser("report", help="【眼·人面】周报(老板看的)。没数据就说没数据")
+    c = sub.add_parser("report",
+                       help="【眼·人面】周报(老板看的)。**harness 只摆事实,结论你自己说**"
+                            "(`--say`)。没数据就是没数据 —— 别用零数据编")
+    c.add_argument("--say", default="",
+                   help="**你要跟老板说的话**(结论/判断/风险)。不给就只有一张干数据表 —— "
+                        "harness 一个结论都不会替你写")
+    c.add_argument("--needs", default="",
+                   help='这周卡在素材上的事(JSON):[{"account":.., "类型":.., "缺":N}]。不给就没这一段')
     c.add_argument("--send", action="store_true")
     c = sub.add_parser("shotlist", help="【眼·人面】补拍单(摄影师看的)。**内容你给** --items '<json>'")
     c.add_argument("--items", required=True,
@@ -77,7 +84,6 @@ def build() -> argparse.ArgumentParser:
                         "(board 里有词汇表)。**名字里不带『图』『视频』——那是形态,自动从文件推**")
     c.add_argument("--source", default="实拍", help="实拍 | AI生成 ——(落 02-AI生成/ 目录的会被强制标 AI生成)")
     c.add_argument("--note", required=True, help="画面备注:颜色/形制/场景/光线/姿势/细节。**这是文案的事实底座**")
-    c.add_argument("--shooter", default="")
     c.add_argument("--thumb-from", default="",
                    help="缩略图用哪张本地图(视频**必给**:你挑一张最能代表它的帧;"
                         "静图不给则用它自己)。**哪一帧代表这条视频,是你的判断**")
@@ -135,38 +141,54 @@ def build() -> argparse.ArgumentParser:
     c = sub.add_parser("idea.converted", help="【手】灵感转化成笔记了 → 回填灵感库(闭环)")
     c.add_argument("idea_id")
     c.add_argument("note_id")
-    c = sub.add_parser("collect", help="【手】回流采集:去小红书抓已发帖的赞/藏/评,写回笔记表")
-    c.add_argument("--limit", type=int, default=50)
+    c = sub.add_parser("note.metrics",
+                       help="【手】**把你抓到的回流数写回**(+ 推 已发→已回流)。"
+                            "『去抓』是你的操作(你有采集技能),『信不信』是你的判断 —— "
+                            "**没抓到的就别传,不传的一个字都不写**(写 0 = 往库里灌假话)")
+    c.add_argument("id")
+    c.add_argument("--liked", type=int)
+    c.add_argument("--collected", type=int)
+    c.add_argument("--comments", type=int)
+    c.add_argument("--shared", type=int)
     c = sub.add_parser("compose", help="【手】加工执行:拼图 / AI封面。**要不要加工是你的判断**")
     c.add_argument("--kind", required=True, choices=["拼图", "AI封面"])
     c.add_argument("--inputs", required=True, help="素材 record_id 逗号分隔")
     c.add_argument("--prompt", default="", help="AI封面用:中文文生图提示词(须贴合真实素材,不许编别的衣服)")
+    c.add_argument("--type", default="", help="产物登记成什么**内容**(上身/商品/形象/搭配/…)。"
+                                              "**你看图判**;不给则拼图=搭配、AI封面=形象")
+    c.add_argument("--note", default="", help="产物的画面备注(下一个人出稿时只看得见这句话)")
 
     # ── 作息(心跳的手)──────────────────────────────────────────────────
     sub.add_parser("schedule", help="【眼】我现在的作息表(只列我自己排的班)")
+    c = sub.add_parser("schedule.dry-run",
+                       help="【眼】**在 cron 那样的干净环境里真跑一次这条命令**,把真实输出摆给你看。"
+                            "⚠️ 退出码 0 不等于它醒了 —— 自己看输出")
+    c.add_argument("--do", required=True)
     c = sub.add_parser("schedule.set", help="【手】给自己排班。**几点/干什么/为什么,全是你决定的**")
     c.add_argument("--name", required=True)
     c.add_argument("--when", required=True, help="cron 五段,如 '0 8 * * *'")
     c.add_argument("--do", required=True, help="到点跑什么。**该做的是叫醒你自己**,不是跑写死的流程")
     c.add_argument("--why", required=True, help="一句人话:为什么这个点。人得看得懂你给自己排了什么班")
+    c.add_argument("--verified", action="store_true",
+                   help="**你已经 schedule.dry-run 过、并亲眼确认这条命令能叫醒你**。"
+                        "不给就装不上 —— 一条每天空转的假班,比没有更危险")
     c = sub.add_parser("schedule.rm", help="【手】撤掉自己的一个班")
     c.add_argument("name")
 
     # ── 留痕 ────────────────────────────────────────────────────────────
-    c = sub.add_parser("log", help="【手】写运行日志(你干了什么,人事后查得到;成本进月度硬闸)")
+    c = sub.add_parser("log", help="【手】写运行日志(你干了什么,人事后在 base 查得到)")
     c.add_argument("--summary", required=True)
     c.add_argument("--action", required=True)
     c.add_argument("--table", required=True, help="动的是哪张表(**没有默认值** —— 默认值会把'忘了传'变成'静默记错')")
     c.add_argument("--result", default="成功")
     c.add_argument("--detail", default="")
-    c.add_argument("--cost", type=float, default=None)
+    c.add_argument("--cost", type=float, default=None, help="这次花了多少钱(元)。**没有硬闸** —— 钱花超了要不要停手,是你看事实自己判断")
     return ap
 
 
 def main(argv: list[str] | None = None) -> int:
-    from . import (alerts, board, cockpit, collect as collect_mod, compose, feishu_io,
-                   guard, ingest, materials, netpan, notes, publish, report,
-                   schedule as sch, shotlist, trends)
+    from . import (alerts, board, cockpit, compose, feishu_io, guard, ingest, materials,
+                   netpan, notes, publish, report, schedule as sch, shotlist, trends)
 
     a = build().parse_args(argv)
     try:
@@ -177,10 +199,12 @@ def main(argv: list[str] | None = None) -> int:
             _out({"投递": alerts.send_card(card) if a.send else {"已发": False, "说明": "干跑,没发(加 --send 才推飞书)"},
                   "card": card})
         elif a.cmd == "report":
-            text = report.weekly_text(a.brand)
-            print(text)
-            if a.send:
-                alerts.send(text, title="巧荷 · 周报")
+            f = report.facts(a.brand)
+            card = report.card(f, a.say, json.loads(a.needs) if a.needs else None)
+            _out({"事实": f,
+                  "投递": alerts.send_card(card) if a.send
+                          else {"已发": False, "说明": "干跑,没发(加 --send 才推飞书)"},
+                  "card": card})
         elif a.cmd == "shotlist":
             card = shotlist.card(json.loads(a.items))
             _out({"投递": alerts.send_card(card) if a.send else {"已发": False, "说明": "干跑,没发(加 --send 才推飞书)"},
@@ -206,7 +230,7 @@ def main(argv: list[str] | None = None) -> int:
                 if src:
                     token = materials.thumb_token(src, name)
             rid = ingest.register(code, a.__dict__["type"], netpan.pointer(a.path), a.note,
-                                  a.source, shooter=a.shooter, thumb_token=token)
+                                  a.source, thumb_token=token)
             _out({"素材编号": code, "record_id": rid, "类型": a.__dict__["type"], "来源": a.source,
                   "指针": netpan.pointer(a.path),
                   "自证": f"python3 -m orchestrator material.list --type {a.__dict__['type']} | grep {code}"})
@@ -246,10 +270,11 @@ def main(argv: list[str] | None = None) -> int:
         elif a.cmd == "idea.converted":
             trends.mark_converted(a.idea_id, a.note_id)
             _out({"回填了灵感": a.idea_id, "笔记": a.note_id})
-        elif a.cmd == "collect":
-            _out(collect_mod.collect_and_writeback(limit=a.limit))
+        elif a.cmd == "note.metrics":
+            _out(notes.write_metrics(a.id, a.liked, a.collected, a.comments, a.shared))
         elif a.cmd == "compose":
-            plan = {"kind": a.kind, "inputs": _csv(a.inputs), "封面提示词": a.prompt}
+            plan = {"kind": a.kind, "inputs": _csv(a.inputs), "封面提示词": a.prompt,
+                    "类型": a.__dict__.get("type", ""), "备注": a.note}
             rid = compose.execute(plan)
             _out({"加工": a.kind, "产出素材": rid,
                   "说明": "产物已回传网盘 03-成片 并登记;AI 生成的像素来源=AI生成 → 发布前人必须勾 AI 声明"
@@ -257,8 +282,10 @@ def main(argv: list[str] | None = None) -> int:
 
         elif a.cmd == "schedule":
             _out(sch.list_all())
+        elif a.cmd == "schedule.dry-run":
+            _out(sch.dry_run(a.__dict__["do"]))
         elif a.cmd == "schedule.set":
-            _out(sch.set_job(a.name, a.when, a.__dict__["do"], a.why))
+            _out(sch.set_job(a.name, a.when, a.__dict__["do"], a.why, a.verified))
         elif a.cmd == "schedule.rm":
             _out(sch.remove(a.name))
 
@@ -273,6 +300,9 @@ def main(argv: list[str] | None = None) -> int:
     except notes.DraftPending as e:
         print(f"\n✋ 停手:\n{e}\n", file=sys.stderr)
         return 4
+    except sch.ScheduleError as e:
+        print(f"\n⏰ 排班没成:\n{e}\n", file=sys.stderr)
+        return 6
     except notes.SkillMissing as e:
         print(f"\n🧩 技能装不上(防搬运门会瞎,不能放行):\n{e}\n", file=sys.stderr)
         return 5

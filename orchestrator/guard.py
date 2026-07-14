@@ -29,7 +29,7 @@ def assert_base_allowed(base_token: str, test_mode: bool) -> None:
 
 
 def derive_source(input_sources: list[str], used_ai_generation: bool = False) -> str:
-    """★provenance 传播焊死★:加工产物的『来源』**随像素出处**(ADR-0004,沿衍生链传播)。
+    """★provenance 传播焊死★:加工产物的『来源』**随像素出处**(「媒体唯一真身仓=网盘」,沿衍生链传播)。
 
     任一输入素材=AI生成,或加工过程本身合成了新画面 → 产物=AI生成(下游笔记发布前须人勾声明);
     否则(纯剪辑/拼接/调色,像素都来自实拍)→ 实拍(免声明)。
@@ -60,7 +60,11 @@ def assert_ai_declared(fields: dict, *, ai_required: bool = True) -> None:
     if not ai_required:
         return
     if not fields.get(NF.AI_DECLARED):
-        raise GuardError(f"AI声明门:「{fields.get(NF.CODE, '?')}」含 AI 合成素材但未勾 AI声明,拒绝进入待发布")
+        # ⚠️ 用**标题**,别用『排期编号』—— 那个字段**从来没有任何东西写过**,
+        # 运营看到的报错永远是「?」含 AI 合成素材…(2026-07-14 架构审查抓到)
+        from . import bitable
+        who = bitable.text(fields.get(NF.TITLE)) or "(无标题)"
+        raise GuardError(f"AI声明门:「{who}」含 AI 合成素材但未勾 AI声明,拒绝进入待发布")
 
 
 def assert_has_material(material_count: int, code: str = "?") -> None:

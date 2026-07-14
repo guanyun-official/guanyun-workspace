@@ -49,20 +49,19 @@ def _accounts(brand: str) -> list[dict]:
         if acc.error:
             out.append({"账号": name, "声明坏了": acc.error})
             continue
-        cad = acc.strategy.get("cadence") or {}
         out.append({
             "账号": name,
             "base「自动排产」": sched.get(name, "(账号表里没这个号)"),
-            "md 声明的节奏": {"posts_per_day": cad.get("posts_per_day"), "pattern": cad.get("pattern")},
-            "素材从哪来(sourcing)": acc.strategy.get("sourcing", ""),
+            # ⚠️ 这里**没有**「每天该发几条」—— 那是判断,归你。
+            # (老实现有个 `cadence.posts_per_day`,它喂的是已删的 cadence 轮转。)
             "库存缓冲目标(天)": acc.strategy.get("runway_alert_days"),
             "画像": f"brands/{brand}/accounts/{name}.md   ← 出稿前读它(这个号说话是什么调性)",
             "模式": [{
                 "内容类型": pb.get("content_type") or pb.get("id") or "",
-                "权重": pb.get("weight"),
                 "gen_skill": accounts.gen_skill_of(pb),
                 "技能全文": f"skills/{accounts.gen_skill_of(pb)}/SKILL.md   ← 出稿前读它(怎么写)",
-                "要什么素材": pb.get("material_needs") or [],
+                "要什么内容": pb.get("material_needs") or [],
+                "要什么形态": pb.get("material_form") or "(不限)",
                 "篇幅规格": pb.get("body_len"),
             } for pb in acc.playbooks()],
         })
@@ -191,13 +190,37 @@ def _ideas() -> list[dict]:
     return out
 
 
-def _feedback() -> dict:
-    """回流事实:已发的帖有没有链接、有没有数据。**没数据就说没数据。**"""
-    pub = feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.PUBLISHED, NS.LOOPED_BACK])
-    no_link = [bitable.text(r["fields"].get(NF.TITLE)) for r in pub
-               if not bitable.text(r["fields"].get(NF.PUBLISH_LINK)).strip()]
-    has_data = sum(1 for r in pub if r["fields"].get(NF.LIKED) is not None)
-    return {"已发/已回流": len(pub), "缺发布链接(抓不到数据)": no_link, "有点赞数据的": has_data}
+def _feedback() -> list[dict]:
+    """回流事实:每条已发/已回流的帖 —— 有没有链接、抓到了哪些数、**哪些数还没抓到**。
+
+    ⚠️ **「没抓到」不等于「是 0」。** 真栽过:采集器把读不到的赞数静默变成 0,
+    而 0 是个合法值,会被周报当真数据算"哪类内容更有效"。所以这里**分开报**:
+    没有值 = 没抓到(字段是 None);有值 = 真抓到的。
+
+    **『去抓』是你的操作**(你有 `xhs-extract-master` / `xhs-collector` 两个技能),
+    **『这个数信不信』是你的判断**;harness 只给你 `note.metrics` 这只手把它写回世界。
+    """
+    acc_names = feishu_io.name_map(AF.TABLE, AF.NAME)
+    out = []
+    for r in feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.PUBLISHED, NS.LOOPED_BACK]):
+        f = r["fields"]
+        nums = {"点赞": f.get(NF.LIKED), "收藏": f.get(NF.COLLECTED),
+                "评论": f.get(NF.COMMENTS), "转发": f.get(NF.SHARED)}
+        out.append({
+            "id": r["record_id"],
+            "标题": bitable.text(f.get(NF.TITLE)),
+            "状态": bitable.text(f.get(NF.STATUS)),
+            "账号": bitable.link_names(f.get(NF.ACCOUNT), acc_names),
+            # ⚠️ **空就说空,别替它宣称"本号原创"**(2026-07-14 架构审查抓到)。
+            # 老实现写 `or "(空=本号原创)"` —— 而**没有任何代码写这个字段**。
+            # 于是空的那些,board **一口咬定是本号原创**。**没核实的断言进了人面产物**,
+            # 而且方向是最危险的那个:版权/搬运该**就低不就高**,它就高。
+            "内容归属": bitable.text(f.get(NF.OWNERSHIP)) or "**没填** —— 别默认它是本号原创",
+            "发布链接": bitable.text(f.get(NF.PUBLISH_LINK)) or "**没填 → 抓不到数**",
+            "抓到的数": {k: v for k, v in nums.items() if v is not None} or "(一个都没抓到)",
+            "还没抓到的": [k for k, v in nums.items() if v is None] or "(都抓到了)",
+        })
+    return out
 
 
 def view(brand: str = "巧荷") -> dict:

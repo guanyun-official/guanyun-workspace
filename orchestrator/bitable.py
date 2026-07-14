@@ -15,7 +15,6 @@ from datetime import datetime
 class NoteFields:
     """笔记表字段词汇(取代散落 90+ 裸字符串;飞书改名只改这里)。"""
     TABLE = "笔记表"
-    CODE = "排期编号"
     TITLE = "标题"
     STATUS = "状态"
     AI_DECLARED = "AI声明"
@@ -32,13 +31,20 @@ class NoteFields:
     # 这个信号原来**一落地就被抹掉**。现在留住了:agent 写稿时同时落一份原文,人改的是草稿。
     PUBLISH_LINK = "发布链接"
     PUBLISHED_AT = "实际发布日"
-    PLANNED_AT = "计划发布日"
     LINKED_MATERIALS = "关联素材"   # #32 薄执行器选素材挂这里(link→素材表)
     PLAYBOOK = "方法论"        # 显式所属方法论 id(为空则回退 content_type 解析)
     LIKED = "点赞"            # 效果采集写回;热度分是 formula 由 Bitable 自算,不写
     COLLECTED = "收藏"
     COMMENTS = "评论"
     SHARED = "转发"
+    OWNERSHIP = "内容归属"   # 本号原创 | 外部参考
+    # ★『外部参考』= **这一行不是我们发的**★(2026-07-14 加,为了验证回流链路)
+    # 回流采集是从**笔记表**读『发布链接』去抓数的。要真跑通这条链路,就得有一行带真实链接的笔记。
+    # 可我们一条帖都还没发出去(红线焊死"绝不自动发布",这一截卡在人手里)。
+    # 于是拿**一条公开的他人笔记**当验证桩 —— 数据是真抓的,**但"这是我们发的"就是一句谎**。
+    # 而周报的「🏆 单条最佳」是从所有已发里挑最高赞的 → 它会指着别人的爆款说"我们本周最佳"。
+    # **零数据编结论换了个马甲。**
+    # 所以世界得能说清"**这一行不是我们发的**"。复盘一律排除『外部参考』,并在周报里如实提一句。
     QC = "质检"   # 出稿即评的问题标记(零素材/篇幅不达技能规格/混入制作说明…)。**必须落库**:
                   # 算出来却不写库 = 运营在 base 和卡片上都看不见 = 等于没检(2026-07-14 建了字段忘接线)
     KEYWORDS = "标签·关键词"   # link→关键词库。**回填的是"文案里真正出现的词",不是"喂进 prompt 的词"**
@@ -56,10 +62,8 @@ class MaterialFields:
     LINK = "链接"          # url 字段:人点开的分享链(投手一点直达该图/视频)
     REL_PATH = "相对路径"   # text 字段:系统耐久指针(baidupan:/... 或 file://);寻址用,不被 url 改写
     SHOT_STATUS = "拍摄状态"
-    SHOOTER = "拍摄人"      # text:谁拍的(可空)
-    SHOOT_REQ = "拍摄要求"  # text:拍摄 brief(shotlist 派拍时的要求;可空,现多为空待回填)
     SOURCE = "来源"
-    GEN_PARAMS = "生成参数"  # text:仅 AI 素材填(生成/加工参数=provenance 细节,ADR-0004 来源随像素)
+    GEN_PARAMS = "生成参数"  # text:仅 AI 素材填(生成/加工参数=provenance 细节,「媒体唯一真身仓=网盘」 来源随像素)
     NOTE = "备注"
     THUMB = "缩略图"        # 附件字段:降采样预览图(base 驾驶舱瞄一眼选材,不用点开网盘)
     ACCOUNTS = "适用账号"   # 赛道(账号×模式)投影;打标留空,分发选材时按类型+备注语义现选并回填(消费即记录)
@@ -74,18 +78,12 @@ class AccountFields:
     """账号表字段词汇(AccountKernel 对齐 Base 账号行与 workspace Account data 用)。"""
     TABLE = "账号表"
     NAME = "账号名"
-    XHS_ID = "小红书号"
-    HOMEPAGE = "主页链接"
-    LAUNCH_STATUS = "上线状态"
-    AUTO_SCHED = "自动排产"          # 运营开关(base owner):暂停=跳过派活;跟随workspace=按 md 节奏
-    CONTENT_TYPES_LOOKUP = "内容类型表-所属账号"
 
 
 class AutoSched:
     """账号表「自动排产」select 取值:base 侧运营开关(暂停/跟随workspace 的唯一真相)。"""
     FIELD = "自动排产"
     PAUSED = "暂停"          # base 强制停(覆盖 md,谁接手都读得到)
-    FORCE_ON = "开启"        # base 强制派(覆盖 md,即使 md posts_per_day<1 也派)
     FOLLOW_WS = "跟随workspace"  # 按 workspace 账号 md 的 cadence 节奏派(默认)
 
 
@@ -120,7 +118,6 @@ class MaterialStatus:
     """素材拍摄状态取值(素材表 拍摄状态 select 枚举)。「已拍」= 真有这份素材,能用。"""
     TABLE = "素材表"
     FIELD = "拍摄状态"
-    NEED_SHOOT = "待拍"
     SHOT = "已拍"
 
 
@@ -151,8 +148,6 @@ class ContentTypeFields:
     """内容类型表字段词汇(引擎格式感知:内容类型名→格式 查表)。"""
     TABLE = "内容类型表"
     NAME = "内容类型名"
-    FORMAT = "格式"
-    ACCOUNT_LINK = "所属账号"
 
 
 class InspirationFields:
@@ -198,13 +193,6 @@ def declared_field_names(fieldset: type) -> list[str]:
     代码消费 ⊆ 声明。飞书 UI 改字段名/删 select 选项而代码没跟上 → 契约测试红,不静默漂移。"""
     return [v for k, v in vars(fieldset).items()
             if k.isupper() and k not in _META_ATTRS and isinstance(v, str)]
-
-
-# 写库字段格式坑(实测反复踩,codify 防复发):link 字段收 record_id 列表、url 字段收 {link,text} dict,
-# 写字符串一律炸(FeishuIOError 5次重试未成功)。写这些字段前用下面 link_value/url_value 包一下。
-LINK_FIELDS = frozenset({"账号", "内容类型", "关联素材", "适用账号", "转化为笔记", "关联关键词", "关联笔记"})
-URL_FIELDS = frozenset({"发布链接", "链接", "主页链接"})  # 主页链接=URL字段(2026-07实测URLFieldConvFail坐实,曾误当text)
-
 
 
 def url_value(url: str, text: str = "") -> dict:

@@ -18,6 +18,15 @@ class FeishuIOError(RuntimeError):
 
 
 def _call(method: str, path: str, params: dict | None = None, data: dict | None = None) -> dict:
+    # ★守卫必须在**任何 IO 之前** —— 读也不许碰生产库★
+    #
+    # 老实现只在写路径守(`_guard_write`)。真跑复现:把 BASE_TOKEN 指向生产库,
+    # `list_records` / `search_records` / `get_record` **全部放行**,请求已经构造到 N9IVbi 了。
+    # 而 `board` 正把「生产库**读也不许碰**,守卫在任何 IO 之前」**当红线印给 agent 看** ——
+    # **门是漏的,话是假的。**
+    #
+    # 这是这个仓里所有飞书 IO 的**唯一出口**,所以守卫就该在这。
+    guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)
     env = os.environ.copy()
     env["LARK_CLI_NO_PROXY"] = "1"
     args = ["lark-cli", "api", method, path, "--as", "bot"]

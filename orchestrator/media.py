@@ -1,6 +1,6 @@
 """素材机械拆解(转码/形态判断):把入库素材归一成可选用形态。纯判断(kind/needs_jpg)可测,转码走 subprocess seam。
 
-ADR-0004 §4:**视频不自动切成文件**(段指针优先,用时再选段)——机械拆解只做两件事:
+**视频不自动切成文件**(段指针优先,用时再选段)——机械拆解只做两件事:
 1. 形态判断(图/视频),给登记时的『类型』和后续打标当线索;
 2. livp/heic 静图转 jpg(通用可选用/预览)——手机拍的 livp(=Apple Live Photo,zip 内含 heic+mov)最常见。
 真加工出成片(拼接/合成)是**另一步**(剪辑技能→回传 03-成片),不在机械拆解里。
@@ -47,7 +47,7 @@ def _extract_livp_still(livp: str, out_dir: Path) -> str:
 
 
 def _run_convert(src: str, dst: str) -> None:
-    """静图 → jpg 的 subprocess seam(唯一真调用点,可 mock)。**跨平台**(ADR-0009 服务器 7×24):
+    """静图 → jpg 的 subprocess seam(唯一真调用点,可 mock)。**跨平台**(「上量前重构」 服务器 7×24):
     mac 用 sips;Linux 用 heif-convert(libheif,heic/heif 专用)或 ImageMagick convert;都没有→报错(装工具)。"""
     import platform
     import shutil

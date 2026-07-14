@@ -10,8 +10,6 @@ import json
 import re
 import subprocess
 import sys
-from datetime import datetime, timedelta
-
 from . import bitable, config
 from .bitable import NoteFields as NF, NoteStatus as NS
 
@@ -34,11 +32,44 @@ def _cn_num(v) -> int | None:
     return int(round(n))
 
 
+def expand_share_link(url: str) -> str:
+    """小红书**分享短链** `xhslink.com/...` → 展开成带 `xsec_token` 的真链接。
+
+    ★为什么必须有(2026-07-14 真跑撞到)★
+    **人从小红书"分享"出来的就是短链** —— 运营回填『发布链接』时,粘的就是它。
+    而采集器的 `note` 原子**必须带 `xsec_token`** 才拿得到数据(踩坑账第二节第 2 条),
+    短链上**没有 token**。
+
+    结果:运营老老实实照卡片填了链接,**回流永远抓不到数** —— 而且不报错,只是数字一直是 0。
+    然后周报会说"链接已经填了,却还是零赞,不是你的问题" —— **话说得体贴,可根本就采不到。**
+
+    不是短链就原样返回(幂等)。展不开就返回原样(调用方会如实报"没采到")。
+    """
+    if "xhslink.com" not in url:
+        return url
+    import urllib.request
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:  # noqa: S310
+            return r.geturl() or url
+    except Exception:  # noqa: BLE001  展不开 → 原样返回,调用方如实报"没采到"(绝不假装成功)
+        return url
+
+
 def _extract_note(url: str) -> dict:
-    """调已验证的非登录 SSR 提取技能 xhs-extract-master 的 note 原子,返回原始 note dict。
-    零封号不用我方账号(实测拉到巧荷账号公开数据 tikhub/redfox 皆 ✗ 仍成功)。"""
+    """抓一条笔记的原始数据(**只给 `fetch_source` 用** —— 出稿要看爆款的结构)。
+
+    ⚠️ **回流的『抓』不在这里** —— 那是 agent 的操作:它有 `xhs-extract-master` /
+    `xhs-collector` 两个技能,**用哪个、抓到的数信不信,是它的判断**(它已经证明它会判:
+    真跑时它拒绝相信"搜索卡 7441 赞 / 详情页 4 赞"那组自相矛盾的数)。
+    harness 只给它**把数写回世界的手**(`note.metrics`)。
+
+    我差点在这里长出第二份采集器(归一键名、决定先试哪条路)—— **那就是"方法有两份真源"**。
+    """
+    url = expand_share_link(url)                     # 分享短链 → 带 xsec_token 的真链接
     xhs = config.WORKSPACE / "skills" / "xhs-extract-master" / "scripts" / "xhs"
-    r = subprocess.run(["python3", str(xhs), "note", "--url", url],  # 技能要 --url,位置参数返空(实测)
+    r = subprocess.run(["python3", str(xhs), "note", "--url", url],   # 技能要 --url(位置参数返空)
                        capture_output=True, text=True, timeout=90)
     i = r.stdout.find("{")
     return json.loads(r.stdout[i:]) if i >= 0 else {}
@@ -55,20 +86,6 @@ def _note_metrics(d: dict) -> dict:
         if n is not None:
             out[field] = n
     return out
-
-
-def collect(url: str, mode: str = "stub") -> dict:
-    """取一条已发笔记的互动数据 → {笔记表数值字段: 值}。
-    mode=stub 返 {}(零成本占位);real 走 xhs-extract-master 非登录抓取。无 url / 取数失败 → {} 不阻断。
-    IO(_extract_note subprocess)与形态归一(_note_metrics 纯函数)分离。"""
-    if not url or mode != "real":
-        return {}
-    try:
-        d = _extract_note(url)
-    except Exception as e:  # noqa: BLE001  取数失败不拦主流程,下轮重试
-        print(f"[效果采集降级] {e}", file=sys.stderr)  # 诊断走 stderr,不污染 stdout(否则骗过测试监控 tail)
-        return {}
-    return _note_metrics(d)
 
 
 def _note_source(d: dict) -> dict:
@@ -102,61 +119,26 @@ def fetch_source(url: str) -> dict:
         return {}
 
 
-def _window() -> dict:
-    return {"条数": 0, "_总赞": 0}
+def by_playbook(notes: list[dict]) -> dict:
+    """按方法论聚合**事实**:{方法论: {条数, 总赞, 均赞, 总藏, 总评}}。只算已发/已回流。
 
-
-def _add_window(d: dict, key: str, liked: int) -> None:
-    d[key]["条数"] += 1
-    d[key]["_总赞"] += liked
-
-
-def _finish_window(w: dict) -> dict:
-    n = w["条数"]
-    return {"条数": n, "均赞": round(w["_总赞"] / n, 1) if n else 0}
-
-
-def aggregate_by_playbook(notes: list[dict], now: datetime | None = None) -> dict:
-    """把已发笔记按所属 playbook 聚合互动数据。
-
-    返回总量字段 + 时间窗反馈:
-    `{playbook: {条数, 总赞, 均赞, 总藏, 总评, 近30天, 本周, 上周, 周环比}}`。
-    这是反馈信号:哪套方法论平均表现好/最近是否变好 → 排产与周复盘可据此调权重。
+    ★删掉了 近30天/本周/上周/周环比/ranked★(2026-07-14 架构审查)
+    那几个窗口**只为一句结论服务**:「👉 本周最有效:『X』—— 可加权/多产这类」。
+    而"哪套方法论更有效、要不要多产"**是模型的判断**(全景图 AGENT 框里写着「周报该怎么说」)。
+    harness 摆数,agent 说话。
     """
-    now = now or datetime.now()
-    recent_cutoff = now - timedelta(days=30)
-    this_week_cutoff = now - timedelta(days=7)
-    prev_week_cutoff = now - timedelta(days=14)
     agg: dict[str, dict] = {}
     for f in notes:
-        pb = bitable.text(f.get(NF.PLAYBOOK)).strip()
-        if not pb:
-            continue
         if bitable.text(f.get(NF.STATUS)) not in (NS.PUBLISHED, NS.LOOPED_BACK):
-            continue          # 只聚合已发/已回流(有真发布数据);草稿待发/待出文案 0 赞不得稀释复盘均赞
-        liked = _num(f.get(NF.LIKED))
-        d = agg.setdefault(pb, {"条数": 0, "总赞": 0, "总藏": 0, "总评": 0,
-                                "近30天": _window(), "本周": _window(), "上周": _window()})
+            continue                  # 只聚合已发/已回流(草稿 0 赞会稀释均值)
+        pb = bitable.text(f.get(NF.PLAYBOOK)).strip() or "(没填方法论)"
+        d = agg.setdefault(pb, {"条数": 0, "总赞": 0, "总藏": 0, "总评": 0})
         d["条数"] += 1
-        d["总赞"] += liked
+        d["总赞"] += _num(f.get(NF.LIKED))
         d["总藏"] += _num(f.get(NF.COLLECTED))
         d["总评"] += _num(f.get(NF.COMMENTS))
-        published_at = bitable.parse_ts(f.get(NF.PUBLISHED_AT))
-        if not published_at:
-            continue
-        if published_at >= recent_cutoff:
-            _add_window(d, "近30天", liked)
-        if published_at >= this_week_cutoff:
-            _add_window(d, "本周", liked)
-        elif published_at >= prev_week_cutoff:
-            _add_window(d, "上周", liked)
     for d in agg.values():
         d["均赞"] = round(d["总赞"] / d["条数"], 1) if d["条数"] else 0
-        d["近30天"] = _finish_window(d["近30天"])
-        d["本周"] = _finish_window(d["本周"])
-        d["上周"] = _finish_window(d["上周"])
-        prev = d["上周"]["均赞"]
-        d["周环比"] = round((d["本周"]["均赞"] - prev) / prev * 100, 1) if prev else None
     return agg
 
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""活 schema 漂移探针(ADR-0009 P1『读侧漂告警接进运营 cron 前置』)。
+"""活 schema 漂移探针(「上量前重构」 P1『读侧漂告警接进运营 cron 前置』)。
 
 test_schema_contract 是**离线**契约(代码词汇 ⊆ 上次 dump 的**快照**)——只抓"代码 vs 快照"漂移,
 抓不到"飞书 UI 改了字段/选项但没人重跑 dump"(快照本身过期)。本探针补这个盲区:

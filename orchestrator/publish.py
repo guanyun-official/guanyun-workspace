@@ -112,25 +112,10 @@ def _account_load() -> dict[str, int]:
     return load
 
 
-# ── 聊天/卡片交互的『动作函数』(ADR-0005):按钮点一下的、聊天填字的,都收口到这里 ──
-# 服务器 agent 的 webhook 只把"卡片按钮点击/聊天消息"接到这几个函数,不重写逻辑。人点=人审(红线不违)。
-
-def approve(note_id: str, write: bool = False) -> dict:
-    """人点『批准』(卡片按钮):草稿待发→已批准。人点=人审(机器绝不自审)。write 才落库。
-    返回 {ok, title?, reason?}。之后 review_approved 判 AI声明→待发布。"""
-    if write:
-        guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)   # 红线:只写测试库
-    r = feishu_io.get_record(NF.TABLE, note_id)   # 规模M4:按id取单条,不全扫笔记表
-    if not r:
-        return {"ok": False, "reason": "没找到该笔记"}
-    f = r["fields"]
-    st = bitable.text(f.get(NF.STATUS)).strip()
-    if st != NS.DRAFT_PENDING:
-        return {"ok": False, "reason": f"不是草稿待发(当前:{st or '空'}),不批准"}
-    if write:
-        feishu_io.update_record(NF.TABLE, note_id, {NF.STATUS: NS.APPROVED})
-    return {"ok": True, "title": bitable.text(f.get(NF.TITLE)), "advanced": write}
-
+# ★这里**故意没有** `approve()`★
+# 审批是**人在 base 里做的**(人和 agent 看同一张表,不搞两套真源)。
+# 留一个 `approve()` 函数 = 给红线留了个后门:CLI 里没这个动词,可 `import` 就能调。
+# (2026-07-14 架构审查抓到。)
 
 def fill_publish_link(note_key: str, url: str, write: bool = False) -> dict:
     """认领发布链接(聊天里发链接/卡片):按 record_id 或标题/账号片段 匹配**一条**『待发布 或 已发缺链接』的笔记
@@ -158,7 +143,7 @@ def fill_publish_link(note_key: str, url: str, write: bool = False) -> dict:
     if write:
         import time
         # 认领链接=人确认此刻已发→同时补写『实际发布日』:控量『今日已发』/回流采集/效果归因都靠它,
-        # 此前只 sim 写、真发从不写→字段常年空、今日已发计数恒为 0(ADR-0009 收尾修)
+        # 此前只 sim 写、真发从不写→字段常年空、今日已发计数恒为 0(「上量前重构」 收尾修)
         feishu_io.update_record(NF.TABLE, rid,
                                 {NF.PUBLISH_LINK: bitable.url_value(url), NF.STATUS: NS.PUBLISHED,
                                  NF.PUBLISHED_AT: int(time.time() * 1000)})

@@ -20,7 +20,7 @@ Harness = Tools + Knowledge + Observation + Action Interfaces + Permissions
 | `docs/架构.md` | **全景图** · 技能是 Knowledge 不是函数 · **欠账(唯一一份)** |
 | `docs/踩坑账.md` | 病例:形态陷阱 / 人面缺陷 / 检查器自己得了它要抓的病 |
 | `CONTEXT.md` | 领域词汇(给 seam 起名) |
-| `docs/adr/` | 已定的决策,别翻案 |
+| `docs/踩坑账.md` | 已定的决策,别翻案 |
 
 ## 红线
 
@@ -29,7 +29,7 @@ Harness = Tools + Knowledge + Observation + Action Interfaces + Permissions
 ## 门
 
 ```bash
-bash scripts/review_gate.sh --full   # 单测 + ar_check + 真库冒烟 + check_p1-6 + 机器审
+bash scripts/review_gate.sh --full   # 红线测试 + schema 契约 + 机器审 + 技能真源同步 + 真库冒烟
                                      # + 17条链路真跑(真库 / 真 ARK / 真网盘)
 ```
 

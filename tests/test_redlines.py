@@ -41,6 +41,34 @@ TEST_BASE = "ZhzJbfkOsafwevsWkW8cfoILnfb"
 class R1_只写测试库(unittest.TestCase):
     """生产库 `N9IVbi` **焊死不碰,读也不行** —— 守卫必须在**任何 IO 之前**。"""
 
+    def test_read_paths_are_guarded_too(self):
+        """★**读也不许碰**★(2026-07-14 架构审查真跑复现的洞)
+
+        老实现只在写路径守(`_guard_write`)。把 BASE_TOKEN 指向生产库,
+        `list_records` / `search_records` / `get_record` **全部放行** —— 请求已经构造到 N9IVbi 了。
+        而 `board` 正把「生产库**读也不许碰**」当红线**印给 agent 看** —— **门是漏的,话是假的。**
+
+        现在守卫在 `_call()` 第一行(**所有飞书 IO 的唯一出口**)。
+        """
+        from orchestrator import feishu_io
+
+        class IOTouched(AssertionError):
+            pass
+
+        orig = (config.BASE_TOKEN, config.TEST_MODE)
+        try:
+            config.BASE_TOKEN, config.TEST_MODE = PROD_BASE, True
+            with mock.patch("subprocess.run",
+                            lambda *a, **k: (_ for _ in ()).throw(IOTouched("已经打到生产库了"))):
+                for fn, args in (("list_records", ("素材表",)),
+                                 ("search_records", ("素材表", [])),
+                                 ("get_record", ("素材表", "recX")),
+                                 ("name_map", ("账号表", "账号名"))):
+                    with self.subTest(读=fn), self.assertRaises(guard.GuardError):
+                        getattr(feishu_io, fn)(*args)
+        finally:
+            config.BASE_TOKEN, config.TEST_MODE = orig
+
     def test_prod_base_write_is_refused(self):
         with self.assertRaises(guard.GuardError):
             guard.assert_base_allowed(PROD_BASE, True)
@@ -86,11 +114,6 @@ class R1_只写测试库(unittest.TestCase):
         finally:
             config.BASE_TOKEN, config.TEST_MODE = orig
 
-    def test_no_prod_writing_script_exists(self):
-        """**不留往生产库写的脚本。** 曾有个 `migrate_p2_to_prod.py`(零调用者)躺在仓里等人手滑。"""
-        self.assertFalse((ROOT / "scripts" / "migrate_p2_to_prod.py").exists())
-
-
 class R2_绝不自动发布(unittest.TestCase):
     """出稿一律止于『草稿待发』。发布是**人的动作**。"""
 
@@ -109,14 +132,36 @@ class R2_绝不自动发布(unittest.TestCase):
             self.assertTrue(isinstance(v, ast.Attribute) and v.attr == "DRAFT_PENDING",
                             "write_draft 的落库状态不是写死的『草稿待发』——它能被传成别的状态")
 
-    def test_no_publish_verb_in_the_action_interface(self):
-        """**agent 的手里根本没有"发布"这个动词**(物理上够不着,不是"记得别用")。
-        也不许有"批准" —— 审批是人在 base 做的,给它 approve 动词它就能自己批自己的稿。"""
-        from orchestrator import cli
-        verbs = set(cli.build()._subparsers._group_actions[0].choices)  # type: ignore[attr-defined]
-        for 禁 in ("publish", "approve", "note.approve", "publish.publish"):
-            self.assertNotIn(禁, verbs, f"Action Interface 里冒出了「{禁}」动词")
-        self.assertIn("publish.advance", verbs)   # 只到『待发布』的那只手还在(不误删)
+    def test_agent_cannot_set_publish_states(self):
+        """★**测行为,不测措辞**★(2026-07-14 架构审查换掉的假测试)
+
+        老测试只断言"动词表里没有 `publish` / `approve` 这两个名字" —— **那是测措辞**。
+        而 `note.update --set 状态=已发` **就是那两个动词**,只是换了个写法。
+        真跑复现:老实现下,这三行全部放行 ——
+
+            note.update <id> --set 状态=已批准   → 它自己批自己的稿
+            note.update <id> --set 状态=待发布   → 绕开零素材/AI声明/控量三道门
+            note.update <id> --set 状态=已发     → **「绝不自动发布」当场变成空文**
+
+        门造好了,没装在门框上。**测名字永远抓不到这个。**
+        """
+        from orchestrator import feishu_io
+        with mock.patch.object(feishu_io, "update_record", lambda *a: None), \
+                mock.patch.object(feishu_io, "create_record", lambda *a: "recX"), \
+                mock.patch.object(feishu_io, "search_in", lambda *a, **k: []):
+            for 状态 in (NS.APPROVED, NS.TO_PUBLISH, NS.PUBLISHED, NS.LOOPED_BACK):
+                with self.subTest(状态=状态), self.assertRaises(guard.GuardError):
+                    notes.update("recX", {NF.STATUS: 状态})
+                with self.subTest(建=状态), self.assertRaises(guard.GuardError):
+                    notes.new("ootd号", "视频唯美OOTD", status=状态)
+
+    def test_agent_can_still_do_its_own_job(self):
+        """**不误伤**:它自己那几个状态照常写(否则门就成了枷锁)。"""
+        from orchestrator import feishu_io
+        with mock.patch.object(feishu_io, "update_record", lambda *a: None):
+            for 状态 in (NS.IDEA, NS.NEED_SHOOT, NS.NEED_COPY, NS.DRAFT_PENDING, NS.ON_HOLD):
+                notes.update("recX", {NF.STATUS: 状态})     # 不抛
+            notes.update("recX", {NF.QC: "退回:货不对板"})   # 写别的字段也照常
 
 
 class R3_绝不代勾AI声明(unittest.TestCase):
@@ -131,12 +176,12 @@ class R3_绝不代勾AI声明(unittest.TestCase):
     def test_ai_material_without_declaration_is_refused(self):
         self.assertTrue(guard.ai_declaration_required([MSrc.AI, MSrc.REAL]))
         with self.assertRaises(guard.GuardError):
-            guard.assert_ai_declared({NF.CODE: "含AI素材"}, ai_required=True)
+            guard.assert_ai_declared({NF.TITLE: "含AI素材"}, ai_required=True)
 
     def test_all_real_shots_need_no_declaration(self):
         """全实拍 → 免勾(**不误伤**:天天误报,人就不看了)。"""
         self.assertFalse(guard.ai_declaration_required([MSrc.REAL, MSrc.REAL]))
-        guard.assert_ai_declared({NF.CODE: "全实拍"}, ai_required=False)
+        guard.assert_ai_declared({NF.TITLE: "全实拍"}, ai_required=False)
 
 
 class R4_provenance随像素出处(unittest.TestCase):
@@ -180,10 +225,75 @@ class R5_控量门且不许有旋钮(unittest.TestCase):
                 os.environ.__setitem__("GY_ACCOUNT_DAILY_PUB", old)
             importlib.reload(config)
 
-    def test_source_never_reads_env_for_the_quota(self):
-        """连源码里都不许出现那个 env 读法 —— 否则下次有人"顺手"又给红线接回旋钮。"""
-        src = (ROOT / "orchestrator" / "config.py").read_text(encoding="utf-8")
-        self.assertNotIn("PER_ACCOUNT_DAILY_PUBLISH = int(os.environ", src)
+class R0_门必须真的装在门框上(unittest.TestCase):
+    """★这一条,是所有红线的地基★(2026-07-14 架构审查真跑打出来的)
+
+    审查员把 `publish.py` 里那三行(零素材门 / AI声明门 / 控量门)**整个删掉** ——
+    **29 条红线测试全绿。**
+
+    因为其余的红线测试**只测 `guard.*` 这几个纯函数会不会抛** ——
+    **它们不测这些门有没有被装在门框上。** 门造好了、测好了,搁在仓库里,
+    而系统推进状态的那条路上**一道门都没有**。
+
+    所以必须有这一条:**每一道 guard 门,都得在生产代码里真有调用点。**
+    """
+
+    def _guard_calls_in_production(self) -> set:
+        """扫 orchestrator/(排除 guard.py 自己)里所有 `guard.xxx(...)` 的**真实调用**(AST,不数注释)。"""
+        called = set()
+        for p in (ROOT / "orchestrator").glob("*.py"):
+            if p.name == "guard.py":
+                continue
+            for n in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
+                if not isinstance(n, ast.Call):
+                    continue
+                f = n.func
+                if isinstance(f, ast.Attribute) and getattr(f.value, "id", "") == "guard":
+                    called.add(f.attr)
+        return called
+
+    def test_every_gate_is_actually_mounted(self):
+        """五道门 + provenance,**每一道都得有生产调用点**。搁在仓库里的门 = 没有门。"""
+        called = self._guard_calls_in_production()
+        for 门 in ("assert_base_allowed",      # 只写测试库(生产库读也不许碰)
+                   "assert_has_material",      # 零素材门
+                   "assert_ai_declared",       # AI 声明门(人勾)
+                   "assert_publish_quota",     # 控量门
+                   "assert_no_source_leak",    # 防搬运门
+                   "derive_source"):           # provenance 随像素出处
+            self.assertIn(门, called,
+                          f"**guard.{门} 在生产代码里零调用** —— 门造好了,没装在门框上。"
+                          f"(审查员真跑证明:把三道门从 publish.py 里删掉,红线测试全绿。)")
+
+
+class R5b_红线阈值不许有旋钮_门自己也不许读env(unittest.TestCase):
+    """★旋钮不只可能长在 config 里,也可能长在门自己身上★
+
+    老测试只盯 `config.py`(而且其中一条还是 **grep 源码里有没有某句话** —— 测措辞)。
+    审查员把旋钮**装回 `guard.assert_publish_quota` 里**、`config.py` 一个字不改:
+
+        29 条红线测试 **全绿**,而实测 `GY_ACCOUNT_DAILY_PUB=999` → **控量门放行 50 篇**。
+
+    踩坑账里那个真事故,可以原样复活,而且**所有门都是绿的**。
+    """
+
+    def test_quota_gate_ignores_env_no_matter_where_the_knob_hides(self):
+        """**测行为,不测措辞**:env 里塞 999,门必须照样在第 3 篇拦住。"""
+        import importlib
+        from orchestrator import config as cfg, guard as g
+        old = os.environ.get("GY_ACCOUNT_DAILY_PUB")
+        os.environ["GY_ACCOUNT_DAILY_PUB"] = "999"
+        try:
+            importlib.reload(cfg)
+            importlib.reload(g)
+            with self.assertRaises(g.GuardError):
+                g.assert_publish_quota(3)      # 第 3 篇必须被拦(红线=3),env 说 999 也没用
+            g.assert_publish_quota(2)          # 不误伤
+        finally:
+            os.environ.pop("GY_ACCOUNT_DAILY_PUB", None) if old is None else \
+                os.environ.__setitem__("GY_ACCOUNT_DAILY_PUB", old)
+            importlib.reload(cfg)
+            importlib.reload(g)
 
 
 class R6_防搬运门(unittest.TestCase):

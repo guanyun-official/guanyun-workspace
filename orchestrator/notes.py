@@ -214,7 +214,10 @@ def _assert_materials_exist(material_ids: list[str]) -> None:
 
 def new(account: str, content_type: str, title: str = "", status: str = NS.NEED_COPY) -> str:
     """建一行笔记(派活占位『待出文案』/ 想法储备 / …)。返回 record_id。
-    **派不派、派给谁、派什么模式 —— 全是 agent 的判断**,这里只负责写下来。"""
+    **派不派、派给谁、派什么模式 —— 全是 agent 的判断**,这里只负责写下来。
+
+    ⚠️ **状态同样过白名单** —— 否则它能直接**建一行『已发』**,绕开整条状态机和三道门。"""
+    _assert_status_allowed(status)
     guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)   # 红线:任何 IO 之前
     fields: dict = {NF.STATUS: status, NF.TITLE: title or f"[派活]{account}·{content_type}"}
     if acc_ids := resolve_link(AF.TABLE, AF.NAME, account):
@@ -281,16 +284,94 @@ def write_draft(account: str, content_type: str, title: str, body: str, *,
     return {"note_id": feishu_io.create_record(NF.TABLE, fields), "动作": "新建"}
 
 
+# ★agent 能写的状态,**焊死成白名单**★(2026-07-14 架构审查真跑复现的红线洞)
+#
+# 老实现只拦 AI声明。真跑一试:
+#     note.update <id> --set 状态=已批准   → **放行**(它自己批自己的稿)
+#     note.update <id> --set 状态=待发布   → **放行**(绕开零素材/AI声明/控量三道门)
+#     note.update <id> --set 状态=已发     → **放行**(「绝不自动发布」当场变成空文)
+#
+# 而 `cli.py` 开头白纸黑字写着"**故意没有** approve / publish 动词" ——
+# **可 `--set 状态=` 就是那两个动词。** 门造好了,没装在门框上。
+#
+# 这几个状态**不归 agent**:
+#   · 已批准 —— **人在 base 里审**(人和 agent 看同一张表,不搞两套真源)
+#   · 待发布 —— 只许走 `publish.advance`(那里有零素材/AI声明/控量三道门)
+#   · 已发   —— **人的动作**(红线:绝不自动发布)
+#   · 已回流 —— 只许走 `note.metrics`(真采到数才推;没数就推 = 假装采过)
+_AGENT_MAY_SET = frozenset({NS.IDEA, NS.NEED_SHOOT, NS.NEED_COPY, NS.DRAFT_PENDING, NS.ON_HOLD})
+_WHY_NOT = {
+    NS.APPROVED: "『已批准』是**人在 base 里审**的结果 —— 给你这个动作,人审就成了摆设。",
+    NS.TO_PUBLISH: "『待发布』只许走 `publish.advance` —— 那里有零素材/AI声明/控量三道门。"
+                   "直接改状态 = 绕开三道红线。",
+    NS.PUBLISHED: "**绝不自动发布**(红线)。发布是人的动作,系统止于『待发布』。",
+    NS.LOOPED_BACK: "『已回流』只许走 `note.metrics`(真采到数才推)—— 没数就推,等于假装采过。",
+}
+
+
+def _assert_status_allowed(status: str) -> None:
+    """★状态门★:agent 写不了『已批准』『待发布』『已发』『已回流』。"""
+    st = str(status or "").strip()
+    if st and st not in _AGENT_MAY_SET:
+        raise guard.GuardError(
+            f"状态门:**你写不了『{st}』。**\n{_WHY_NOT.get(st, '这个状态不归 agent。')}\n"
+            f"你能写的状态只有:{'、'.join(sorted(_AGENT_MAY_SET))}")
+
+
 def update(note_id: str, fields: dict) -> None:
-    """改笔记字段(状态推进、挂素材、填质检…)。过 base 红线门。
-    ⚠️ **AI声明 和 发布 由人做** —— agent 写这两个字段会被红线拦(见 guard / publish)。"""
-    guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)
+    """改笔记字段(挂素材、填质检、退回…)。**过两道红线门。**
+
+    ★门一:AI 声明只能人勾★(《AI 生成合成内容标识办法》)
+    ★门二:状态白名单★ —— 『已批准』『待发布』『已发』『已回流』**你写不了**
+    """
     if NF.AI_DECLARED in fields:
         raise guard.GuardError(
             "AI声明门:**AI 声明只能人勾**(《AI 生成合成内容标识办法》)。\n"
             "机器代勾 = 合规事故。你能做的:如实把素材『来源=AI生成』登记好,"
             "门会在发布前要求人勾;卡片上会给他 ⚠️ 提示。")
+    _assert_status_allowed(fields.get(NF.STATUS, ""))
+    guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)
     feishu_io.update_record(NF.TABLE, note_id, fields)
+
+
+def write_metrics(note_id: str, liked=None, collected=None, comments=None, shared=None) -> dict:
+    """**把你抓到的回流数写回世界** + 推状态机(已发 → 已回流)。
+
+    ★harness 在回流这件事上只干这一件事★
+
+    「去小红书把数抓回来」是**你的操作**(你有 `xhs-extract-master` / `xhs-collector` 两个技能);
+    「这个数可不可信」是**你的判断**。harness 不替你爬,也不替你信。
+
+    老实现有个 `collect` 动词:harness 自己去爬、自己决定用哪个采集器、**抓到什么就写什么**。
+    那是个小导轨 —— 而且它踩过雷:采集器把**读不到的赞数静默变成 0**,
+    0 是个合法值,会被写进库、被周报当真数据算"哪类内容更有效"。
+
+    **所以:没抓到的,就别传。** 不传的字段**一个字都不写**(不是写 0)。
+    真跑实证:一条笔记 `收藏 1495 / 评论 35`,而**赞抓不到** —— 那就只写收藏和评论。
+    **「没抓到」和「真的是 0」是两件完全不同的事。**
+
+    只要有一个数写进去了,状态就从『已发』推到『已回流』(状态机闭环)。
+    """
+    vals = {k: v for k, v in ((NF.LIKED, liked), (NF.COLLECTED, collected),
+                              (NF.COMMENTS, comments), (NF.SHARED, shared)) if v is not None}
+    if not vals:
+        raise ValueError(
+            "一个数都没给 —— **那就别写**。\n"
+            "没抓到就是没抓到:写 0 进去,周报会拿它当真的算(真栽过)。\n"
+            "出路:先用技能真抓一次(`skills/xhs-extract-master/scripts/xhs note --url ...` 或 "
+            "`node skills/xhs-collector/scripts/collect.mjs note <url>`),**抓到几个传几个**。")
+    guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)
+    r = feishu_io.get_record(NF.TABLE, note_id)
+    if not r:
+        raise ValueError(f"没找到这条笔记:{note_id}")
+    if bitable.text(r["fields"].get(NF.STATUS)).strip() == NS.PUBLISHED:
+        vals[NF.STATUS] = NS.LOOPED_BACK      # 已发 → 已回流(采到数据才推状态机)
+    feishu_io.update_record(NF.TABLE, note_id, vals)
+    return {"写回": note_id, "写了这几个数": {k: v for k, v in vals.items() if k != NF.STATUS},
+            "没写的(你没给,就是没抓到)": [k for k, v in
+                                          ((NF.LIKED, liked), (NF.COLLECTED, collected),
+                                           (NF.COMMENTS, comments), (NF.SHARED, shared)) if v is None],
+            "自证": f"python3 -m orchestrator note.get {note_id}"}
 
 
 def link_materials(note_id: str, material_ids: list[str]) -> None:

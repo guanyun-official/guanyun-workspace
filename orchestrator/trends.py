@@ -120,31 +120,3 @@ def update_idea(idea_id: str, fields: dict) -> None:
     feishu_io.update_record(IF.TABLE, idea_id, patch)
 
 
-def fill_missing_bodies(write: bool = False) -> dict:
-    """给**已在库、有链接、但『文案』空**的灵感回填原帖正文(非登录抓,零凭证)。
-
-    为什么需要它:运营完全可能在飞书里手打一条灵感(只有标题+链接),那条的正文就永远是空的。
-    而正文是"只学结构、绝不抄原句"里的**情报本身** —— 没有它,所谓"模仿爆款"只是照着一个标题瞎猜。
-    接在 daily_dispatch --write(cron)上:每天自动补一次。
-    幂等:已有正文的跳过;抓不到的如实记进『抓不到』,不写空值、不假装成功。"""
-    from . import metrics
-    filled, skipped, failed = [], [], []
-    for r in feishu_io.list_records(IF.TABLE):
-        f = r["fields"]
-        title = bitable.text(f.get(IF.TITLE)).strip()
-        if bitable.text(f.get(IF.BODY)).strip():
-            skipped.append(title)               # 已有正文 → 不重抓(幂等)
-            continue
-        link = f.get(IF.LINK)
-        url = link.get("link") if isinstance(link, dict) else bitable.text(link)
-        if not url:
-            failed.append(f"{title}(无源链接)")
-            continue
-        body = (metrics.fetch_source(url).get("文案") or "").strip()
-        if not body:
-            failed.append(f"{title}(抓不到正文)")
-            continue
-        if write:
-            feishu_io.update_record(IF.TABLE, r["record_id"], {IF.BODY: body})
-        filled.append(f"{title}({len(body)}字)")
-    return {"回填": filled, "已有跳过": skipped, "抓不到": failed}

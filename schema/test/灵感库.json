@@ -12,49 +12,11 @@
       "link_table": "tbluluBPW441t0Hh"
     },
     {
-      "field_name": "去重键",
-      "type": "text"
-    },
-    {
-      "field_name": "可借鉴点",
-      "type": "text"
-    },
-    {
       "field_name": "文案",
       "type": "text"
     },
     {
-      "field_name": "来源平台",
-      "type": "select",
-      "options": [
-        "小红书",
-        "抖音",
-        "其他"
-      ]
-    },
-    {
-      "field_name": "来源账号",
-      "type": "text"
-    },
-    {
       "field_name": "标题",
-      "type": "text"
-    },
-    {
-      "field_name": "状态",
-      "type": "select",
-      "options": [
-        "未处理",
-        "已转选题",
-        "放弃"
-      ]
-    },
-    {
-      "field_name": "禁用片段/搬运风险",
-      "type": "text"
-    },
-    {
-      "field_name": "缺点",
       "type": "text"
     },
     {
@@ -63,16 +25,8 @@
       "link_table": "tblsiceNwWpidwAG"
     },
     {
-      "field_name": "采集时间",
-      "type": "datetime"
-    },
-    {
       "field_name": "链接",
       "type": "url"
-    },
-    {
-      "field_name": "镜头",
-      "type": "text"
     }
   ]
 }

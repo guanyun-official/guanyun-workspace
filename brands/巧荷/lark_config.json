@@ -4,58 +4,7 @@
     "app_token": "",
     "url": "见 .env 的 LARK_APP_TOKEN(密钥不入库;默认=测试 Base ZhzJbfkOsafwevsWkW8cfoILnfb,与 .env.example 对齐;14 表 table_id 见 AGENTS.md 与 schema/)"
   },
-  "_note": "2026-07-08 P1 迁入清理(PLAN §审查 M3):旧 A1/A2/A3/B review_tables 已删除(pipeline 概念已弃,表已不存在)。下方 public_tables 的 table_id 来自已废弃的旧巧荷 Base ITz4bsLSWaKuSqsuUaocmEC0nXe,在现生产 Base N9IVbi6pTatJG5sqyTTcc0vSn4g 中无效——P2/P3 重映射到 schema/ 契约后再启用;取表以 schema/<env>/_tables.json 为准。",
-  "public_tables": {
-    "brand_master": {
-      "name": "品牌主档",
-      "table_id": "tblvexXuffsOU8jJ",
-      "purpose": "品牌定位/调性/视觉规范/禁用词 - 单一真相源",
-      "writer": "人工",
-      "reader": "所有管线"
-    },
-    "brand_insights": {
-      "name": "品牌内核库",
-      "table_id": "tbl8omEbY5HDQBRI",
-      "purpose": "AI提取的跨管线共性认知",
-      "writer": "AI+人工",
-      "reader": "所有内容生成管线"
-    },
-    "product_catalog": {
-      "name": "产品档案",
-      "table_id": "tblVlV0SrmXCvabK",
-      "purpose": "每季新品结构化介绍",
-      "writer": "人工录入",
-      "reader": "内容生成时引用"
-    },
-    "asset_pool": {
-      "name": "资产池",
-      "table_id": "tblDRjxEk65OXJ1g",
-      "purpose": "图片/视频素材池",
-      "writer": "AI生成+人工上传",
-      "reader": "所有管线"
-    },
-    "explosive_library": {
-      "name": "爆款库",
-      "table_id": "tblr0onuez4ifyvI",
-      "purpose": "持续积累的爆款逻辑库",
-      "writer": "AI搜索+人工添加",
-      "reader": "trend-research/content-forge"
-    },
-    "teardown_library": {
-      "name": "爆款拆解库",
-      "table_id": "tblp3MIdGrqSN7rl",
-      "purpose": "爆款拆解技能产出的结构化情报(每维度一列)",
-      "writer": "explosive-teardown(AI) + 人工(可借鉴点/状态)",
-      "reader": "选题深化/文案"
-    },
-    "account_teardown_library": {
-      "name": "账号拆解库",
-      "table_id": "tblt50EPoR433Qqs",
-      "purpose": "账号拆解技能产出的结构化账号情报(每维度一列)",
-      "writer": "account-teardown(AI)",
-      "reader": "选题深化/对标策略"
-    }
-  },
+  "_note": "只留 base token + tenant host。**表结构以 `python3 scripts/dump_schema.py` 的产出为准** —— 别在这里手抄表清单(旧的那份 table_id 指向一个已废弃的 Base,而且写着几个已删的技能名)。",
   "states": {
     "draft": "草稿",
     "pending_review": "待审核",

@@ -61,25 +61,6 @@ def post(url: str, headers: dict, body: dict, retries: int = 3) -> dict:
     raise ArkError(f"ARK 请求失败: {str(last)[:320]}")
 
 
-def chat(prompt: str, model: str = "") -> tuple[str, int]:
-    """纯文本 chat(OpenAI 兼容 chat/completions)→ (成稿文本, usage.total_tokens)。
-    无 usage → tokens=0(成本按 0 记,**不假报**)。空文本视为失败(空稿比坏稿更坑,别静默落库)。"""
-    body = {"model": model or config.DRAFT_MODEL,
-            "messages": [{"role": "user", "content": prompt}]}
-    resp = post(config.ARK_ENDPOINT,
-                {"Authorization": f"Bearer {api_key()}", "Content-Type": "application/json"}, body)
-    try:
-        text = (resp["choices"][0]["message"]["content"] or "").strip()
-    except (KeyError, IndexError, TypeError) as e:
-        raise ArkError(f"ARK 返回形态异常: {str(resp)[:200]}") from e
-    if not text:
-        raise ArkError(f"ARK 空结果: {str(resp)[:200]}")
-    tokens = 0
-    if isinstance(resp.get("usage"), dict):
-        tokens = int(resp["usage"].get("total_tokens") or 0)   # 真实用量→成本据此估,不拍脑袋
-    return text, tokens
-
-
 class ModelNotOpen(ArkError):
     """模型在方舟存在,但**这个账号没开通**。人去控制台点一下即可——不是代码能修的,别静默降级假装没事。"""
 

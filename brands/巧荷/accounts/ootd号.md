@@ -2,17 +2,11 @@
 {
   "account": "ootd号",
   "mode": "视频唯美OOTD",
-  "cadence": {
-    "posts_per_day": 1,
-    "pattern": "drip"
-  },
   "sourcing": "shoot_then_drip",
   "playbooks": [
     {
       "id": "视频唯美OOTD",
       "content_type": "视频唯美OOTD",
-      "weight": 0.667,
-      "view": "视频唯美OOTD",
       "gen_skill": "writing-ootd-caption",
       "material_needs": [
         "上身"
@@ -26,8 +20,6 @@
     {
       "id": "图文唯美OOTD",
       "content_type": "图文唯美OOTD",
-      "weight": 0.333,
-      "view": "图文唯美OOTD",
       "gen_skill": "writing-ootd-caption",
       "material_needs": [
         "上身"
