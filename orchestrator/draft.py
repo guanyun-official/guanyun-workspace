@@ -21,6 +21,10 @@ class SkillMissing(RuntimeError):
     """模式声明的 gen_skill 装不上。宁可炸,也不让 LLM 在零技能下裸写(message 面向告警可读)。"""
 
 
+class DraftPending(RuntimeError):
+    """该号该模式已有**待审稿**在队列里,再出一条会把它覆盖掉。宁可拒,也不动运营正在等的东西。"""
+
+
 def load_gen_skill(name: str) -> str:
     """加载 gen_skill 的 SKILL.md 正文(含该号真实帖 few-shot)。
 
@@ -76,6 +80,49 @@ def _fit_to_spec(draft_text: str, pb: dict, prompt: str) -> tuple[str, float]:
     return (fixed, cost) if len(body_text(fixed)) <= hi else (draft_text, cost)
 
 
+def load_idea_body(title_seed: str) -> str:
+    """按灵感标题取灵感库里那条爆款的**原帖正文**(情报)。取不到 → ""(不炸,不阻断出稿)。
+    正文只作一个用途:**让模型看清它的结构**(分几层/怎么起手/痛点怎么切/怎么收)。
+    抄原句由防搬运门在出口拦死 —— 情报可以看,句子不许搬。"""
+    from . import bitable, feishu_io
+    from .bitable import InspirationFields as IF
+    seed = (title_seed or "").strip()
+    if not seed:
+        return ""
+    for r in feishu_io.list_records(IF.TABLE):
+        f = r["fields"]
+        if bitable.text(f.get(IF.TITLE)).strip() == seed:
+            return bitable.text(f.get(IF.BODY)).strip()
+    return ""
+
+
+def _rewrite_if_leaked(draft_text: str, sources: list, prompt: str) -> tuple[str, float]:
+    """**抄了就让它自己重写一次**,而不是甩个 traceback 给人(2026-07-14 真跑逼出来的)。
+
+    真跑现场:拿真爆款「模仿穿搭|158/跟着董洁学知性风穿搭」出稿,模型把这个标题**原封不动**
+    搬进了产出 → 防搬运门正确拒稿 → **但 draft_one 当场崩,稿子没了,人拿到一个堆栈**。
+    而 title_seed 天生就会被模型复述 —— 这条门会变成一堵墙,爆款模仿链路根本走不通。
+
+    **门只会拒、没人去修**,和篇幅超标是同一个形状。现在:
+      抄了 → 把**抄了哪一句**明确告诉它,让它换自己的话重写一次(ARK lite,几厘钱);
+      再抄 → **不再兜底**,让门在出口真拒(红线不软化:改不出原创的稿,本来就不该落库)。
+    """
+    try:
+        guard.assert_no_source_leak(sources, draft_text)
+        return draft_text, 0.0                     # 没抄 → 一次 LLM 都不多调
+    except guard.GuardError as e:
+        frag = str(e).split("「", 1)[-1].split("」", 1)[0] if "「" in str(e) else ""
+    fixed, cost = llm.run_prompt(
+        f"{prompt}\n\n——————\n你刚才写的稿子是:\n{draft_text}\n\n"
+        f"**问题:你把别人原文里的「{frag}」**逐字搬了过来**。**\n"
+        f"对标帖和 few-shot 只是**情报**:你可以学它的结构、角度、为什么戳中人,"
+        f"**但一个句子、一个短语都不许照抄**(逐字 10 字以上就是搬运,直接拒稿)。\n"
+        f"请**用你自己的话重写**这条稿:结构可以像,句子必须全新;"
+        f"标题也要自己起,不许沿用对标帖的标题。其余要求(篇幅/格式/配的画面)不变。\n"
+        f"直接输出改好的完整稿,不要解释。")
+    return fixed, cost
+
+
 def load_clothes(clothes_code: str, brand: str = "巧荷") -> str:
     """加载知识库里某件真实衣服的 know-how(款式/面料/工艺/卖点/形制/文物出处/纹样)。
     官号品牌新作/需具体产品的模式按此写**真实产品**,不编造。knowledge_base/衣服/{编号}.md;无则空串。
@@ -115,7 +162,7 @@ def load_keywords(brand: str = "巧荷", limit: int = 18) -> list[str]:
 
 
 def compose_prompt(acc, pb: dict, skill_text: str, title_seed: str = "", clothes_text: str = "",
-                   keywords: list | None = None, material_text: str = "") -> str:
+                   keywords: list | None = None, material_text: str = "", source_text: str = "") -> str:
     """把账号画像 + 该模式配方 + gen_skill few-shot + **本条要配的真实素材画面** + (可选)衣服 know-how 拼成 prompt。
 
     **material_text 是文案的事实底座**(dogfood 2026-07-14 补):gen_skill 要求写「面料质感」又要求
@@ -142,6 +189,17 @@ def compose_prompt(acc, pb: dict, skill_text: str, title_seed: str = "", clothes
         parts.append(f"【本账号画像(务必贴合其既有风格)】\n{profile}")
     if fewshot:
         parts.append(f"【生成技能与真实帖 few-shot(照此调性/形制,勿抄原文)】\n{fewshot}")
+    if source_text:
+        # **爆款正文 = 情报,不是素材**(2026-07-14 接上:正文一直抓得到,是我没去取)。
+        # 它进 prompt 只为一件事:**让模型看清这条爆款为什么成立** —— 分几层、怎么起手、
+        # 痛点从哪切、怎么收。学的是**骨架**,写的是**我们自己的血肉**(我们的画面、我们的调性)。
+        # 抄原句由出口的防搬运门拦死(≥10 连续实义字符即拒),这里先把话讲在前面。
+        parts.append("【对标爆款的正文(**只作情报:拆它的结构,绝不抄它的句子**)】\n"
+                     + source_text[:1000] +
+                     "\n**怎么用它**:只提炼它的**结构与角度**(讲了几层/怎么起手/痛点怎么切/怎么收尾/"
+                     "为什么戳中人),然后**用我们自己的画面和调性重新写一遍**。\n"
+                     "**禁止**:照搬它的句子、短语、比喻、句式;禁止把它的画面写进我们的稿"
+                     "(我们配的是上面那些真实素材,不是它的图)。**逐字搬 10 个字以上 = 出口直接拒稿。**")
     if material_text:
         # 事实底座:这条稿**配的就是这些已选定的真实画面**(豆包 vision 打的标)。技能第3层要写「面料质感」、
         # 又说「看不出的留白」——看得见画面,这两条才不打架:写画面里看得出的(颜色/光泽/垂坠/场景/光线)。
@@ -266,13 +324,17 @@ def generate_draft(account_name: str, brand: str = "巧荷", llm_mode: str = "st
     """读声明 → 加载 gen_skill few-shot(+可选真实衣服 know-how)→ 组稿 → 生成 → 组一条待审笔记字段。
     clothes=知识库衣服编号(如 GY-001):绑定后按真实产品写、防编造(官号品牌新作应绑)。
     content_type=指定模式(一号多模式时选哪个 playbook;空=第一套)。
-    source_text=**对标源完整正文**(蹭爆款出稿时传灵感『文案』)——防搬运门比对它(不再只看标题),
-    出稿逐字搬 ≥10 连续实义字符即拒(ADR-0009 P0:红线名不副实的修复)。**不写库**(纯计算)。"""
+    source_text=**对标源完整正文**(蹭爆款出稿时的情报)。空且给了 title_seed → **自动去灵感库取**
+    (以前要人手 --source-text 粘正文,而库里明明有 —— 又一个"想起来方便"的断链)。
+    正文的用法**只有一种:学结构**(它讲了几层、怎么起手、痛点怎么切、CTA 怎么收)。
+    **绝不抄原句** —— 出口过防搬运门,逐字搬 ≥10 连续实义字符即拒。**不写库**(纯计算)。"""
     acc = accounts.load(account_name, brand)
     if acc is None:
         raise ValueError(f"账号声明不存在:brands/{brand}/accounts/{account_name}.md")
     if acc.error:
         raise ValueError(f"账号「{account_name}」声明解析失败:{acc.error}")
+    if not source_text and title_seed and llm_mode == "real":
+        source_text = load_idea_body(title_seed)   # 灵感库里就有正文,别再让人手粘(stub 保持离线)
     pb = pick_playbook(acc, content_type)
     gen_skill = accounts.gen_skill_of(pb)
     skill_text = load_gen_skill(gen_skill)
@@ -291,22 +353,23 @@ def generate_draft(account_name: str, brand: str = "巧荷", llm_mode: str = "st
                                              acc_ids[0] if acc_ids else "", clothes=clothes)
     mat_rows = material_rows
     prompt = compose_prompt(acc, pb, skill_text, title_seed, clothes_text, keywords=keywords,
-                            material_text=material_facts(mat_rows or []))   # stub 未取素材→无事实底座→走禁编造分支
+                            material_text=material_facts(mat_rows or []),   # stub 未取素材→无事实底座→走禁编造分支
+                            source_text=source_text)   # 爆款正文进 prompt 只作情报(学结构);抄句子由出口门拦死
     if llm_mode == "real":
         draft_text, cost = llm.run_prompt(prompt)
-        # 防搬运出口闸(红线):**把所有进了 prompt 的文本都交给门**(2026-07-14 真跑修的方向性错误)。
-        # 门必须守"LLM 真正看得见的东西":
-        #   · title_seed —— 灵感标题(它在 prompt 的「标题线索」里)
-        #   · **skill_text —— gen_skill 的 few-shot 真实帖**,就在 prompt 里,LLM 一眼能照抄。
-        #     技能白纸黑字写着「只学结构、绝不抄原句」「出口过防搬运闸」——**而那句话从来没人执行**。
-        #     真跑实证:把 few-shot 的真实帖逐字搬进产出 → **直接过门,一个字都没查**。
-        #   · source_text —— 对标源正文(若调用方拿得到)。注意它**不进 prompt**,
-        #     所以逐字搬它物理上不可能;传进来是纯保护、不产生风险。
+        # 防搬运出口闸(红线):**凡是进了 prompt 的外来文本,一个不落地交给门**。
+        # LLM 眼前摆着三样别人的东西 —— 灵感标题、技能 few-shot 里的真实帖、对标爆款的正文。
+        # 三样都真能被逐字照抄,所以三样都得比。
+        # (这道门修过两次:第一次漏了 few-shot 真帖;第二次我误判"正文不进 prompt 所以搬不了" ——
+        #  而正文现在正是当情报进 prompt 的。alignment_audit 有条结构不变式在机器层面盯着这件事。)
         draft_text, cost2 = _fit_to_spec(draft_text, pb, prompt)
         cost += cost2
-        # 门守的是**最终落库的那一份**。回炉改写用的 prompt 里同样带着 few-shot 真帖,
-        # 改写时照样能抄 —— 所以门必须放在 _fit_to_spec **之后**,不是之前。
-        guard.assert_no_source_leak([source_text, title_seed, skill_text], draft_text)
+        sources = [source_text, title_seed, skill_text]
+        draft_text, cost3 = _rewrite_if_leaked(draft_text, sources, prompt)
+        cost += cost3
+        # 门守的是**最终落库的那一份**。两次回炉用的 prompt 里同样带着别人的真帖/正文,
+        # 改写时照样能抄 —— 所以门必须放在所有回炉**之后**,不是之前。
+        guard.assert_no_source_leak(sources, draft_text)
     else:
         draft_text, cost = _stub_draft(acc, pb, gen_skill, bool(skill_text), title_seed), 0.0
     ctype = pb.get("content_type") or pb.get("id") or ""
@@ -505,9 +568,22 @@ def _find_inflight_note(account_name: str, content_type_name: str) -> str:
     # 状态∈开态 服务端过滤(规模M2,不全拉笔记表);search 已保证状态,只余按号×模式内存筛
     for r in feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.NEED_COPY, NS.DRAFT_PENDING]):
         f = r["fields"]
-        if (acc_ids & set(bitable.link_record_ids(f.get(NF.ACCOUNT)))
+        if not (acc_ids & set(bitable.link_record_ids(f.get(NF.ACCOUNT)))
                 and (not ct_ids or ct_ids & set(bitable.link_record_ids(f.get(NF.CONTENT_TYPE))))):
-            return r["record_id"]
+            continue
+        # ★★ 『待出文案』和『草稿待发』是两回事,老实现把它俩混为一谈(2026-07-14 上班撞到)★★
+        #   · 待出文案 = 派活占位,**里面还没有内容** → 出稿推进它,天经地义。
+        #   · 草稿待发 = **已经有稿子,人正等着审** → 再出一条 update 上去,
+        #     就是**把运营待审的稿悄无声息地换掉**。他在卡片上看到 A,点进 base 变成了 B。
+        # 我今天差点亲手干出来:想给图文号1 出一条爆款模仿稿,而它有一条待审稿在队列里。
+        # "复用在途、不新建重复"当初是为了修重复堆稿的 bug —— **可对已成稿的正解是"跳过",不是"覆盖"**。
+        # 覆盖别人正在等的东西,任何时候都不是"复用"。
+        if str(f.get(NF.STATUS) or "") == NS.DRAFT_PENDING:
+            raise DraftPending(
+                f"「{account_name}·{content_type_name}」已经有一条**待审稿**在队列里"
+                f"(《{bitable.text(f.get(NF.TITLE))}》)。再出一条会**把它覆盖掉** —— 运营正等着审它。\n"
+                f"要么先去 base 把那条审掉(批准/暂缓归档),要么换个号/模式来承接这个选题。")
+        return r["record_id"]
     return ""
 
 
@@ -540,9 +616,16 @@ def create_draft_note(result: dict) -> str:
                                    clothes=result.get("clothes", ""))  # #36 品牌新作按衣服选素材,货对板
     from . import processing
     decide, execute = processing.default_hooks() if processing.processing_enabled() else (None, None)
+    proc_report: list[str] = []
     mat_ids = processing.maybe_process(mat_ids, account=account_name, mode=content_type_name,
                                        clothes=result.get("clothes", ""),
-                                       decide=decide, execute=execute)  # M3 gated 加工步(默认关=原样返回;开=拼图等真加工)
+                                       decide=decide, execute=execute,
+                                       report=proc_report)   # gated 加工步(默认关=原样返回)
+    if proc_report:
+        # **加工环干了什么/没干成什么,必须让运营看见**。它写进『质检』→ 今日卡片的 ⚠️ 区域。
+        # 不接这一步,maybe_process 那句人话就只活在进程内存里 —— 说了等于没说。
+        old = str(fields.get(NF.QC) or "").strip()
+        fields[NF.QC] = "\n".join([old, *proc_report]).strip() if old else "\n".join(proc_report)
     if mat_ids:
         fields[NF.LINKED_MATERIALS] = mat_ids   # #32 完整包:选定(或加工后)素材挂关联素材
     existing = _find_inflight_note(account_name, content_type_name)

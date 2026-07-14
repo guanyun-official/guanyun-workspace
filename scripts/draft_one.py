@@ -53,7 +53,18 @@ def main() -> int:
     if not a.write:
         print("(干跑:未写库。加 --write 才过红线闸落测试库笔记表)")
         return 0
-    rid = draft.create_draft_note(r)
+    # **门拦住了,要说人话,不能甩堆栈**(2026-07-14 上班撞到)。
+    # DraftPending 那句话本身写得清清楚楚(哪条稿、为什么不能覆盖、你有哪两条出路),
+    # 可它被包在 Traceback 里丢出来 —— 读它的是 agent 和运维,不是 Python 解释器。
+    # **拦住 ≠ 说清楚**:拦住 + 说明白为什么 + 给出路,才叫一道好门。
+    try:
+        rid = draft.create_draft_note(r)
+    except draft.DraftPending as e:
+        print(f"\n🛑 没出这条稿:\n{e}")
+        return 2
+    except draft.SkillMissing as e:
+        print(f"\n🛑 没出这条稿:\n{e}")
+        return 2
     from orchestrator import bitable, dispatch, feishu_io
     from orchestrator.bitable import InspirationFields as IF
     feishu_io.log_run(summary=f"出稿 {a.account}/{r['content_type']}", action="出稿",

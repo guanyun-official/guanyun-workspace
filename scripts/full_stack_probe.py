@@ -408,6 +408,43 @@ def L16_L17_skills():
                                    clothes="", decide=None, execute=None)
     ck("L16", "关态下 maybe_process 是 no-op(不偷偷改素材)", out == ids, f"{ids} → {out}")
 
+    # ── 2026-07-14:上面两条**就是这条链路的全部验收** —— 而它俩验的是
+    #    「这个功能是关着的,而且关着的时候确实没干活」。**一个功能靠"证明自己没开"通过了验收。**
+    #    于是"17条链路真跑"里,L16 是掺水的。下面把加工环**真开着压一遍**(不改默认值,压完即恢复)。
+    from orchestrator import compose, guard
+    from orchestrator.bitable import MaterialSource as MSrc
+    ck("L16", "加工环默认就是关的(真需求才开;开也只在这段压测里开)", not config.PROCESSING_ENABLED)
+
+    # ① provenance 焊死:纯拼接=实拍(免声明);AI 生成像素=AI生成(必声明)。合规链的第一环。
+    ck("L16", "provenance:纯拼接(像素全来自实拍)→ 来源=实拍(不误伤,免勾声明)",
+       processing.derive_source([MSrc.REAL, MSrc.REAL], used_ai_generation=False) == MSrc.REAL)
+    ck("L16", "provenance:AI 生成像素 → 来源=AI生成(下游必须勾 AI 声明)",
+       processing.derive_source([MSrc.REAL, MSrc.REAL], used_ai_generation=True) == MSrc.AI)
+    ck("L16", "AI生成素材 → AI声明门真要求勾(合规红线;机器绝不代勾)",
+       guard.ai_declaration_required([MSrc.AI, MSrc.REAL]))
+
+    # ② execute 分派器认得的 kind,必须**真有那只手**去执行 —— 否则就是 decide 的 prompt 里
+    #    多写一句话就当做完了(AI 会照着判,而执行端根本没实现)。
+    ck("L16", "AI 能判的 kind,执行器里都真有实现(不许判得出、做不到)",
+       set(compose._EXECUTORS) >= {"拼图", "AI封面"}, f"执行器={list(compose._EXECUTORS)}")
+
+    # ③ **真开着跑**:判『该加 AI 封面』但图像模型没开通 → 必须**如实说**,绝不闭嘴退回原图。
+    #    (悄悄跳过才是最坏的:人以为封面加上了。)
+    orig = config.PROCESSING_ENABLED
+    config.PROCESSING_ENABLED = True
+    try:
+        plan = {"加工": True, "kind": "AI封面", "理由": "压测", "inputs": [],
+                "封面提示词": "粉色新中式上衣完整上身图,暖光,木质背景"}
+        report: list = []
+        kept = processing.maybe_process(["m1"], decide=lambda *a, **k: plan,
+                                        execute=compose.execute, report=report)
+        ck("L16", "开态·执行失败时**退回原素材**(不乱挂东西)", kept == ["m1"], f"{kept}")
+        ck("L16", "开态·执行失败时**不闭嘴装死**(把原因说给运营,落『质检』)",
+           bool(report) and "没做成" in report[0], f"report={report}")
+    finally:
+        config.PROCESSING_ENABLED = orig
+    ck("L16", "压测完加工环**已恢复默认关**(没把开关留在开态)", not config.PROCESSING_ENABLED)
+
     # L17 技能唯一真源:全号全模式的 gen_skill 都必须从 skills/ 载得到
     for name, acc in sorted(accounts.load_all("巧荷").items()):
         for pb in acc.playbooks():

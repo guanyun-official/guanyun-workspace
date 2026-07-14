@@ -33,25 +33,46 @@ def processing_enabled() -> bool:
 
 
 def default_hooks():
-    """加工环开时的默认技能钩子:decide=保守规则、execute=拼图(compose,确定性可真跑)。
-    真需求可换更强钩子(剪辑→video-editing skill、AI生成→ARK image-gen)。懒导入 compose(默认关时不拉 PIL)。"""
+    """加工环开时的默认钩子:decide=**AI 真判断**(像人一样看一眼素材再决定)、execute=按 kind 分派。
+    懒导入 compose(默认关时不拉 PIL/网盘)。"""
     from . import compose
-    return compose.simple_decide, compose.compose_execute
+    return compose.ai_decide, compose.execute
 
 
 def maybe_process(material_ids: list[str], *, account: str = "", mode: str = "", clothes: str = "",
-                  decide: Callable | None = None, execute: Callable | None = None) -> list[str]:
-    """gated 加工步(select_materials 之后、挂笔记之前)。**默认关或缺技能钩子 → 原样返回原始素材**(现状链)。
-    开且钩子齐:decide(技能判断:要不要加工/哪种)→ 若判"加工" execute(技能+工具:拼/剪/AI生成 →
-    内部用 derive_source 定来源 → store_produced 回存成片)→ 返回成片素材 id 列表;判"不加工"→ 用原图。
-    钩子注入式(依赖倒置)→ 可不接真技能直测;缺钩子即使开着也安全退回原图(不炸、不臆造加工)。"""
+                  decide: Callable | None = None, execute: Callable | None = None,
+                  report: list | None = None) -> list[str]:
+    """gated 加工步(select_materials 之后、挂笔记之前)。**默认关或缺钩子 → 原样返回原始素材**。
+
+    开且钩子齐:decide(AI 看素材+模式,判要不要加工/哪种)→ 判"加工" 则 execute(拼图/AI封面 →
+    内部用 derive_source 定来源 → store_produced 回存成片)→ 成片**追加**在原素材前(封面要排第一张);
+    判"不加工" → 原样用原图(最常见,也最该是最常见)。
+
+    **report:出了什么事必须让人知道**(2026-07-14 补)。老实现 `except Exception: return material_ids` ——
+    加工判了、执行炸了(比如图像模型没开通),**它一声不吭地退回原图**,人还以为封面加上了。
+    "安全退回"听着稳,落实下来就是一个永不作声的黑洞 —— 又是"想起来方便"。
+    现在:任何降级都往 report 里写一句人话,draft 把它落进笔记的『质检』,卡片上 ⚠️ 给运营看。
+    """
     if not processing_enabled() or not (decide and execute):
         return material_ids
+    say = report if report is not None else []
     try:
         plan = decide(material_ids, account=account, mode=mode, clothes=clothes)
-        if not plan or not plan.get("加工"):
-            return material_ids                   # 技能判定"不加工"→ 直接用原图(最常见)
-        produced_id = execute(plan)               # 技能执行 → store_produced → 成片素材 id
-        return [produced_id] if produced_id else material_ids
-    except Exception:  # noqa: BLE001  加工钩子抛错→安全退回原图(绝不炸穿 create_draft_note;宁可不加工也不断链)
+    except Exception as e:  # noqa: BLE001
+        say.append(f"加工判断失败({type(e).__name__}),按不加工处理:{str(e)[:80]}")
         return material_ids
+    if not plan or not plan.get("加工"):
+        return material_ids                       # AI 判"不用加工"→ 直接用原图(不吭声是对的:没事发生)
+    kind = plan.get("kind") or "?"
+    try:
+        produced_id = execute(plan)
+    except Exception as e:  # noqa: BLE001  绝不炸穿 create_draft_note,但**必须说话**
+        say.append(f"AI 判定该做「{kind}」({plan.get('理由') or '—'}),**但没做成**:{str(e)[:110]}"
+                   f" → 本条仍用原素材")
+        return material_ids
+    if not produced_id:
+        say.append(f"AI 判定该做「{kind}」,但执行返回空(素材不足/kind 不支持)→ 本条仍用原素材")
+        return material_ids
+    say.append(f"已自动生成「{kind}」并挂上({plan.get('理由') or '—'})")
+    # 成片排**第一位**:小红书第一张图就是封面。原素材保留在后 —— 加工是"补一张",不是"换掉全部"。
+    return [produced_id] + [m for m in material_ids if m != produced_id]

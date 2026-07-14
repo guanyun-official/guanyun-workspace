@@ -20,9 +20,11 @@ class VisionError(RuntimeError):
     """看图后端失败(缺 key/网络/返回异常)。message 面向告警可读。"""
 
 
-def see(image_paths: list[str], prompt: str) -> str:
-    """给一批本地图 + 提示词,返回模型文本(打标 JSON 由调用方抽取)。按 config.VISION_BACKEND 选后端。"""
-    return see_with_cost(image_paths, prompt)[0]
+# `see()` 删了(2026-07-14 死码检查换成 AST 后暴露):它是 `see_with_cost()` 的薄包装,**零调用**。
+# 它能一直"绿"着躲过审查,是因为老检查用 **regex 数 `see(`** —— 而这个名字在注释/docstring 里
+# 出现过两次,**注释把检查器骗了**。换成 AST(只认真调用点 + 被当值引用),它当场现形。
+# 顺带 `skills_lock.validate()` 差点被误杀 —— 它在 `check_p1.sh` 里被调用,而 AST 只扫 .py,
+# 看不见 shell。审查器现在也扫 .sh 了。**假红比漏报更毒:喊三次狼来了,门就没人看了。**
 
 
 def see_with_cost(image_paths: list[str], prompt: str) -> tuple[str, float]:

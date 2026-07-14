@@ -37,7 +37,14 @@ def harvest_trends(items: list[dict], brand: str = "巧荷", write: bool = False
         if title in existing:
             dup.append(title)
             continue
-        body = (it.get("文案") or "").strip()      # **原帖正文 = 防搬运门比对的对象**
+        body = (it.get("文案") or "").strip()      # **原帖正文 = 学结构的情报本身**
+        if not body and it.get("源链接"):
+            # 有链接却没正文 → **自己去抓**(非登录,零凭证,已真跑验证)。
+            # 以前这里什么都不做,只把标题记进"无正文",然后我对外说"非登录抓不到" —— **那是错的**:
+            # 我调 note 原子时没带 xsec_token、又读错了键(正文在 note.desc,我读的顶层 desc)。
+            # 带上 token 读 note.desc,正文就在那儿(真抓:186 字 / 311 字)。
+            from . import metrics
+            body = (metrics.fetch_source(it["源链接"]).get("文案") or "").strip()
         row: dict = {IF.TITLE: title}
         if body:
             row[IF.BODY] = body
@@ -52,3 +59,33 @@ def harvest_trends(items: list[dict], brand: str = "巧荷", write: bool = False
         new.append(title)
         existing.add(title)
     return {"新增": new, "去重跳过": dup, "无正文": no_body}
+
+
+def fill_missing_bodies(write: bool = False) -> dict:
+    """给**已在库、有链接、但『文案』空**的灵感回填原帖正文(非登录抓,零凭证)。
+
+    为什么需要它:运营完全可能在飞书里手打一条灵感(只有标题+链接),那条的正文就永远是空的。
+    而正文是"只学结构、绝不抄原句"里的**情报本身** —— 没有它,所谓"模仿爆款"只是照着一个标题瞎猜。
+    接在 daily_dispatch --write(cron)上:每天自动补一次。
+    幂等:已有正文的跳过;抓不到的如实记进『抓不到』,不写空值、不假装成功。"""
+    from . import metrics
+    filled, skipped, failed = [], [], []
+    for r in feishu_io.list_records(IF.TABLE):
+        f = r["fields"]
+        title = bitable.text(f.get(IF.TITLE)).strip()
+        if bitable.text(f.get(IF.BODY)).strip():
+            skipped.append(title)               # 已有正文 → 不重抓(幂等)
+            continue
+        link = f.get(IF.LINK)
+        url = link.get("link") if isinstance(link, dict) else bitable.text(link)
+        if not url:
+            failed.append(f"{title}(无源链接)")
+            continue
+        body = (metrics.fetch_source(url).get("文案") or "").strip()
+        if not body:
+            failed.append(f"{title}(抓不到正文)")
+            continue
+        if write:
+            feishu_io.update_record(IF.TABLE, r["record_id"], {IF.BODY: body})
+        filled.append(f"{title}({len(body)}字)")
+    return {"回填": filled, "已有跳过": skipped, "抓不到": failed}

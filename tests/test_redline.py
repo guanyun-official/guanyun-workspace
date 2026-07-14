@@ -59,3 +59,36 @@ class RedlineWriteOnlyTestBase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class RedlinesHaveNoKnobs(unittest.TestCase):
+    """**红线不许有旋钮**(2026-07-14 开关过堂,真跑实测抓到)。
+
+    `PER_ACCOUNT_DAILY_PUBLISH` 原来写的是 `int(os.environ.get("GY_ACCOUNT_DAILY_PUB", "3"))`。
+    真测:`GY_ACCOUNT_DAILY_PUB=999` → 今天已发 50 篇,**控量门照样放行**。
+    **一个环境变量就能把红线关掉** —— 那它就不是红线,是个建议。
+    更毒的是:env 关红线**不留任何痕迹**(git 看不到、日志看不到、人也看不到)。
+    平台规则真变了 → **改 config.py 那一行并 commit,让人看见**。这是红线和普通配置的分界。
+    """
+
+    def test_publish_quota_cannot_be_disabled_by_env(self):
+        import importlib
+        import os
+        from orchestrator import config as _c
+        old = os.environ.get("GY_ACCOUNT_DAILY_PUB")
+        os.environ["GY_ACCOUNT_DAILY_PUB"] = "999"
+        try:
+            importlib.reload(_c)
+            self.assertEqual(_c.PER_ACCOUNT_DAILY_PUBLISH, 3, "红线阈值被 env 改掉了 —— 它不该有旋钮")
+        finally:
+            if old is None:
+                os.environ.pop("GY_ACCOUNT_DAILY_PUB", None)
+            else:
+                os.environ["GY_ACCOUNT_DAILY_PUB"] = old
+            importlib.reload(_c)
+
+    def test_source_has_no_env_read_for_the_quota_redline(self):
+        """连**源码里都不许出现**那个 env 读法 —— 否则下次有人"顺手"又给红线接回旋钮。"""
+        from pathlib import Path
+        src = (Path(__file__).resolve().parents[1] / "orchestrator" / "config.py").read_text(encoding="utf-8")
+        self.assertNotIn('PER_ACCOUNT_DAILY_PUBLISH = int(os.environ', src,
+                         "控量红线又被接上 env 了 —— 红线不许有静音开关")

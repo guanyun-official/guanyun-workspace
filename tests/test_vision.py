@@ -34,7 +34,7 @@ class TestVision(unittest.TestCase):
         with mock.patch.dict(os.environ, {"ARK_API_KEY": "SECRET"}), \
                 mock.patch.object(config, "VISION_BACKEND", "doubao"), \
                 mock.patch.object(vision, "_post", fake_post):
-            out = vision.see([img], "打标提示词")
+            out, _cost = vision.see_with_cost([img], "打标提示词")
         self.assertEqual(out, '[{"类型":"上身图","来源":"实拍"}]')
         # 请求装配:model + content = 图(image_url,base64 内联)+ 文(text)
         self.assertEqual(seen["body"]["model"], config.VISION_MODEL)
@@ -71,19 +71,19 @@ class TestVision(unittest.TestCase):
         with mock.patch.dict(os.environ, env, clear=True), \
                 mock.patch.object(config, "VISION_BACKEND", "doubao"):
             with self.assertRaises(vision.VisionError):
-                vision.see([_fake_jpg()], "x")
+                vision.see_with_cost([_fake_jpg()], "x")
 
     def test_doubao_bad_response_raises(self):
         with mock.patch.dict(os.environ, {"ARK_API_KEY": "K"}), \
                 mock.patch.object(config, "VISION_BACKEND", "doubao"), \
                 mock.patch.object(vision, "_post", lambda *a: {"unexpected": 1}):
             with self.assertRaises(vision.VisionError):
-                vision.see([_fake_jpg()], "x")
+                vision.see_with_cost([_fake_jpg()], "x")
 
     def test_unknown_backend_raises(self):
         with mock.patch.object(config, "VISION_BACKEND", "bogus"):
             with self.assertRaises(vision.VisionError):
-                vision.see([], "x")
+                vision.see_with_cost([], "x")
 
     def test_post_retries_then_succeeds(self):
         # #41 失败恢复:瞬时网络错(Broken pipe)退避重试,后续成功不抛
@@ -139,7 +139,7 @@ class TestVision(unittest.TestCase):
         out_json = '{"result": "[{\\"类型\\":\\"上身图\\",\\"来源\\":\\"实拍\\"}]"}'
         with mock.patch.object(config, "VISION_BACKEND", "claude"), \
                 mock.patch.object(vision.subprocess, "run", lambda *a, **k: _proc(0, out_json)):
-            out = vision.see(["/x/a.jpg"], "p")
+            out, _ = vision.see_with_cost(["/x/a.jpg"], "p")
         self.assertIn("上身图", out)
 
     def test_claude_nonzero_exit_raises(self):
@@ -147,13 +147,13 @@ class TestVision(unittest.TestCase):
         with mock.patch.object(config, "VISION_BACKEND", "claude"), \
                 mock.patch.object(vision.subprocess, "run", lambda *a, **k: _proc(1, "", "boom")):
             with self.assertRaises(vision.VisionError):
-                vision.see(["/x/a.jpg"], "p")
+                vision.see_with_cost(["/x/a.jpg"], "p")
 
     def test_claude_no_json_raises(self):
         with mock.patch.object(config, "VISION_BACKEND", "claude"), \
                 mock.patch.object(vision.subprocess, "run", lambda *a, **k: _proc(0, "乱码无json")):
             with self.assertRaises(vision.VisionError):
-                vision.see(["/x/a.jpg"], "p")
+                vision.see_with_cost(["/x/a.jpg"], "p")
 
 
 if __name__ == "__main__":

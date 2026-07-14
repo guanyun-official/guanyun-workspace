@@ -173,6 +173,21 @@ def today_card(brand: str = "巧荷", panel: dict | None = None) -> dict:
             blocks.setdefault(key, []).append(line)
 
     el: list[dict] = []
+    # **agent 今天的判断,必须传到运营眼前**(2026-07-14 以 agent 身份上班撞到)。
+    # 我看到队列积压 4 条待审,判断"今天不派新活,先催审" —— 系统也同意(干跑 0 条)。
+    # 可这句话**只印在终端里**,而运营不敲终端。他打开卡片看到 4 个光秃秃的标题,
+    # 不知道系统在等他,更不知道"我不动是因为你没动"。
+    # **算了、判了,却没给人看 —— 等于没判。**
+    n_wait = len(p["待审"])
+    if n_wait:
+        # ⚠️ 措辞必须只说**确凿为真**的话。我第一版写的是「今天没派新活」——
+        # 那是**未经核实的断言**:没有待审稿的号今天照样会派。差点亲手写下一句骗人的话,
+        # 而"话在骗人"正是我今天一路在拆的那个病。
+        # 确凿为真的只有这一条(去重是写死的行为):**同号同模式,在途没审完就不会再派**。
+        el.append({"tag": "div", "text": {"tag": "lark_md", "content":
+                   f"**🖊 等你审的 {n_wait} 条**（点标题去 base，把『状态』改掉就行）\n"
+                   f"⏸ 这些审完之前，**同号同模式不会再派新活**（免得给你堆稿）。"
+                   f"审掉一条(批准 / 暂缓归档)，那个号的位子就空出来了。"}})
     for (acc, mode), lines in sorted(blocks.items()):
         head = f"**{acc}{' · ' + mode if mode else ''}**"
         el.append({"tag": "div", "text": {"tag": "lark_md", "content": head + "\n" + "\n".join(lines)}})

@@ -108,9 +108,37 @@ class RunDay(unittest.TestCase):
         self.assertTrue(rows and all(r["status"] == "(干跑)" for r in rows))
         self.assertEqual(created, [], "干跑不写库")
 
+    def test_dry_run_tells_the_truth_about_what_write_would_do(self):
+        """**干跑必须和实跑说同一句话**(2026-07-14 以 agent 身份上班,第一件事就撞到)。
+
+        老实现:`def dispatch(...): assigns = daily_assignments(); if not write: return assigns`
+        —— 干跑在那一行就返回了,**整段在途去重被跳过**。
+        于是干跑打印「今天派活 4 条」,实跑其实**一条都不派**(4 条全在途)。
+        干跑存在的**唯一意义**就是"告诉我实跑会发生什么"。它和实跑说的不一样 = 预览就是谎,
+        而它是 agent/运营唯一能"先看看"的手段 —— 骗一次,这个手段就废了。
+        锁行为:在途的活,**干跑也要标 skipped**。"""
+        base = dict(self.BASE)
+        base["笔记表"] = [{"record_id": "recX", "fields": {
+            NF.STATUS: NS.DRAFT_PENDING, NF.ACCOUNT: [{"record_ids": ["recA"], "text": "ootd号"}],
+            NF.CONTENT_TYPE: [{"record_ids": ["recC"], "text": "视频唯美OOTD"}]}}]
+        with mock.patch.object(feishu_io, "list_records", lambda t: base.get(t, [])), \
+                mock.patch.object(feishu_io, "search_in", lambda t, *a, **k: base.get(t, [])), \
+                mock.patch.object(feishu_io, "name_map", lambda t, f: {"recA": "ootd号", "recC": "视频唯美OOTD"}):
+            dry = dispatch.dispatch("巧荷", write=False)
+        got = {(a["account"], a["content_type"]): a.get("skipped") for a in dry}
+        self.assertEqual(got.get(("ootd号", "视频唯美OOTD")), "已在途",
+                         "干跑没标 skipped —— 它在告诉人一件实跑不会发生的事")
+
     def test_write_lands_drafts_for_each_account_mode(self):
         created = []
+        # **这条测试原来在偷偷读真库**(2026-07-14 撞到):它 mock 了 list_records,
+        # 却**没 mock search_in** —— 而 `_find_inflight_note` / `_open_slots` 走的正是 search_in。
+        # 于是这条号称"全离线"的单测每次都真去打飞书,绿不绿取决于**真库当时有没有在途稿**。
+        # 那是**假绿**:它证明的不是代码对,而是"今天真库恰好是空的"。
+        # (今天真库里躺着 4 条待审稿,新加的防覆盖门一拦,它就红了 —— 红得对。)
         with mock.patch.object(feishu_io, "list_records", lambda t: self.BASE.get(t, [])), \
+                mock.patch.object(feishu_io, "search_in", lambda t, *a, **k: self.BASE.get(t, [])), \
+                mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: self.BASE.get(t, [])), \
                 mock.patch.object(feishu_io, "create_record",
                                   lambda t, f: created.append(f) or f"recN{len(created)}"), \
                 mock.patch.object(feishu_io, "update_record", lambda t, r, f: None):

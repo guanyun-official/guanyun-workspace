@@ -81,6 +81,23 @@ def _valid_type(raw: str, kind: str) -> str:
     return raw if (raw in ing._TYPE_PREFIX and raw not in _VIDEO_TYPES) else "上身图"
 
 
+def _note_of(tag: dict, kind: str) -> str:
+    """备注落库前的**诚实标注**:视频的备注**只是一帧关键帧**的描述,必须说出来。
+
+    2026-07-14 上班撞到:补拍单让摄影师拍「上身视频」,给的参考写着
+    「浅粉色…衣身**局部特写**,画面下方有裸露的手臂局部」—— 摄影师当场懵:
+    你让我拍上身视频,给我看个局部特写?
+    真相是那确实是条上身视频(EG9A7581.MP4),但豆包看的是**抽出来的一帧**,
+    而那一帧恰好是个特写。抽帧打标是当初定的设计,没错 —— 错在**备注没说自己只是一帧**。
+    于是一帧被当成了全部:摄影师照它拍、文案拿它当"这条视频的画面事实"。
+    加四个字,谁读都不会误会。
+    """
+    note = (tag.get("备注") or "").strip()
+    if kind == "video" and note and not note.startswith("(视频关键帧)"):
+        return f"(视频关键帧){note}"
+    return note
+
+
 def _seen_names(mats: list[dict]) -> set[str]:
     """已登记素材的网盘文件名集合(链接.text 存过文件名;相对路径=指针也能抽文件名)——去重防重标。"""
     seen: set[str] = set()
@@ -213,7 +230,8 @@ def run(folder: str, batch_size: int = 5, limit: int = 0, write: bool = False,
             source = "AI生成" if (tag.get("来源") == "AI生成") else "实拍"
             code = ing.gen_code(mtype, meta["name"], seen_codes)
             seen_codes.add(code)
-            row = {"code": code, "type": mtype, "source": source, "note": tag.get("备注", "")}
+            note = _note_of(tag, meta["kind"])
+            row = {"code": code, "type": mtype, "source": source, "note": note}
             if write:
                 thumb_token = ""
                 try:                                        # 顺带生成+上传缩略图(base驾驶舱瞄一眼),失败不拦登记
@@ -222,7 +240,7 @@ def run(folder: str, batch_size: int = 5, limit: int = 0, write: bool = False,
                     thumb_token = feishu_io.upload_media(thumb, meta["name"] + ".jpg")
                 except Exception as e:  # noqa: BLE001  缩略图失败不拦登记
                     print(f"  ⚠缩略图失败 {code}: {str(e)[:40]}", file=sys.stderr)
-                ing.register(code, mtype, meta["ptr"], tag.get("备注", ""), source, thumb_token=thumb_token)
+                ing.register(code, mtype, meta["ptr"], note, source, thumb_token=thumb_token)
             out.append(row)
             print(f"  {'✓登记' if write else '·试跑'} {code} [{mtype}/{source}] {tag.get('备注','')[:36]}")
         netpan.clear_cache()                                # 每 chunk 清缓存(按需缓存不占地)

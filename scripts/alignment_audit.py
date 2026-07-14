@@ -90,6 +90,14 @@ def _real_callers(fn: str) -> int:
          **卡片没问题时循环体不执行 → 不崩、绿灯;卡片真有假承诺时才执行 → 崩溃。**
          **它平时永远是绿的,只在真该报警的那一刻炸掉。**
 
+      4. 第四次(2026-07-14):它只数 `ast.Call`(被按名字调用),**不数"被当成值引用"**。
+         可这个仓的钩子架构(ADR-0006「关节焊死、叶子智能」)**整个靠传函数值实现**:
+             default_hooks() → return compose.ai_decide, compose.execute      # 依赖注入
+             _EXECUTORS = {"拼图": compose_execute, "AI封面": cover_execute}   # 注册表
+         这些函数**永远不会被按名字调用**,却全都真接在线上 —— 老实现一律判死码,**假红**。
+         而假红比漏报更毒:喊三次狼来了,这道门就再没人看了。
+         现在:被 Call 调、或被当**值**引用(赋给变量/进 dict/进 return/当实参),都算接线。
+
     教训写死在这:**检查器自己也必须过"把 bug 塞回去,看它报不报"这一关**,
     否则它就是下一个"看着像在保护你、实际是空的"东西。
     """
@@ -104,6 +112,17 @@ def _real_callers(fn: str) -> int:
                 name = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
                 if name == fn:
                     n += 1
+            elif isinstance(node, (ast.Name, ast.Attribute)):
+                # 被当**值**引用 = 依赖注入/注册表接线(钩子从不按名字调用)
+                name = getattr(node, "id", None) or getattr(node, "attr", None)
+                if name == fn:
+                    n += 1
+    # **门是 shell 脚本**(check_p1-6.sh 里内嵌 python heredoc 调 orchestrator)。
+    # 只扫 .py 会看不见它们 —— 我第一版就把 `skills_lock.validate()` 判成死码,
+    # 而它明明在 check_p1.sh 里被调用着。**又是假红**,而假红比漏报更毒。
+    # shell 里没法 AST,只能文本匹配;这里可接受:.sh 里几乎没有大段注释来骗它。
+    for sh in sorted((ROOT / "scripts").glob("*.sh")):
+        n += len(re.findall(rf"\b{re.escape(fn)}\s*\(", sh.read_text(encoding="utf-8", errors="ignore")))
     return n
 
 
@@ -128,10 +147,16 @@ def audit_dead_code() -> None:
             if not isinstance(node, ast.FunctionDef) or node.name.startswith("_"):
                 continue
             fn = node.name
-            callers = sum(len(re.findall(rf"\b{fn}\s*\(", src))
-                          for q, src in prod.items() if q != p)
-            selfuse = len(re.findall(rf"\b{fn}\s*\(", s)) - 1     # 减去 def 本身
-            if callers == 0 and selfuse == 0:
+            # 2026-07-14:这里原来用 **regex** 数 `fn(` —— 而 `_real_callers` 的 docstring 里
+            # **白纸黑字骂过这个写法**(注释里出现名字也算数、把检查骗成摆设),说"已改用 AST"。
+            # **可死码检查从来没换过去。** 审查器里躺着两套数调用点的逻辑,一新一旧,
+            # 而旧的那套正是它自己骂过的那套。—— 检查器自己得了它要抓的病。
+            #
+            # 而且 regex 只认 `fn(`(被调用),**认不出被当值引用的钩子**:
+            #     default_hooks() → return compose.ai_decide, compose.execute   # 没有括号!
+            # 于是整个 ADR-0006 的钩子架构(关节焊死、叶子智能)被一律判成死码 —— **假红**。
+            # 统一到 AST:被调用 or 被当值引用,都算接线。
+            if _real_callers(fn) == 0:
                 key = f"{p.stem}.{fn}"
                 if key in DEAD_CODE_ALLOW:
                     ok(f"{key}() 生产零调用 —— **白名单(有理由)**:{DEAD_CODE_ALLOW[key][:52]}…")
@@ -334,10 +359,8 @@ def audit_views() -> None:
 # ══════════════════════════════════════════════════════════════════════════════
 GATE_INPUTS = [
     # (门, 它依赖的表, 依赖的字段, 全空时的后果)
-    # 2026-07-14 校正:这条规矩以前写错了源——它断言防搬运门依赖灵感库『文案』(原帖正文)。
-    # 真跑证伪:`compose_prompt` **根本不收 source_text** → 正文从没进过 prompt → LLM 没见过 →
-    # 逐字搬它物理上不可能。守它 = 守空气。而**真能被搬的**(灵感标题、技能 few-shot 真实帖)当时零防护。
-    # 门真正的比对源 = **LLM 眼睛看得见的东西**,第一项就是灵感标题(它就是 title_seed)。
+    # 门真正的比对源 = **LLM 眼睛看得见的一切**:灵感标题(title_seed)+ 灵感正文(source_text,
+    # 当情报进 prompt 学结构)+ 技能 few-shot 真实帖。标题是最起码的那个 —— 没标题连活都派不出去。
     ("防搬运门 assert_no_source_leak", "灵感库", "标题",
      "灵感标题**就是 title_seed**,直接进 prompt。全空 → 派不出活,爆款模仿链路断在源头"),
     ("AI声明门 assert_ai_declared", "素材表", "来源",
@@ -379,12 +402,29 @@ PROMPT_EXTERNAL_TEXTS = {"skill_text", "title_seed", "source_text"}
 
 
 def _call_arg_names(tree, fname: str) -> set:
-    """AST 取某函数调用的所有实参变量名(含 list 字面量里的、含关键字实参)。"""
-    names = set()
+    """AST 取某函数调用的所有实参变量名(含 list 字面量里的、含关键字实参),**并跟着简单变量别名走一层**。
+
+    为什么要跟别名(2026-07-14,这条检查自己误报过一次):
+      门的调用从 `assert_no_source_leak([a, b, c], text)` 改成了
+      `sources = [a, b, c]` / `assert_no_source_leak(sources, text)`(因为要复用给自修函数)。
+      老实现只看调用点的 Name 节点 → 只看见 `sources`,看不见里面的 a/b/c → **报了假红**。
+      门明明守着(真跑压测过),检查器却喊狼来了。**误报比漏报更毒**:喊三次,人就不看这道门了。
+      所以:先扫一遍 `x = [ ... ]` 的赋值,实参是 Name 且在表里 → 展开它。
+    """
+    aliases: dict[str, set] = {}
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Assign) and isinstance(n.value, (ast.List, ast.Tuple)):
+            elts = {e.id for e in n.value.elts if isinstance(e, ast.Name)}
+            for t in n.targets:
+                if isinstance(t, ast.Name) and elts:
+                    aliases.setdefault(t.id, set()).update(elts)
+
+    names: set = set()
 
     def collect(node):
         if isinstance(node, ast.Name):
             names.add(node.id)
+            names.update(aliases.get(node.id, ()))     # 别名展开:sources → {source_text, title_seed, skill_text}
         for ch in ast.iter_child_nodes(node):
             collect(ch)
 
@@ -476,7 +516,7 @@ def _scan_agent_only(surface: str, text: str, reader: str) -> int:
 def audit_human_surface() -> None:
     print("\n── ⑧ 人面产物(以人的眼睛看,合不合理)" + "─" * 22)
     from orchestrator import bitable, cockpit, feishu_io, report, shotlist
-    from orchestrator.bitable import NoteFields as NF
+    from orchestrator.bitable import AccountFields as AF, NoteFields as NF
     found = 0
 
     p = cockpit.today_panel("巧荷")
@@ -492,6 +532,18 @@ def audit_human_surface() -> None:
     wk_txt = report.format_weekly(report.weekly_summary(
         [r["fields"] for r in feishu_io.list_records(NF.TABLE)], needs=needs))
     found += _scan_agent_only("周报", wk_txt, "运营(周一看,不敲终端)")
+
+    # (b2) **base 里指向仓库的指针必须真指到文件**(2026-07-14 撞到的活标本)。
+    #   账号表『workspace_ref』4/4 都写着 `brands/观云/accounts/…` —— 观云→巧荷 改名之后,
+    #   那个目录**根本不存在了**。没有任何代码读这个字段,所以它一声不吭;
+    #   可它**是给人看的**:运营/开发点它去找账号声明。人点过去扑空,还以为自己搞错了。
+    #   "没代码读" ≠ "没人读" —— 人也是读者,而且是最容易被骗的那个。
+    for r in feishu_io.list_records(AF.TABLE):
+        ref = bitable.text(r["fields"].get("workspace_ref")).strip()
+        if ref and not (ROOT / ref).exists():
+            bad("人面·死指针", f"账号表『workspace_ref』= `{ref}`,**这个文件在仓库里不存在**",
+                "它是给人点的(去看账号声明)。指到空处 → 人扑空。改名/挪目录后必须同步 base,"
+                "或者干脆删掉这个字段——**别留一个永远指错的路标**")
 
     # (c) 黑洞:某个在途状态的稿,在**任何**人面视图里都不出现 → 人以为它发出去了
     surfaced = {n["title"] for k in ("待审", "待发", "待回填链接", "已暂停", "卡住") for n in p.get(k, [])}

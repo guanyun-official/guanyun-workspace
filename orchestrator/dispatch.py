@@ -158,14 +158,32 @@ def _open_slots() -> set:
 def dispatch(brand: str = "巧荷", write: bool = False) -> list[dict]:
     """派活:今天每号每模式的活落成『待出文案』占位(write=True 才写测试库)。
     已在途的号×模式跳过(去重)。绝不自动发布、绝不代勾 AI 声明。返回本次实际派的活(含 note_id/skipped)。"""
+    if write:
+        # ★红线走在**任何 IO 之前**★(2026-07-14:我自己刚种下的雷,当场揪出来)。
+        # 我把 `_open_slots()`(一次 search 读库)提到了守卫前面 —— 而 verify_usable 测红线时
+        # 会把 BASE_TOKEN 指向**生产库**再调 dispatch(write=True),期望被守卫拒掉。
+        # 守卫在后面 → 那次 search **会真的读到生产库 N9IVbi**。生产库焊死不碰,**读也不行**。
+        # 红线门的位置不是风格问题:它必须是这个函数做的第一件事。
+        guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)
     assigns = daily_assignments(brand)
+    # **干跑也必须查在途去重**(2026-07-14 上班第一件事就撞到):
+    # 老实现是 `if not write: return assigns` —— 干跑在这行就返回了,**跳过了整段去重**。
+    # 于是干跑说"今天派活 4 条",实跑其实一条都不派(4 条全在途)。
+    # 干跑存在的**唯一意义**就是"告诉我实跑会发生什么"。它和实跑说的不一样 = **预览就是谎**,
+    # 而它是 agent/运营唯一能"先看看"的手段 —— 骗一次,这个手段就作废了。
+    # (写的时候只想着"干跑不写库,提前返回省事"。**又是"想起来方便"**。)
+    # _open_slots 是纯读(服务端过滤,一次 search),干跑多这一次调用换来预览为真,值。
+    in_flight = _open_slots()
+    for a in assigns:
+        if (a["account"], a["content_type"]) in in_flight:
+            a["skipped"] = "已在途"
     if not write:
         return assigns
-    guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)  # 红线:只写测试库
+    # (红线守卫已在函数第一行做过 —— 必须在任何 IO 之前,不能等到这里)
     from .draft import _resolve_link
     from .bitable import AccountFields as AF, ContentTypeFields as CTF
     with lock.write_lock():                            # 并发锁(ADR-0009):在途去重是读-改-写 TOCTOU,加锁防并发重复派活
-        in_flight = _open_slots()
+        in_flight = _open_slots()                      # 拿锁后**重读一次**(锁外那次可能已过期)
         for a in assigns:
             if (a["account"], a["content_type"]) in in_flight:
                 a["skipped"] = "已在途"                 # 去重:不重复堆活

@@ -42,9 +42,57 @@ BASE_TOKEN = os.environ.get("LARK_APP_TOKEN", "")
 TEST_MODE = os.environ.get("TEST_MODE", "1") == "1"
 ENV_NAME = "test" if BASE_TOKEN == TEST_BASE else ("prod" if BASE_TOKEN == PROD_BASE else "unknown")
 
+# ★★ 红线阈值:**焊死,不读 env** ★★(2026-07-14 开关过堂实测抓到)
+#
+#   老实现是 `int(os.environ.get("GY_ACCOUNT_DAILY_PUB", "3"))`。真跑一测:
+#       GY_ACCOUNT_DAILY_PUB=999 → 今天已发 50 篇,**控量门照样放行**。
+#   **一个环境变量就能把红线关掉。** 那它就不是红线,是个建议。
+#
+#   而且这条特别毒:env 关红线**不留任何痕迹** —— git 里看不到、日志里看不到、人也看不到。
+#   哪天 cron 的环境里多了一行,或者谁 export 了一下,风控上限就没了,而没有任何人会知道。
+#   "阈值可 env 覆盖"写的时候觉得灵活,落实下来是**给红线装了个静音开关**。
+#
+#   平台规则真变了怎么办?**改这一行,提交,让人看见。** 改红线必须留痕 —— 这是它和普通配置的分界。
+PER_ACCOUNT_DAILY_PUBLISH = 3          # 单号每日发布上限(平台风控红线;要改就改这里并 commit,不许 env 覆盖)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 开关过堂(2026-07-14):每一个 GY_* 都得回答一句 ——
+#   **「这是不是我不敢把判断交给 agent?」** 是 → 删掉,把判断交出去;不是 → 在这写明它凭什么留。
+#
+# 背景:.env 里**一个 GY_* 都没设过**,17 个旋钮全跑在默认值上。旋钮不是免费的:
+# 每一个都是一次"我(开发)替 agent 想好了",而 agent 本该现场看一眼就决定。
+#
+# 判决:
+#   【删/焊死】GY_ACCOUNT_DAILY_PUB —— **它是红线阈值**。实测 `=999` 就能让控量门放行 50 篇。
+#              红线有旋钮 = 不是红线。已焊死成常量(见上),改它必须改代码 + commit + 留痕。
+#
+#   【留 · 环境事实,不是判断】—— 换台机器/换个区域/供应商改价,这些**不由 agent 决定**:
+#     · GY_TENANT_HOST / GY_ARK_ENDPOINT / GY_ARK_IMAGE_ENDPOINT   部署环境(区域、域名)
+#     · GY_DRAFT_MODEL / GY_VISION_MODEL / GY_IMAGE_MODEL          供应商模型名(会改名、会下线)
+#     · GY_DRAFT_COST_PER_1K_CNY / GY_VISION_COST_PER_1K_CNY       供应商定价(算成本用的**事实**)
+#     · GY_TAG_CONCURRENCY                                          本机负载(笔记本 4 / 服务器可调高)
+#
+#   【留 · 人的决策,不是 agent 的】
+#     · GY_BUDGET_MONTHLY_CNY / GY_PER_RUN_BUDGET_USD  花多少钱是**老板定**,不是 agent 定
+#       (⚠️ 默认 300 元/月是我拍的,不是你定的 —— 该由你确认)
+#
+#   【留 · 逃生舱,不是常规路径】
+#     · GY_DRAFT_BACKEND=claude_cli   实测贵 577 倍,只留作质量对比。**别拿它当常规底座**
+#     · GY_VISION_BACKEND=claude      ARK key 缺失时的零凭证兜底
+#
+#   【留 · 放量闸,不是判断】
+#     · GY_PROCESSING_ENABLED         加工环默认关。**关的不是"要不要加工"这个判断**(那归 ai_decide),
+#       关的是"这条能力放不放出去" —— 它会生成 AI 像素、连带触发 AI 声明手续。验证通过再开。
+#
+#   【欠账 · 本该归 agent,现在还是旋钮】
+#     · GY_COLLECT_REFRESH_DAYS=30    "老帖还值不值得重采"**是判断**,该由 agent 看数据决定。
+#       现在采集是脚本不是 agent,所以暂留。**cron 入口换成 agent 上班后,这个旋钮就该删。**
+#     · GY_METRICS_MODE=stub          默认"不真采"。真采是零凭证、几乎免费的 —— 默认关只是我保守。
+#       同上:agent 该判断"有真链接的已发帖就去采",不需要开关。**暂留,标为欠账。**
+# ══════════════════════════════════════════════════════════════════════════════
+
 # 阈值(可 env 覆盖)
-PER_ACCOUNT_DAILY_PUBLISH = int(os.environ.get("GY_ACCOUNT_DAILY_PUB", "3"))  # 单号每日发布上限(红线)
-COLLECT_REFRESH_DAYS = int(os.environ.get("GY_COLLECT_REFRESH_DAYS", "30"))  # 回流刷新窗:超此天数的已回流帖热度已定,不再重刷(冷热分离,防累积态全拉)
+COLLECT_REFRESH_DAYS = int(os.environ.get("GY_COLLECT_REFRESH_DAYS", "30"))  # 回流刷新窗(⚠️欠账:该归 agent 判断)
 # 删了两个**死配置**(2026-07-14 全体系对齐审查):它们承诺了数据根本支撑不了的功能,和 base 里那几个
 # 空壳视图(「按颜色分组」——素材表没有颜色字段)是同一个病:**人想起来方便,就先把名字写上,功能从没做**。
 #   · GY_REVIEW_OVERDUE_H(待审超时催审):要算"躺了多久"需要**进入待审的时间戳**,
@@ -82,6 +130,12 @@ TAG_CONCURRENCY = int(os.environ.get("GY_TAG_CONCURRENCY", "4"))
 VISION_BACKEND = os.environ.get("GY_VISION_BACKEND", "doubao")
 VISION_MODEL = os.environ.get("GY_VISION_MODEL", "doubao-seed-2-0-mini-260428")
 ARK_ENDPOINT = os.environ.get("GY_ARK_ENDPOINT", "https://ark.cn-beijing.volces.com/api/v3/chat/completions")
+# 加工环生图(AI 封面 / AI 画面)。Seedream 4.0 在方舟**存在但需账号开通**(控制台一次点击,人做)。
+# 未开通时 ark.image 抛 ModelNotOpen —— **绝不静默退回原图**:判了"该加封面"却悄悄没加,
+# 人会以为加上了,那正是最贵的那种 bug。
+ARK_IMAGE_ENDPOINT = os.environ.get("GY_ARK_IMAGE_ENDPOINT",
+                                    "https://ark.cn-beijing.volces.com/api/v3/images/generations")
+IMAGE_MODEL = os.environ.get("GY_IMAGE_MODEL", "doubao-seedream-4-0-250828")
 # 看图成本估算费率(元/1K tokens):打标成本=实测 usage.total_tokens/1000×此率,记进运行日志→纳入月度成本硬闸。
 # 默认 0.002 是 doubao-seed-mini 量级的保守估值,按真实 ARK 账单校准用 env 覆盖(宁高估不漏计,免成本盲区)。
 VISION_COST_PER_1K_CNY = float(os.environ.get("GY_VISION_COST_PER_1K_CNY", "0.002"))

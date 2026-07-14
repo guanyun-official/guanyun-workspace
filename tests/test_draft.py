@@ -99,6 +99,53 @@ class CreateDraftNoteRedline(unittest.TestCase):
             config.BASE_TOKEN, config.TEST_MODE = orig_token, orig_mode
 
 
+class NeverOverwriteAPendingReview(unittest.TestCase):
+    """**不许覆盖运营正在等着审的稿**(2026-07-14 以 agent 身份上班,我差点亲手干出来)。
+
+    `_find_inflight_note` 原来把『待出文案』和『草稿待发』一视同仁,找到就 update 上去。
+    可这俩是两回事:
+      · 待出文案 = 派活占位,**里面还没有内容** → 出稿推进它,天经地义;
+      · 草稿待发 = **已经有稿子,人正等着审** → 再出一条 update 上去,
+        就是**把运营待审的稿悄无声息地换掉**。他在卡片上看到 A,点进 base 变成了 B。
+    "复用在途、不新建重复"当初是为了修重复堆稿 —— **可对已成稿的正解是"跳过",不是"覆盖"**。
+    覆盖别人正在等的东西,任何时候都不叫"复用"。
+    """
+
+    def _base(self, status):
+        return {"笔记表": [{"record_id": "recOld", "fields": {
+                    NF.STATUS: status, NF.TITLE: "运营正在审的那条",
+                    NF.ACCOUNT: [{"record_ids": ["recA"]}],
+                    NF.CONTENT_TYPE: [{"record_ids": ["recC"]}]}}],
+                "账号表": [{"record_id": "recA", "fields": {"账号名": "ootd号"}}],
+                "内容类型表": [{"record_id": "recC", "fields": {"内容类型名": "视频唯美OOTD"}}]}
+
+    def _run(self, status):
+        from unittest import mock
+        from orchestrator import feishu_io
+        base = self._base(status)
+        r = draft.generate_draft("ootd号", llm_mode="stub", content_type="视频唯美OOTD")
+        cap = {}
+        with mock.patch.object(feishu_io, "list_records", lambda t: base.get(t, [])), \
+                mock.patch.object(feishu_io, "search_in", lambda t, *a, **k: base.get(t, [])), \
+                mock.patch.object(feishu_io, "search_records", lambda t, *a, **k: base.get(t, [])), \
+                mock.patch.object(feishu_io, "update_record",
+                                  lambda t, rid, f: cap.update(updated=rid)), \
+                mock.patch.object(feishu_io, "create_record",
+                                  lambda t, f: cap.update(created=True) or "recNew"):
+            return draft.create_draft_note(r), cap
+
+    def test_pending_review_draft_is_never_overwritten(self):
+        with self.assertRaises(draft.DraftPending):
+            self._run(NS.DRAFT_PENDING)
+
+    def test_placeholder_is_still_promoted(self):
+        """『待出文案』占位(没内容)照旧推进 —— 别把去重修成"什么都不敢做"。"""
+        rid, cap = self._run(NS.NEED_COPY)
+        self.assertEqual(rid, "recOld")
+        self.assertEqual(cap.get("updated"), "recOld")   # 推进占位,不新建
+        self.assertNotIn("created", cap)
+
+
 class CreateDraftNoteLinkResolution(unittest.TestCase):
     """回归锁:账号/内容类型是 link 字段,写库前名字→record_id,不再把字符串塞进 link 字段炸写。"""
 

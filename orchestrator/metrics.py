@@ -71,6 +71,37 @@ def collect(url: str, mode: str = "stub") -> dict:
     return _note_metrics(d)
 
 
+def _note_source(d: dict) -> dict:
+    """note 原始 dict → {标题, 文案}(**纯函数**,形态归一集中一处,同 _note_metrics 的路子)。
+    实测形态:`xhs note --url <带xsec_token的URL>` → {"note": {"title":…, "desc": 真正文, …}, …};
+    也吃顶层壳(不同原子/版本的两种返回)。"""
+    n = d.get("note") or d
+    return {"标题": (n.get("title") or "").strip(),
+            "文案": (n.get("desc") or "").strip()}
+
+
+def fetch_source(url: str) -> dict:
+    """抓一条爆款的**标题 + 正文**(非登录,零凭证)→ {标题, 文案};失败返 {}(不阻断)。
+
+    **我在这件事上错了三次,记在这**(2026-07-14):
+      我一路对外宣称"非登录抓不到正文,详情页只吐 452 字节空壳",据此把『文案』当成拿不到的东西,
+      还改了红线设计去绕开它。真相是:
+        ① 我调 note 原子时**没带 xsec_token**(feed 明明给了 `xsecToken`,我没用);
+        ② 拿到返回后**读错了键** —— 正文在 `note.desc`,我读的顶层 `desc`,自然是空。
+        ③ 而 `metrics._extract_note` **本来就在这个文件里跑通了这个原子**(采互动数据用的),
+           我却没去看一眼。
+      真跑实证:带 token 抓真热点 →『30S搞定！有手就会的新中式发型』正文 186 字、赞 10万+。
+      **不真读一遍返回就下结论 —— 同一个病,这是第三次。**
+    """
+    if not url:
+        return {}
+    try:
+        return _note_source(_extract_note(url))
+    except Exception as e:  # noqa: BLE001
+        print(f"[抓正文降级] {e}", file=sys.stderr)
+        return {}
+
+
 def _window() -> dict:
     return {"条数": 0, "_总赞": 0}
 
