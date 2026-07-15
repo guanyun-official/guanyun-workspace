@@ -31,3 +31,7 @@ brands/*/materials/**/*.png
 brands/*/materials/**/*.mov
 brands/*/materials/**/*.heic
 brands/*/materials/**/*.mp4
+
+# 运营侧本地资产(不入库)
+assets/fonts/
+.reports/
