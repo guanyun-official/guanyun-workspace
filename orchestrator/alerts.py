@@ -9,11 +9,17 @@ import os
 import shutil
 import subprocess
 
-HOME_CHAT = os.environ.get("GY_FEISHU_CHAT", "oc_efa54ec613c82e240925eb04f42c7da0")
+HOME_CHAT = os.environ.get("GY_FEISHU_CHAT", "oc_152a1160d240789391546e0a831e9798")
 
 
 def send_card(card: dict, chat_id: str = "") -> dict:
-    """发飞书**交互卡片**(lark-cli im,bot 身份)。今日卡片/补拍单/周报卡都走它。
+    """发飞书**交互卡片**(lark-cli raw api, bot 身份)。今日卡片/补拍单/周报卡都走它。
+
+    路径:`POST /open-apis/im/v1/messages?receive_id_type=chat_id` 私聊/群聊通用。
+    ⚠️ 老实现走 `lark-cli im +messages-send --chat-id` —— **对 P2P 私聊(oc_)会报
+    『out of the chat』**,因为那个子命令要求 bot 是群成员。raw api 没有这个限制。
+    (2026-07-15 真验过:发到私聊 oc_152a1160d240789391546e0a831e9798 → code 0。)
+
     返回 {已发, message_id?, 错?} —— **message_id 就是自证**(拿它去把消息读回来)。
 
     ★这里出过一次真事故,而且是**反向的谎**★(2026-07-14 数字生命上班第一天抓到)
@@ -38,11 +44,16 @@ def send_card(card: dict, chat_id: str = "") -> dict:
     **真跑一次才发现 im 子命令根本不返 code**。
     **「别信形态,先真读一遍 API 返回」这条,今天在同一个函数上栽了两次。**
 
-    现在:**真解析 JSON**,两种形态都认(`ok: true` 或 `code: 0`),并把 **message_id 交出去当自证的钥匙**。
+    现在:**走 raw api**,返回形态固定 `{"code":0,"data":{...}}`,真解析 JSON,
+    并把 **message_id 交出去当自证的钥匙**。
     """
-    args = ["lark-cli", "im", "+messages-send", "--as", "bot",
-            "--chat-id", chat_id or HOME_CHAT,
-            "--msg-type", "interactive", "--content", json.dumps(card, ensure_ascii=False)]
+    receive_id = chat_id or HOME_CHAT
+    body = {"receive_id": receive_id, "msg_type": "interactive",
+            "content": json.dumps(card, ensure_ascii=False)}
+    args = ["lark-cli", "api", "POST", "/open-apis/im/v1/messages",
+            "--as", "bot",
+            "--params", json.dumps({"receive_id_type": "chat_id"}),
+            "--data", json.dumps(body, ensure_ascii=False)]
     env = {**os.environ, "LARK_CLI_NO_PROXY": "1"}
     try:
         r = subprocess.run(args, capture_output=True, text=True, env=env, timeout=30)
@@ -56,9 +67,8 @@ def send_card(card: dict, chat_id: str = "") -> dict:
         d = json.loads(out[i:])                       # ★真解析,不子串匹配★
     except json.JSONDecodeError as e:
         return {"已发": False, "错": f"返回不是 JSON({e}):{out[i:i + 200]}"}
-    # lark-cli 的**两种返回形态**(实测):
-    #   · `im +messages-send` → {"ok": true, "data": {...}}       ← 没有 code
-    #   · `api GET/POST …`    → {"code": 0, "data": {...}}        ← 没有 ok
+    # raw api 固定返回 {"code": 0, "data": {"message_id": "om_...", ...}}
+    # (保留双形态判定是为了鲁棒 —— 若以后 lark-cli 改包装,不至于再"假装失败"。)
     ok = d.get("ok") is True or d.get("code") == 0
     if not ok:
         return {"已发": False,
