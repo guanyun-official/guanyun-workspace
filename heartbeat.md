@@ -92,3 +92,4 @@ echo "qiaohe-skill lock=$LOCK_QS remote=$REMOTE_QS"
 格式:`日期 | 结论 | issue 号(若有) | 备注`
 
 - (此文件新建于 2026-07-15;还没跑过第一次自检)
+- 2026-07-16 | 全绿 | — | schema dump 刷新:新增『进化账』表、素人推广案例加「款式/源底片/画面有他牌」字段、运行日志表多几条状态选项(加法,代码未消费→黄,无 drift);workspace/qiaohe-skill 与 GitHub main 完全一致;红线焊死(.env=测试库 token、PER_ACCOUNT_DAILY_PUBLISH=3 常量、publish.advance 过三门、AI声明拒写、防搬运门/零素材门在位);board 真跑通。

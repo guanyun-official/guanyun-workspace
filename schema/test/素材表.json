@@ -32,7 +32,24 @@
     },
     {
       "field_name": "款式",
-      "type": "text"
+      "type": "select",
+      "options": [
+        "藕荷紫罩衫",
+        "粉上衣+白纱裙",
+        "冰蓝缎面套装",
+        "浅蓝上衣+米白阔腿裤",
+        "黑金边外搭",
+        "薄荷绿短袖+白阔腿裤"
+      ]
+    },
+    {
+      "field_name": "源底片",
+      "type": "link",
+      "link_table": "tblzR7xcNNhCsMGs"
+    },
+    {
+      "field_name": "画面有他牌",
+      "type": "checkbox"
     },
     {
       "field_name": "相对路径",

@@ -1,0 +1,57 @@
+{
+  "table_id": "tbln2dFWu7rG3mzh",
+  "table_name": "进化账",
+  "fields": [
+    {
+      "field_name": "base变更",
+      "type": "text"
+    },
+    {
+      "field_name": "发现",
+      "type": "text"
+    },
+    {
+      "field_name": "复盘范围",
+      "type": "text"
+    },
+    {
+      "field_name": "层",
+      "type": "select",
+      "options": [
+        "harness代码",
+        "技能",
+        "base形状",
+        "文档",
+        "账号声明"
+      ]
+    },
+    {
+      "field_name": "改前SHA",
+      "type": "text"
+    },
+    {
+      "field_name": "改后SHA",
+      "type": "text"
+    },
+    {
+      "field_name": "时间",
+      "type": "datetime"
+    },
+    {
+      "field_name": "状态",
+      "type": "select",
+      "options": [
+        "提案",
+        "已执行"
+      ]
+    },
+    {
+      "field_name": "自审",
+      "type": "text"
+    },
+    {
+      "field_name": "进化",
+      "type": "text"
+    }
+  ]
+}
