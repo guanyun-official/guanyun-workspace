@@ -18,6 +18,9 @@ __pycache__/
 # macOS
 .DS_Store
 backups/
+# heartbeat / cron 运行态快照(本地幂等账本,不入库)
+.board_snapshots/
+.last_board_snapshot.json
 locks/
 locks/reminder_state.json
 
