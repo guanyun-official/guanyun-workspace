@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from . import bitable, config, feishu_io, guard, publish
+from . import bitable, config, feishu_io, publish
 from .bitable import NoteFields as NF, NoteStatus as NS
 from .bitable import AccountFields as AF, AutoSched, ContentTypeFields as CTF
 
@@ -44,11 +44,8 @@ def today_panel(brand: str = "巧荷") -> dict:
         _pub, {"field_name": NF.PUBLISHED_AT, "operator": "isGreater", "value": ["ExactDate", day0]}],
         conjunction="and")
     approved = feishu_io.search_in(NF.TABLE, NF.STATUS, [NS.APPROVED])   # 过渡态(在途,小):可能卡在门前
-    # 素材只取 在途+待回填+已批准 引用的(今日已发只计数,不需素材细节)。
-    # **已批准的素材必须一起取**:否则判它要不要 AI 声明时 idx 里查不到来源 → 一律算成"不需要" → 漏判红线。
-    linked = [rid for r in (active + need_link_notes + approved)
-              for rid in bitable.link_record_ids(r["fields"].get(NF.LINKED_MATERIALS))]
-    idx = publish._material_index(linked)
+    # 面板 = 导航索引:只取标题/账号/模式/深链,不拉素材、不算质检/他牌/AI声明(2026-07-15 运营反馈:
+    # 那些 base 里都有,点标题进去看就行)。门的判定走 publish.review_approved() 独立路径,不依赖这里。
     acc_names = feishu_io.name_map(AF.TABLE, AF.NAME)      # link 字段从 search 只回 id→靠小表 id→名还原显示
     ct_names = feishu_io.name_map(CTF.TABLE, CTF.NAME)
     # **暂停号的稿不进运营待办**(2026-07-14 运营视角实测):官号 base 里「自动排产=暂停」,
@@ -72,38 +69,12 @@ def today_panel(brand: str = "巧荷") -> dict:
         acc = _link_names(f.get(NF.ACCOUNT), acc_names)
         link = _note_link(r["record_id"])
         mode = _link_names(f.get(NF.CONTENT_TYPE), ct_names)
-        # AI声明需求 surface(人审前就看到⚠️;仍人自己勾):按挂的素材来源事实算,复用 guard 的法规规则
-        mat_ids = bitable.link_record_ids(f.get(NF.LINKED_MATERIALS))
-        ai_req = guard.ai_declaration_required([idx[m]["source"] for m in mat_ids if m in idx])
-        qc = bitable.text(f.get(NF.QC)).strip()   # 质检结果(零素材/篇幅不达规格/混入制作说明…)顶到人眼前
-        # **实时兜底:零素材**(2026-07-14 走运营流程发现)——落库的『质检』只在**出稿那一刻**算,
-        # 历史稿/人在 base 手建的稿根本没有质检值。而真跑遇到的「OOTD｜栀子入素」就是一条**待发、
-        # 零素材**的稿:运营点开 base 准备发小红书,一张图都没有,发不出去,而卡片毫无警告。
-        # 所以人面必须实时判一次——不能只信落库的那个字段。
-        if not mat_ids and "零素材" not in qc:
-            qc = ("零素材:一张图/视频都没挂,小红书发不出去——去 base 关联素材" + ("；" + qc if qc else ""))
-
-        # ★他牌:**每次都提,不靠谁的记性**★(2026-07-15 数字生命抓到,而且是最险的一处)
-        # 三条**已经在『待发布』**的稿,『质检』**完全空白**,而配图里全是 Dior 藤格纹托特
-        # (金色 D-I-O-R 挂饰正对镜头)。同样的风险,有的稿写了满满一段,有的稿一个字没有 ——
-        # **运营会把"质检空白"读成"这条没问题",然后就发出去了。**
-        # 靠 agent 每次记得写进质检,**就一定有忘的那次**。所以它是**素材上的一个字段**,
-        # 而卡片**从字段里读**:只要配图带他牌,这句话每次都在。
-        # (**提 ≠ 拦**。能不能发,是运营的判断 —— 这里只保证他看得见。)
-        branded = [idx[m]["code"] for m in mat_ids if m in idx and idx[m].get("他牌")]
-        if branded:
-            qc = (f"画面里有别家品牌 logo（{len(branded)} 张：{'、'.join(branded)}）"
-                  f"——**发之前自己看一眼**，别家 logo 能不能出现在我们画面里，你定。"
-                  + ("\n" + qc if qc else ""))
-
         if acc in paused:                        # 暂停号的稿不进待办(运营已经把这个号关了)
-            paused_notes.append({"title": title, "account": acc, "mode": mode, "open": link, "质检": qc})
+            paused_notes.append({"title": title, "account": acc, "mode": mode, "open": link})
         elif st == NS.DRAFT_PENDING:
-            pend_review.append({"title": title, "account": acc, "mode": mode, "open": link,
-                                "需AI声明": ai_req, "质检": qc})
+            pend_review.append({"title": title, "account": acc, "mode": mode, "open": link})
         elif st == NS.TO_PUBLISH:
-            to_publish.append({"title": title, "account": acc, "mode": mode, "open": link,
-                               "需AI声明": ai_req, "质检": qc})
+            to_publish.append({"title": title, "account": acc, "mode": mode, "open": link})
             queued[acc] = queued.get(acc, 0) + 1          # 排队待发(占额度,但**还没发**)
     for r in need_link_notes:
         f = r["fields"]
@@ -167,98 +138,116 @@ def _title_link(n: dict) -> str:
 
 
 def today_card(brand: str = "巧荷", panel: dict | None = None) -> dict:
-    """今日面板 → 飞书交互卡片。**按 账号·模式 分块**,每块只列可点标题+状态图标(📋待审/📤待发/🔗回填);
-    素材/文案细节点进 base 看,卡片不堆素材下载链接(运营反馈:链接是添乱,标题点进去 base 里都有)。
-    补拍归底部按账号。纯函数(panel 可注入直测)。「聊天优先交互」。"""
+    """今日面板 → 飞书交互卡片(高级组件 · 干净专业)。
+
+    面板 = **导航索引**(运营反馈):每个账号·模式下只列**可点笔记标题**,用图标区分
+    📋待审 / 📤待发 / 🔗待回填。**质检/logo/撞衫/AI声明等提示全部去掉** —— 那些 base
+    里都有,点标题进去看就行,面板只当索引用。
+
+    视觉层次:
+      - header:彩色头(template=wathet 蓝)+ 副标题(环境名)
+      - 顶部摘要 div:『今天要你做的:N 条待审 / N 条待发 / N 条待回填』
+      - hr 分隔
+      - 每个(账号·模式)一个 section:column_set 左列放分组头(账号·模式),右列放标题列表
+      - 卡住 / 控量 / 暂停号仍保留(这些**不在 base 里**,是门和红线算出来的,必须喊出来)
+      - 底部 note:『点标题去 base 操作 …』
+    纯函数(panel 可注入直测)。
+    """
     p = panel if panel is not None else today_panel(brand)
 
-    # 按 (账号, 模式) 归块;块内按状态给图标
+    # ── 按 (账号, 模式) 归块;块内按状态给图标;**只留可点标题+图标**,无质检文字 ──
     blocks: dict[tuple, list[str]] = {}
     for icon, bucket in (("📋", "待审"), ("📤", "待发"), ("🔗", "待回填链接")):
         for n in p[bucket]:
             key = (n["account"], n.get("mode", ""))
-            mark = " ⚠️AI声明" if n.get("需AI声明") else ""   # surface:含AI合成素材,发前须人勾AI声明
-            line = f"{icon} {_title_link(n)}{mark}"
-            # **质检警告必须出现在卡片上**(2026-07-14 运营视角实测的代价):零素材的废稿(小红书没图
-            # 发不了)、篇幅不达技能规格的短稿,原来静静躺在待审区,卡片一个字提示都没有——人得点进去
-            # 才发现是废稿。算了不给人看 = 等于没检。
-            if n.get("质检"):
-                line += f"\n     ⚠️ {n['质检']}"
-            blocks.setdefault(key, []).append(line)
+            blocks.setdefault(key, []).append(f"{icon} {_title_link(n)}")
 
     el: list[dict] = []
-    # **agent 今天的判断,必须传到运营眼前**(2026-07-14 以 agent 身份上班撞到)。
-    # 我看到队列积压 4 条待审,判断"今天不派新活,先催审" —— 系统也同意(干跑 0 条)。
-    # 可这句话**只印在终端里**,而运营不敲终端。他打开卡片看到 4 个光秃秃的标题,
-    # 不知道系统在等他,更不知道"我不动是因为你没动"。
-    # **算了、判了,却没给人看 —— 等于没判。**
-    # **卡片头必须说清"下面列的是什么"**(2026-07-14 数字生命以运营视角挑出来的):
-    # 老实现头一句是「🖊 等你审的 2 条」,底下却列了 **6** 个链接(4 个 📤 待发 + 2 个 📋 待审),
-    # **而且没有图例**。数字都没错,但一个忙着的运营扫一眼,很可能以为 6 条都要审。
-    # 「标题说 2、底下列 6」 —— **数字对,话不对**,这就是"话在骗人"的一种。
-    n_wait, n_pub, n_link = len(p["待审"]), len(p["待发"]), len(p["待回填链接"])
-    todo = []
-    if n_wait:
-        todo.append(f"📋 **{n_wait} 条等你审**（改『状态』：批准 / 暂缓归档）")
-    if n_pub:
-        todo.append(f"📤 **{n_pub} 条等你发**（去小红书发，回来填『发布链接』+ 状态改『已发』）")
-    if n_link:
-        todo.append(f"🔗 **{n_link} 条等你回填链接**（不填，回流采不到数据）")
-    if todo:
-        el.append({"tag": "div", "text": {"tag": "lark_md",
-                   "content": "**今天要你做的:**\n" + "\n".join(todo)
-                              + "\n\n下面按 **账号 · 模式** 分组，图标就是上面这三种。"}})
-    for (acc, mode), lines in sorted(blocks.items()):
-        head = f"**{acc}{' · ' + mode if mode else ''}**"
-        el.append({"tag": "div", "text": {"tag": "lark_md", "content": head + "\n" + "\n".join(lines)}})
 
-    # **卡住的稿**:你批了,但系统被门拦住没敢往下推。不喊出来 = 稿子在人面上消失 = 你以为发了其实没发。
+    # ── 顶部摘要:今天要你做的 ──
+    n_wait, n_pub, n_link = len(p["待审"]), len(p["待发"]), len(p["待回填链接"])
+    summary_parts = []
+    if n_wait:
+        summary_parts.append(f"📋 **{n_wait} 条待审**")
+    if n_pub:
+        summary_parts.append(f"📤 **{n_pub} 条待发**")
+    if n_link:
+        summary_parts.append(f"🔗 **{n_link} 条待回填**")
+    if summary_parts:
+        el.append({
+            "tag": "div",
+            "text": {
+                "tag": "lark_md",
+                "content": "**今天要你做的**  ·  " + "  ·  ".join(summary_parts)
+                           + "\n<text color='grey'>图标说明:📋 待审  ·  📤 待发  ·  🔗 待回填链接</text>"
+            }
+        })
+        el.append({"tag": "hr"})
+
+    # ── 按 账号·模式 分块 ──
+    if blocks:
+        for (acc, mode), lines in sorted(blocks.items()):
+            section_label = f"**{acc}**" + (f"  <text color='grey'>· {mode}</text>" if mode else "")
+            el.append({
+                "tag": "div",
+                "fields": [
+                    {"is_short": False, "text": {"tag": "lark_md", "content": section_label}},
+                ]
+            })
+            # 标题列表:每条一行,纯图标+可点标题(无质检文字)
+            el.append({
+                "tag": "div",
+                "text": {"tag": "lark_md", "content": "\n".join(lines)}
+            })
+            el.append({"tag": "hr"})
+        # 末尾多一条 hr 是给后续 section 用的;若无后续 section,去掉
+        el.pop()
+    else:
+        el.append({
+            "tag": "div",
+            "text": {"tag": "lark_md",
+                     "content": "<text color='grey'>✅ 今日无待办:没要审的、没要发的。</text>"}
+        })
+
+    # ── 卡住的稿:你批了,但被门拦下(**不在 base 状态里显式可见**,必须喊) ──
     if p.get("卡住"):
         el.append({"tag": "hr"})
         lines = [f"· {_title_link(n)}（{n['account']}）\n     ↳ {n['卡住原因']}" for n in p["卡住"]]
         el.append({"tag": "div", "text": {"tag": "lark_md",
-                   "content": "**🛑 你批了、但发不出去的**（卡在门前，需要你处理）\n" + "\n".join(lines)}})
+                   "content": "**🛑 你批了、但发不出去的**\n<text color='grey'>卡在门前,需要你处理</text>\n"
+                              + "\n".join(lines)}})
 
-    # 控量预警(红线):今日额度占用逼近单号日上限→标红,防超发(assert_publish_quota 曾是死码,这里给人看)
+    # ── 控量预警(红线) ──
     hot = [q for q in p.get("控量", []) if q["逼近"]]
     if hot:
         el.append({"tag": "hr"})
-        # 话要说得让人一眼懂自己到底发没发:「今日已发 X 条 + 排队 Y 条 = 占满 Z/上限」
-        lines = [f"· {q['account']}：今日已发 {q['今日已发']} 条 + 排队待发 {q['排队待发']} 条 "
-                 f"= 占用 {q['占用']}/{q['上限']}，别再排新的了" for q in hot]
+        lines = [f"· **{q['account']}**:今日已发 {q['今日已发']} 条 + 排队 {q['排队待发']} 条 "
+                 f"= 占用 {q['占用']}/{q['上限']}" for q in hot]
         el.append({"tag": "div", "text": {"tag": "lark_md",
-                   "content": f"**🚦 控量预警**（红线：单号日发 ≤ {config.PER_ACCOUNT_DAILY_PUBLISH}）\n" + "\n".join(lines)}})
+                   "content": f"**🚦 控量预警**\n<text color='grey'>红线:单号日发 ≤ {config.PER_ACCOUNT_DAILY_PUBLISH}</text>\n"
+                              + "\n".join(lines)}})
 
-    # 补拍**不在这张卡上** —— 它是 agent 的判断(看库存事实自己判),用 `shotlist` 单发一张卡给摄影师。
-    # 这张卡的读者是**运营**(审稿/发稿/回填链接);补拍单的读者是**摄影师**。两个人,两张卡,别混。
-
-    # 暂停号:它的稿不进待办(运营已经把号关了),但也别偷偷藏起来——底部提一句,想看点 base
+    # ── 暂停号 ──
     if p.get("已暂停"):
         el.append({"tag": "hr"})
         accs = sorted({n["account"] for n in p["已暂停"]})
         el.append({"tag": "div", "text": {"tag": "lark_md",
-                   "content": f"**⏸ 已暂停的号**（base 里「自动排产=暂停」，不用管）\n"
-                              f"· {'、'.join(accs)}：还有 {len(p['已暂停'])} 条旧稿在库里"}})
+                   "content": "**⏸ 已暂停的号**\n"
+                              f"<text color='grey'>{'、'.join(accs)}:还有 {len(p['已暂停'])} 条旧稿在库里,不用管</text>"}})
 
-    if not el:
-        el.append({"tag": "div", "text": {"tag": "lark_md", "content": "✅ 今日无待办：没要审的、没要发的、库存也够。"}})
-
-    # **别说人做不到的事**(2026-07-14 人眼审抓到的假承诺):原文是"发完把链接发我认领,或去 base 回填"
-    # —— "发我认领"要 webhook 接住聊天消息 → `publish.fill_publish_link()` 是那个入口,
-    # 而它**生产零调用、webhook 未接**:运营真把链接发给 bot,**石沉大海,没有任何东西在听**。
-    # 功能没接线,话却已经说出去了。改成他**真能做**的:去 base 改状态+填链接。
-    # 『实际发布日』他做不了,系统在 publish_ready(cron)里自愈补上(stamp_published_at)——
-    # 别再要求人做一件他做不到的事。
-    # ★删掉了一句假承诺★(2026-07-14 架构审查):原文写「（发布日系统自动补）」——
-    # **没有任何东西在自动补**。`publish.stamp` 的唯一入口是人手敲命令;它自己 docstring 说
-    # "挂在 publish_ready(cron)上跑",而 publish_ready 和那 5 条 cron **全删了**。
-    # 而控量红线的『今日已发』全靠这个字段。**拆掉规则,人面上的承诺就集体变成谎话** —— 又漏了一条。
-    tip = "点标题去 base：审就改『状态』；发完把小红书链接填进『发布链接』、状态改『已发』、**把『实际发布日』也填上**（控量红线靠它算今天发了几条）"
+    # ── 底部操作提示 ──
+    tip = ("点标题直达 base 对应行。审 → 改『状态』;发完 → 填『发布链接』+ 状态改『已发』"
+           "+ 填『实际发布日』(控量红线靠它算)。")
     el.append({"tag": "note", "elements": [{"tag": "lark_md", "content": tip}]})
 
-    return {"config": {"wide_screen_mode": True},
-            "header": {"template": "wathet",
-                       "title": {"tag": "plain_text", "content": f"📮 {brand} · 今日面板（{config.ENV_NAME}）"}},
-            "elements": el}
+    return {
+        "config": {"wide_screen_mode": True},
+        "header": {
+            "template": "wathet",
+            "title": {"tag": "plain_text", "content": f"📮 {brand} · 今日面板"},
+            "subtitle": {"tag": "plain_text", "content": f"{config.ENV_NAME}  ·  运营待办索引"}
+        },
+        "elements": el
+    }
 
 
