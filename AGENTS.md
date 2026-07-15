@@ -54,11 +54,11 @@ Agent 是模型;Base、网盘、小红书是**世界**,不是 harness。
 
 | 工具 | 注意 |
 |---|---|
-| `lark-cli` | 飞书读写走它。**一律 `--as bot`**(app `cli_a965851065381ccb`)**+ `LARK_CLI_NO_PROXY=1`**(宿主机代理会弄挂它)。gotcha:`+record-get` 字段挂 `data.record` 下;删除类要 `--yes`;建带 property 字段走 bitable v1、公式走 base v3 |
+| `lark-cli` | 飞书读写走它。**一律 `--as bot`**(凭证从 hermes 来,**不要 `config init`**,见下)**+ `LARK_CLI_NO_PROXY=1`**(宿主机代理会弄挂它)。新机器/新 profile 必须先跑 `bash scripts/install_lark.sh`(幂等,做 `lark-cli config bind --source hermes` + 自证);不绑会静默 `not configured`,`board` 整个哑火。gotcha:`+record-get` 字段挂 `data.record` 下;删除类要 `--yes`;建带 property 字段走 bitable v1、公式走 base v3;报错在 **stderr**,成功在 **stdout**(`feishu_io._call` 两个都看) |
 | `hermes` | 飞书消息网关(告警/日报投递到人眼前) |
 | `ARK`(火山方舟) | **只剩生图**(AI 封面;agent 画不了图,这是它真缺的一只手)。key 从 env `ARK_API_KEY` 读。<br>**出稿/看图的 ARK 调用已删** —— agent 自己就是模型:它自己看图、自己写稿,不需要 harness 替它去问另一个模型 |
 | `BaiduPCS-Go` | 网盘 CLI。装:`bash scripts/install_netpan.sh`。**真跑需人工一次** `BaiduPCS-Go login -bduss=<BDUSS>`。**没有 stub 模式** —— 没登录就炸,绝不静默返回空。BDUSS 会过期 |
-| `ffmpeg` / `sips` | 转码、抽关键帧、缩略图(`orchestrator/media.py`;Linux 换 heif-convert/ImageMagick)。**Linux 首次上手机器跑 `bash scripts/install_sysdeps.sh`**(幂等装 ffmpeg / libheif-examples / imagemagick);mac `brew install ffmpeg`,sips 自带。 |
+| `ffmpeg` / `sips` | 转码、抽关键帧、缩略图(`orchestrator/media.py`;Linux 换 heif-convert/ImageMagick)。**Linux 首次上手机器跑 `bash scripts/install_sysdeps.sh`**(幂等装 ffmpeg / libheif-examples / imagemagick);mac `brew install ffmpeg`,sips 自带。<br>**装完再跑 `bash scripts/install_lark.sh`**(把 hermes 凭证绑进 lark-cli,幂等;跳过会让 `board` 整只眼睁不开)。 |
 | `xhs-extract-master` | 小红书非登录抓取(技能)。**`note` 原子取正文必须带 `xsec_token`**,正文在 `note.desc` |
 
 ## 仓库结构

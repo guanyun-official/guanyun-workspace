@@ -8,7 +8,8 @@
 # mac 上 sips 自带,heif-convert/convert 不必要;ffmpeg 走 brew install ffmpeg。
 #
 # 不归在这里装的(各自有脚本/人工):
-#   lark-cli / BaiduPCS-Go / hermes / Python deps(pip) / 视频引擎(setup.sh)
+#   lark-cli(随 hermes 自带;凭证用 scripts/install_lark.sh bind,不是 init)
+#   BaiduPCS-Go / hermes / Python deps(pip) / 视频引擎(setup.sh)
 set -euo pipefail
 
 if [ "$(uname -s)" != "Linux" ]; then
