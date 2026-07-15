@@ -146,9 +146,13 @@ def today_card(brand: str = "巧荷", panel: dict | None = None) -> dict:
 
     视觉层次:
       - header:彩色头(template=wathet 蓝)+ 副标题(环境名)
-      - 顶部摘要 div:『今天要你做的:N 条待审 / N 条待发 / N 条待回填』
-      - hr 分隔
-      - 每个(账号·模式)一个 section:column_set 左列放分组头(账号·模式),右列放标题列表
+      - 每个(账号·模式)一个 column_set 块(真 column_set,不是假 div):
+          · background_style 按账号上色(ootd号=wathet 蓝 / 图文号1=green / 图文号2=orange)
+            → 同账号的多模式块天然连成同色带,一眼分账号
+          · 左列(weight=1)小标:账号·模式
+          · 右列(weight=3)该模式下可点笔记标题(带 📋/📤/🔗 图标)
+        ★ 2026-07-15 验过:column_set 的 background_style 真支持 wathet/green/orange
+          等彩色值(lark-cli api 实发 code 0,不是注释骗人)。
       - 卡住 / 控量 / 暂停号仍保留(这些**不在 base 里**,是门和红线算出来的,必须喊出来)
       - 底部 note:『点标题去 base 操作 …』
     纯函数(panel 可注入直测)。
@@ -162,46 +166,55 @@ def today_card(brand: str = "巧荷", panel: dict | None = None) -> dict:
             key = (n["account"], n.get("mode", ""))
             blocks.setdefault(key, []).append(f"{icon} {_title_link(n)}")
 
+    # ── 账号 → column_set 背景色(同账号同色 → 视觉上自动聚成同色带) ──
+    # 真验过的值(2026-07-15 lark-cli 实发 code 0):
+    #   wathet=浅蓝 / green=浅绿 / orange=浅橙 / blue / turquoise / yellow / red /
+    #   purple / violet / indigo / carmine / grey / default
+    _ACC_BG = {
+        "ootd号": "wathet",
+        "图文号1": "green",
+        "图文号2": "orange",
+    }
+    _ACC_EMOJI = {
+        "ootd号": "🎬",
+        "图文号1": "📸",
+        "图文号2": "📸",
+    }
+
     el: list[dict] = []
 
-    # ── 顶部摘要:今天要你做的 ──
-    n_wait, n_pub, n_link = len(p["待审"]), len(p["待发"]), len(p["待回填链接"])
-    summary_parts = []
-    if n_wait:
-        summary_parts.append(f"📋 **{n_wait} 条待审**")
-    if n_pub:
-        summary_parts.append(f"📤 **{n_pub} 条待发**")
-    if n_link:
-        summary_parts.append(f"🔗 **{n_link} 条待回填**")
-    if summary_parts:
-        el.append({
-            "tag": "div",
-            "text": {
-                "tag": "lark_md",
-                "content": "**今天要你做的**  ·  " + "  ·  ".join(summary_parts)
-                           + "\n<text color='grey'>图标说明:📋 待审  ·  📤 待发  ·  🔗 待回填链接</text>"
-            }
-        })
-        el.append({"tag": "hr"})
-
-    # ── 按 账号·模式 分块 ──
+    # ── 按 账号·模式 分块(真 column_set) ──
     if blocks:
         for (acc, mode), lines in sorted(blocks.items()):
-            section_label = f"**{acc}**" + (f"  <text color='grey'>· {mode}</text>" if mode else "")
+            bg = _ACC_BG.get(acc, "grey")
+            emoji = _ACC_EMOJI.get(acc, "▫️")
+            # 左列标签:emoji + 账号名(粗)· 模式(灰)
+            label = f"{emoji} **{acc}**" + (f"\n<text color='grey'>{mode}</text>" if mode else "")
             el.append({
-                "tag": "div",
-                "fields": [
-                    {"is_short": False, "text": {"tag": "lark_md", "content": section_label}},
-                ]
+                "tag": "column_set",
+                "flex_mode": "none",
+                "background_style": bg,
+                "columns": [
+                    {
+                        "tag": "column",
+                        "width": "weighted",
+                        "weight": 1,
+                        "vertical_align": "top",
+                        "elements": [
+                            {"tag": "div", "text": {"tag": "lark_md", "content": label}}
+                        ],
+                    },
+                    {
+                        "tag": "column",
+                        "width": "weighted",
+                        "weight": 3,
+                        "vertical_align": "top",
+                        "elements": [
+                            {"tag": "div", "text": {"tag": "lark_md", "content": "\n".join(lines)}}
+                        ],
+                    },
+                ],
             })
-            # 标题列表:每条一行,纯图标+可点标题(无质检文字)
-            el.append({
-                "tag": "div",
-                "text": {"tag": "lark_md", "content": "\n".join(lines)}
-            })
-            el.append({"tag": "hr"})
-        # 末尾多一条 hr 是给后续 section 用的;若无后续 section,去掉
-        el.pop()
     else:
         el.append({
             "tag": "div",
