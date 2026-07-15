@@ -144,15 +144,12 @@ def today_card(brand: str = "巧荷", panel: dict | None = None) -> dict:
     📋待审 / 📤待发 / 🔗待回填。**质检/logo/撞衫/AI声明等提示全部去掉** —— 那些 base
     里都有,点标题进去看就行,面板只当索引用。
 
-    视觉层次:
+    视觉层次(2026-07-15 运营最终定稿):
       - header:彩色头(template=wathet 蓝)+ 副标题(环境名)
-      - 每个(账号·模式)一个 column_set 块(真 column_set,不是假 div):
-          · background_style 按账号上色(ootd号=wathet 蓝 / 图文号1=green / 图文号2=orange)
-            → 同账号的多模式块天然连成同色带,一眼分账号
-          · 左列(weight=1)小标:账号·模式
-          · 右列(weight=3)该模式下可点笔记标题(带 📋/📤/🔗 图标)
-        ★ 2026-07-15 验过:column_set 的 background_style 真支持 wathet/green/orange
-          等彩色值(lark-cli api 实发 code 0,不是注释骗人)。
+      - 整体单列竖排,统一极淡中性底(grey),不再分账号上彩色底
+      - 按账号分段,小标题用色点 emoji:🔵 ootd号 · 🟢 图文号1 · 🟠 图文号2
+        小标题下竖排该账号各模式的可点笔记标题(带 📋/📤/🔗 图标)
+      - 留白足、低对比、有呼吸感、不重
       - 卡住 / 控量 / 暂停号仍保留(这些**不在 base 里**,是门和红线算出来的,必须喊出来)
       - 底部 note:『点标题去 base 操作 …』
     纯函数(panel 可注入直测)。
@@ -166,55 +163,46 @@ def today_card(brand: str = "巧荷", panel: dict | None = None) -> dict:
             key = (n["account"], n.get("mode", ""))
             blocks.setdefault(key, []).append(f"{icon} {_title_link(n)}")
 
-    # ── 账号 → column_set 背景色(同账号同色 → 视觉上自动聚成同色带) ──
-    # 真验过的值(2026-07-15 lark-cli 实发 code 0):
-    #   wathet=浅蓝 / green=浅绿 / orange=浅橙 / blue / turquoise / yellow / red /
-    #   purple / violet / indigo / carmine / grey / default
-    _ACC_BG = {
-        "ootd号": "wathet",
-        "图文号1": "green",
-        "图文号2": "orange",
-    }
-    _ACC_EMOJI = {
-        "ootd号": "🎬",
-        "图文号1": "📸",
-        "图文号2": "📸",
+    # ── 账号 → 色点 emoji 小标题 ──
+    _ACC_DOT = {
+        "ootd号": "🔵",
+        "图文号1": "🟢",
+        "图文号2": "🟠",
     }
 
     el: list[dict] = []
 
-    # ── 按 账号·模式 分块(真 column_set) ──
+    # ── 按账号分块,单列竖排 ──
     if blocks:
+        # 先按账号聚合
+        acc_blocks: dict[str, list[tuple[str, list[str]]]] = {}
         for (acc, mode), lines in sorted(blocks.items()):
-            bg = _ACC_BG.get(acc, "grey")
-            emoji = _ACC_EMOJI.get(acc, "▫️")
-            # 左列标签:emoji + 账号名(粗)· 模式(灰)
-            label = f"{emoji} **{acc}**" + (f"\n<text color='grey'>{mode}</text>" if mode else "")
+            acc_blocks.setdefault(acc, []).append((mode, lines))
+        # 逐账号渲染:小标题 + 该账号下所有(模式,行)竖排
+        # 飞书 div 不支持嵌套 elements,所以每条独立渲染,同 background_style=grey
+        # 连续排列 → 视觉上自动连成一整块灰色底,天然有内边距和留白
+        for acc in sorted(acc_blocks.keys()):
+            dot = _ACC_DOT.get(acc, "⚪️")
+            # 账号小标题(色点 + 粗体账号名)
             el.append({
-                "tag": "column_set",
-                "flex_mode": "none",
-                "background_style": bg,
-                "columns": [
-                    {
-                        "tag": "column",
-                        "width": "weighted",
-                        "weight": 1,
-                        "vertical_align": "top",
-                        "elements": [
-                            {"tag": "div", "text": {"tag": "lark_md", "content": label}}
-                        ],
-                    },
-                    {
-                        "tag": "column",
-                        "width": "weighted",
-                        "weight": 3,
-                        "vertical_align": "top",
-                        "elements": [
-                            {"tag": "div", "text": {"tag": "lark_md", "content": "\n".join(lines)}}
-                        ],
-                    },
-                ],
+                "tag": "div",
+                "background_style": "grey",
+                "text": {"tag": "lark_md", "content": f"{dot} **{acc}**"}
             })
+            for mode, lines in acc_blocks[acc]:
+                mode_tag = f"<text color='grey'>{mode}</text>" if mode else ""
+                for ln in lines:
+                    content = f"　{ln}" + (f"  {mode_tag}" if mode else "")
+                    el.append({
+                        "tag": "div",
+                        "background_style": "grey",
+                        "text": {"tag": "lark_md", "content": content}
+                    })
+            # 账号块之间留白:空一行(用无背景的空 div 制造呼吸感)
+            el.append({"tag": "div", "text": {"tag": "lark_md", "content": " "}})
+        # 去掉最后一个多余空行
+        if el and el[-1]["text"]["content"] == " ":
+            el.pop()
     else:
         el.append({
             "tag": "div",
