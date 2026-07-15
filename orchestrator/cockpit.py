@@ -102,11 +102,8 @@ def today_panel(brand: str = "巧荷") -> dict:
             pend_review.append({"title": title, "account": acc, "mode": mode, "open": link,
                                 "需AI声明": ai_req, "质检": qc})
         elif st == NS.TO_PUBLISH:
-            mats = publish.note_materials(f, idx)
             to_publish.append({"title": title, "account": acc, "mode": mode, "open": link,
-                               "需AI声明": ai_req, "质检": qc,
-                               "materials": [{"code": m["code"], "link": m["取用链接"],
-                                              "他牌": m.get("他牌", False)} for m in mats]})
+                               "需AI声明": ai_req, "质检": qc})
             queued[acc] = queued.get(acc, 0) + 1          # 排队待发(占额度,但**还没发**)
     for r in need_link_notes:
         f = r["fields"]
@@ -171,7 +168,8 @@ def _title_link(n: dict) -> str:
 
 def today_card(brand: str = "巧荷", panel: dict | None = None) -> dict:
     """今日面板 → 飞书交互卡片。**按 账号·模式 分块**,每块只列可点标题+状态图标(📋待审/📤待发/🔗回填);
-    素材/文案细节点进 base 看,卡片不堆。补拍归底部按账号。纯函数(panel 可注入直测)。「聊天优先交互」。"""
+    素材/文案细节点进 base 看,卡片不堆素材下载链接(运营反馈:链接是添乱,标题点进去 base 里都有)。
+    补拍归底部按账号。纯函数(panel 可注入直测)。「聊天优先交互」。"""
     p = panel if panel is not None else today_panel(brand)
 
     # 按 (账号, 模式) 归块;块内按状态给图标
@@ -186,12 +184,6 @@ def today_card(brand: str = "巧荷", panel: dict | None = None) -> dict:
             # 才发现是废稿。算了不给人看 = 等于没检。
             if n.get("质检"):
                 line += f"\n     ⚠️ {n['质检']}"
-            # ★待发的稿,**图必须给他**★(2026-07-14 我以运营的眼睛读卡片时骂出来的)
-            # 「📤 等你发」—— 我点开手机准备发小红书,**却不知道该传哪几张图**,
-            # 得点进 base 一张张翻。而系统**明明已经算出来了**:哪几条素材、每条的可开链接。
-            # **算了却没给人看 = 等于没算。**(这个病在这个卡片上已经犯过三次了。)
-            for m in (n.get("materials") or []):
-                line += f"\n     🖼 {m['code']} → {m['link'] or '(没有可开链接 —— 去 base 点素材)'}"
             blocks.setdefault(key, []).append(line)
 
     el: list[dict] = []
