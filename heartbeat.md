@@ -10,7 +10,7 @@
 - deliver 策略:全部正常 → 输出 `[SILENT]`,cron 空输出 = 不投递。
 - 发现问题 → 提 issue(Issue 表留痕交人),**结构性问题不擅自硬改**;同时把 issue 号和摘要写到本文件末尾的「心跳账」里。
 
-## 自检 5 步
+## 自检 6 步
 
 ### 1) Base 多维表结构漂移?
 
@@ -82,7 +82,22 @@ echo "qiaohe-skill lock=$LOCK_QS remote=$REMOTE_QS"
 
 发现红线松动 → **立刻提 P0 issue**,并且别在心跳里自己改红线代码(那是收不回的手慢区,交人审)。
 
-### 5) 本轮结论
+### 5) 作息真的把全流程接起来了吗?(harness 对齐 ≠ 流程接通)
+
+前 4 步查"体系有没有坏";这步查**"我的作息有没有把整条链自主接起来"** —— 有活积压着、却没有任何 cron/心跳在自主处理,就是**断头**。全景图那条链每一段都该有一条作息在推:**网盘新素材→打标登记 / 在途→出稿 / 待审→(人审) / 已发→回流 / 复盘→进化**。
+
+```bash
+export LARK_CLI_NO_PROXY=1; cd /home/ubuntu/guanyun-workspace
+python3 -m orchestrator material.inbox --recursive --dir /巧荷素材/待入库   # 待入库(含<场次/账号>子目录)有没有"库里没有的"积压
+python3 -m orchestrator board                                              # 在途/待审/回流 各段有没有卡着没人推
+hermes cron list                                                           # 对照:每段是不是都有一条 cron 在管
+```
+
+- **网盘入口断头**(真栽过 2026-07-16):待入库有"库里没有的"文件,但**没有 cron 在自主"扫→看图→打标登记"**(旧 `qiaohe-scan-netpan-new` 走"只登记"死路、`qiaohe-monitor-materials` 只盯 base 表不看网盘)。⚠️ `material.register` 强制要 type+备注 → **扫描=看图=打标=登记是一步**,别指望有"只登记不打标"的 cron。缺 → **自己补/改一条 monitor cron 用 `material.inbox --recursive` 扫待入库**,删掉走死路的旧 cron。
+- 其余各段同理:哪段有活却没作息在推 → 自己补作息(cron / 心跳 prompt)。
+- **这是你自己的作息,你自己管、自己补**(架构 4.3b:心跳是运行时的活,agent 自建/自改 cron);别等人派。补完记进化账。
+
+### 6) 本轮结论
 
 - 一切对齐 → 输出就一行 `[SILENT]`(cron 空输出不投递,等于没打扰人)。
 - 有问题 → 把发现 + 已开的 issue 号 + 建议动作写成一段,投递给运营(HOME_CHAT=`oc_152a1160d240789391546e0a831e9798`)。
