@@ -108,3 +108,4 @@ hermes cron list                                                           # 对
 
 - (此文件新建于 2026-07-15;还没跑过第一次自检)
 - 2026-07-16 | 全绿 | — | schema dump 刷新:新增『进化账』表、素人推广案例加「款式/源底片/画面有他牌」字段、运行日志表多几条状态选项(加法,代码未消费→黄,无 drift);workspace/qiaohe-skill 与 GitHub main 完全一致;红线焊死(.env=测试库 token、PER_ACCOUNT_DAILY_PUBLISH=3 常量、publish.advance 过三门、AI声明拒写、防搬运门/零素材门在位);board 真跑通。
+- 2026-07-17 | 已修复断头 | — | 删除走死路的qiaohe-scan-netpan-new（只登记不打标）；新建qiaohe-scan-netpan-inbox每天08:00执行：递归扫/巧荷素材/待入库未登记素材，按tagging-material技能看图打标登记一步完成，每次最多处理20个控制压力；当前验证扫得到约150张未登记，流程接通。

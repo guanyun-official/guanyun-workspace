@@ -191,13 +191,20 @@ def today_card(brand: str = "巧荷", panel: dict | None = None) -> dict:
             })
             for mode, lines in acc_blocks[acc]:
                 mode_tag = f"<text color='grey'>{mode}</text>" if mode else ""
-                for ln in lines:
-                    content = f"　{ln}" + (f"  {mode_tag}" if mode else "")
-                    el.append({
-                        "tag": "div",
-                        "background_style": "grey",
-                        "text": {"tag": "lark_md", "content": content}
-                    })
+                # 每个模式只发1个块：同模式下多条笔记合并，最多显示2条，多余的折叠
+                show_lines = lines[:2]
+                more = len(lines) - len(show_lines)
+                content = ""
+                if mode_tag:
+                    content += f"{mode_tag}\n"
+                content += "\n".join(f"　{ln}" for ln in show_lines)
+                if more > 0:
+                    content += f"\n　<text color='grey'>…等 {more} 条，点进base查看</text>"
+                el.append({
+                    "tag": "div",
+                    "background_style": "grey",
+                    "text": {"tag": "lark_md", "content": content}
+                })
             # 账号块之间留白:空一行(用无背景的空 div 制造呼吸感)
             el.append({"tag": "div", "text": {"tag": "lark_md", "content": " "}})
         # 去掉最后一个多余空行
