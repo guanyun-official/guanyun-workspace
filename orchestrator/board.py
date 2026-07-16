@@ -286,7 +286,7 @@ def _netpan_unregistered() -> dict:
     **库里没有 ≠ 没拍。** 这个差,是它判"到底要不要催补拍"的**唯一依据**。
     (催不催、先登记哪批 —— **仍然是它的判断**。这里只报事实。)
     """
-    reg = materials.registered_names()          # 已登记的**文件名**集合
+    reg = materials.registered_paths()          # 已登记的**完整路径**集合(按路径去重,不是文件名)
 
     def walk(p: str, depth: int = 0) -> list[dict]:
         out = []
@@ -306,7 +306,7 @@ def _netpan_unregistered() -> dict:
             if not d["is_dir"] or d["path"] == netpan.INBOX:
                 continue
             fs = walk(d["path"])
-            news = [f["name"] for f in fs if f["name"] not in reg]
+            news = [f["name"] for f in fs if f["path"] not in reg]   # 按完整路径判"库里没有",名同路径不同=不同文件
             tot += len(fs); un += len(news)
             out[d["path"]] = {"文件数": len(fs), "**库里没有的**": len(news),
                               "例": sorted(news)[:5] or "(都登记过了)"}

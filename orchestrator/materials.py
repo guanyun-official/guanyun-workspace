@@ -81,21 +81,20 @@ def by_ids(ids: list[str]) -> list[dict]:
     return out
 
 
-def registered_names() -> set[str]:
-    """已登记素材的**网盘文件名**集合 —— 打标去重的**事实**(不是决定)。
+def registered_paths() -> set[str]:
+    """已登记素材的**完整网盘路径**集合 —— 打标去重的**事实**,**按完整路径**(不是纯文件名)。
 
-    给 agent 看,让它自己判断:待入库箱里这个文件是不是已经收过了。
-    ⚠️ 去重键是**纯文件名**,而相机是循环编号(DSC6680.jpg 换张卡就重现)——
-    同名 ≠ 同一张片子。所以这里只报事实『同名的已登记过』,**要不要跳过由 agent 判**。
-    (老实现是直接静默跳过 → 一批新片只要撞名就被吞掉,没人知道。)"""
+    ★为什么按路径不按文件名(2026-07-16 补)★
+    相机是**循环编号**(857A0939.JPG / DSC6680.jpg 换张卡、换个场次会重现)。纯文件名去重:
+      · 同一个文件再被扫到 → 同名 → 跳过(对,防了重标);
+      · **但另一场的一张真·新片撞了老场次的名 → 被误判"已登记"→ 漏标**(静默吞掉,没人知道)。
+    路径唯一:`/待入库/260715酒店拍摄/857A0939.JPG` 和 `/待入库/别的场次/857A0939.JPG` 是两条。
+      → 同路径 = 同一个文件 = 真登记过 → 跳;名同路径不同 = 不同文件 → 该标。**不重标、也不漏标。**"""
     seen: set[str] = set()
     for r in feishu_io.list_records(MF.TABLE):
-        f = r["fields"]
-        seen.add(bitable.text(f.get(MF.LINK)).strip())
-        rp = bitable.text(f.get(MF.REL_PATH)).strip()
+        rp = bitable.text(r["fields"].get(MF.REL_PATH)).strip()
         if rp:
-            path = netpan.pointer_path(rp) if rp.startswith(netpan.POINTER_SCHEME) else rp
-            seen.add(Path(path).name)
+            seen.add(netpan.pointer_path(rp) if rp.startswith(netpan.POINTER_SCHEME) else rp)
     seen.discard("")
     return seen
 
@@ -108,11 +107,12 @@ def used_codes() -> set[str]:
 def inbox(folder: str = "", recursive: bool = False) -> dict:
     """待入库箱(或指定网盘目录)现在有什么 —— **事实**,不做任何取舍。
 
-    每个文件报:名字 / 形态(still·video·other)/ **是否已登记过同名的**。
+    每个文件报:名字 / 路径 / 形态(still·video·other)/ **是否已登记过**(按完整路径判)。
     跳过什么、收什么,**agent 自己判**(老实现替它判了:非图非视频静默跳、同名静默吞)。
     recursive=True 时**递归子目录**(网盘按拍摄场次分文件夹时用:`待入库/<场次>/…`)。
-    去重键仍是纯文件名(见 registered_names 的坑:相机循环编号,同名≠同片,agent 自己判)。"""
-    seen = registered_names()
+    ★去重按**完整路径**(见 registered_paths):同路径=真登记过→跳,名同路径不同=不同文件→该标。
+      不重标、也不漏标。(field key `已登记过同名` 是历史遗留名,值其实是路径精确判,勿被名字误导。)"""
+    seen = registered_paths()
     root = folder or netpan.INBOX
     entries: list[dict] = []
 
@@ -132,7 +132,7 @@ def inbox(folder: str = "", recursive: bool = False) -> dict:
         # 还是"下载截断了" —— 那次它是靠同名对照实验硬逼出来的。
         "文件": [{"名字": e["name"], "路径": e["path"], "形态": media.kind(e["name"]),
                   "字节": e.get("size"),
-                  "已登记过同名": e["name"] in seen} for e in entries],
+                  "已登记过同名": e["path"] in seen} for e in entries],
     }
 
 
