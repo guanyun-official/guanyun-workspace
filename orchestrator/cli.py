@@ -104,6 +104,7 @@ def build() -> argparse.ArgumentParser:
     # ── 素材(手 + 眼)──────────────────────────────────────────────────
     c = sub.add_parser("material.inbox", help="【眼】待入库箱里有什么(名字/形态/是否已登记过同名)")
     c.add_argument("--dir", default="")
+    c.add_argument("--recursive", action="store_true", help="递归子目录(网盘按拍摄场次分文件夹时用:待入库/<场次>/…)")
     c = sub.add_parser("material.view", help="【手】网盘文件 → 拉下来转成能看的本地图 → **你自己 Read 它看**")
     c.add_argument("paths", nargs="+")
     c.add_argument("--frames", type=int, default=5,
@@ -258,7 +259,7 @@ def main(argv: list[str] | None = None) -> int:
                   "card": card})
 
         elif a.cmd == "material.inbox":
-            _out(materials.inbox(a.dir))
+            _out(materials.inbox(a.dir, a.recursive))
         elif a.cmd == "material.view":
             _out(materials.viewable(a.paths, a.frames))
         elif a.cmd == "material.list":

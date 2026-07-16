@@ -105,15 +105,29 @@ def used_codes() -> set[str]:
     return {bitable.text(r["fields"].get(MF.CODE)).strip() for r in feishu_io.list_records(MF.TABLE)}
 
 
-def inbox(folder: str = "") -> dict:
+def inbox(folder: str = "", recursive: bool = False) -> dict:
     """待入库箱(或指定网盘目录)现在有什么 —— **事实**,不做任何取舍。
 
     每个文件报:名字 / 形态(still·video·other)/ **是否已登记过同名的**。
-    跳过什么、收什么,**agent 自己判**(老实现替它判了:非图非视频静默跳、同名静默吞)。"""
+    跳过什么、收什么,**agent 自己判**(老实现替它判了:非图非视频静默跳、同名静默吞)。
+    recursive=True 时**递归子目录**(网盘按拍摄场次分文件夹时用:`待入库/<场次>/…`)。
+    去重键仍是纯文件名(见 registered_names 的坑:相机循环编号,同名≠同片,agent 自己判)。"""
     seen = registered_names()
-    entries = [e for e in netpan.list_dir(folder or netpan.INBOX) if not e["is_dir"]]
+    root = folder or netpan.INBOX
+    entries: list[dict] = []
+
+    def _walk(p: str) -> None:
+        for e in netpan.list_dir(p):        # list_dir 读不到会炸,不静默当空
+            if e["is_dir"]:
+                if recursive:
+                    _walk(e["path"])
+            else:
+                entries.append(e)
+
+    _walk(root)
     return {
-        "目录": folder or netpan.INBOX,
+        "目录": root,
+        "递归": recursive,
         # **给字节数**(2026-07-14 数字生命要的):没有它,它分不清"网盘上的源文件就是坏的"
         # 还是"下载截断了" —— 那次它是靠同名对照实验硬逼出来的。
         "文件": [{"名字": e["name"], "路径": e["path"], "形态": media.kind(e["name"]),
