@@ -71,23 +71,6 @@ def gen_code(mtype: str, name: str, existing: set) -> str:
     return f"{stem}{(max(nums) + 1 if nums else 1):03d}"
 
 
-def _accounts_from_path(link_path: str) -> list:
-    """`待入库/<账号名>/…` → 适用账号 = [该账号 record_id]。**路径→字段的机械推断,不是判断**。
-    只认 `待入库` 下**第一级**目录名 == 账号表真名(ootd号/图文号1/图文号2);第一级下面再怎么分子目录都无所谓。
-    第一级不是账号名(如拍摄场次名『260715酒店拍摄』)→ [](通用素材,适用账号留空,分发选材时再定给谁)。
-    不对路径较真:只比第一级目录名和账号表真名。"""
-    rp = netpan.pointer_path(link_path) if link_path.startswith(netpan.POINTER_SCHEME) else link_path
-    prefix = netpan.INBOX.rstrip("/") + "/"                 # /巧荷素材/待入库/
-    if not rp.startswith(prefix):
-        return []
-    first = rp[len(prefix):].split("/", 1)[0].strip()      # 待入库 下第一级目录名
-    if not first:
-        return []
-    name2id = {name: rid for rid, name in feishu_io.name_map("账号表", "账号名").items()}
-    rid = name2id.get(first)
-    return [rid] if rid else []
-
-
 def register(code: str, mtype: str, link_path: str, note: str = "",
              source: str = MSrc.REAL, accounts: list | None = None,
              thumb_token: str = "", form: str = "", style: str = "",
@@ -105,12 +88,6 @@ def register(code: str, mtype: str, link_path: str, note: str = "",
     # 这条以前**内联在这儿**,是一条住在手里、不住在法律里的红线 —— 已归位 guard.source_from_path。
     from . import guard
     source = guard.source_from_path(link_path, source)
-
-    # 适用账号:`待入库/<账号名>/…` → 自动填该账号(路径→字段的机械推断,同 source_from_path 思路;
-    # 但这不是红线——推错只是元数据、不是合规事故,故住 ingest 不住 guard)。
-    # 只在没显式传 accounts 时推;路径第一级不匹配账号名(如拍摄场次名『260715酒店拍摄』)→ 留空,分发选材时回填。
-    if accounts is None:
-        accounts = _accounts_from_path(link_path)
 
     # ★手不许撒谎:登记之前,先确认那个文件真在网盘上★
     # (2026-07-15 数字生命验出来的洞 —— 它昨天不敢验,因为没有 material.delete 收不回来)
