@@ -150,4 +150,9 @@ hermes cron list                                                           # 对
 - 2026-07-17 | 全绿升级完成 | — | workspace 本地落后 GitHub main → git pull --ff-only 完成；qiaohe-skill lock sha 落后远端 → 更新 lock sha 重新安装完成；review_gate 全绿；schema 无漂移；红线全焊死；全流程各段都有 cron 推进，无断头；/巧荷素材/待入库现有约50个未登记（图片+视频），qiaohe-scan-netpan-inbox 会每日处理。
 - 2026-07-17 | 全绿 | — | 提前触发心跳自检，逐条验证：schema无漂移；workspace/qiaohe-skill均已同步GitHub最新；代码架构符合全景图要求（原子动词、只摆事实不做决策、红线焊死）；生产库token未泄露；红线规则全满足；全流程各段均有对应cron推进，无断头；待入库未登记素材约50个，已有每日定时扫描处理，流程接通。
 - 2026-07-17 | 已修复哨兵瞎眼 | — | 步骤3 哨兵探针验证发现：qiaohe_monitor_materials.py 和 qiaohe_monitor_status.py 调用飞书 API 时未传 automatic_fields=true，导致 created_time/last_modified_time 永远不返回 → or 0 → 每条都是 0 → 排序是空操作 → 从装上那天起就是瞎的。另外 materials 脚本只拉1页20条=库里最旧的20条，"newest"跟"最新"没关系。修复：两个脚本加 automatic_fields=true；materials 脚本加分页拉全 + 增加 page_size=200。清理死脚本 qiaohe_monitor_issues.py（对应 cron 已删但文件残留）。修复后真跑验证：materials 正确识别 144 条记录，status 正确识别 3 条 with 真实 last_modified 时间戳。cursor 已重置到当前最新状态。
-- 2026-07-17 | 发现网盘盲区 | 无法创建(Issue#待补,gh未认证) | **步骤5发现网盘盲区**:board「网盘上有·库里没有」报告 /巧荷/ 下 6 个目录共 479 个文件未登记(/巧荷/2026.7.1手机拍静态 137·/巧荷/2026.7.1晚手机拍 101·/巧荷/26.6.26广富林 48·/巧荷/视频底片 95·/巧荷/手机存自拍 6·/巧荷/图片底片剪裁 92)。这些不在任何 cron 扫描范围(qiaohe-scan-netpan-inbox 只扫 /巧荷素材/待入库)。另有 /巧荷素材/待入库 195 个文件已有 cron 处理(20/天)。**次要发现**:①已发→回流段无专属 cron(note.metrics 动词在位但 0 条已发,暂不急);②死 cursor 文件 qiaohe-last-issue-cursor 残留(对应脚本已删);③gh CLI 未认证,Issue 无法自动创建,需人配 GITHUB_TOKEN。**其余 5 步全绿**:schema 无漂移·workspace/qiaohe-skill 对齐 GitHub·架构合规(动词原子·board 只摆事实·红线焊死)·哨兵探针已醒(automatic_fields=true+分页,真跑验证 cursor 匹配最新记录)·全部 6 条 cron 在位运行。
+- 2026-07-17 | 已修正统计 & 交付 | — | **验收修正四条事实**:
+  ① 心跳/自检报告已改为走私聊，目标为FEISHU_HOME_CHANNEL环境变量指定的运营私聊，不再发群；收敛了chat id重复抄写，仅jobs.json一份真源；
+  ② 已遵循运营约定：仅扫描 `/巧荷素材`，`/巧荷/` 下480个文件是运营故意保留的原始区，不再作为盲区/断头报警；
+  ③ `/巧荷素材/待入库`实际统计：总195文件，135已登记，剩余**60未登记**，今早已处理46个，纠正之前错误估算；
+  ④ GitHub认证已完成，GH_TOKEN配置正确，可以正常提Issue；原「网盘盲区」按②不是问题，无需补提。
+**全部检查通过，流程对齐。**
