@@ -85,6 +85,7 @@ def build() -> argparse.ArgumentParser:
     sub.add_parser("board", help="【眼】世界现在什么样(账号/在途/素材/灵感/回流/作息/红线)。纯读")
     c = sub.add_parser("card", help="【眼·人面】今日卡片(运营看的)。--send 推到飞书")
     c.add_argument("--send", action="store_true")
+    c.add_argument("--chat", default="", help="目标聊天ID，不指定则用HOME_CHAT默认值")
     c = sub.add_parser("report",
                        help="【眼·人面】周报(老板看的)。**harness 只摆事实,结论你自己说**"
                             "(`--say`)。没数据就是没数据 —— 别用零数据编")
@@ -94,12 +95,14 @@ def build() -> argparse.ArgumentParser:
     c.add_argument("--needs", default="",
                    help='这周卡在素材上的事(JSON):[{"account":.., "类型":.., "缺":N}]。不给就没这一段')
     c.add_argument("--send", action="store_true")
+    c.add_argument("--chat", default="", help="目标聊天ID，不指定则用HOME_CHAT默认值")
     c = sub.add_parser("shotlist", help="【眼·人面】补拍单(摄影师看的)。**内容你给** --items '<json>'")
     c.add_argument("--items", required=True,
                    help='[{"账号":.., "类型":.., "缺":N, "拍摄要求":"写给拿相机的人看的人话", '
                         '"参考":[{"画面":"一句画面描述", "链接":"能点开的图"}]}] '
                         '—— 催谁、催几条、怎么说,你判断。**参考是列表,不是字符串**')
     c.add_argument("--send", action="store_true")
+    c.add_argument("--chat", default="", help="目标聊天ID，不指定则用HOME_CHAT默认值")
 
     # ── 素材(手 + 眼)──────────────────────────────────────────────────
     c = sub.add_parser("material.inbox", help="【眼】待入库箱里有什么(名字/形态/是否已登记过同名)")
@@ -244,18 +247,18 @@ def main(argv: list[str] | None = None) -> int:
             _out(board.view(a.brand))
         elif a.cmd == "card":
             card = cockpit.today_card(a.brand)
-            _out({"投递": alerts.send_card(card) if a.send else {"已发": False, "说明": "干跑,没发(加 --send 才推飞书)"},
+            _out({"投递": alerts.send_card(card, a.chat) if a.send else {"已发": False, "说明": "干跑,没发(加 --send 才推飞书)"},
                   "card": card})
         elif a.cmd == "report":
             f = report.facts(a.brand)
             card = report.card(f, a.say, json.loads(a.needs) if a.needs else None)
             _out({"事实": f,
-                  "投递": alerts.send_card(card) if a.send
+                  "投递": alerts.send_card(card, a.chat) if a.send
                           else {"已发": False, "说明": "干跑,没发(加 --send 才推飞书)"},
                   "card": card})
         elif a.cmd == "shotlist":
             card = shotlist.card(json.loads(a.items))
-            _out({"投递": alerts.send_card(card) if a.send else {"已发": False, "说明": "干跑,没发(加 --send 才推飞书)"},
+            _out({"投递": alerts.send_card(card, a.chat) if a.send else {"已发": False, "说明": "干跑,没发(加 --send 才推飞书)"},
                   "card": card})
 
         elif a.cmd == "material.inbox":
