@@ -378,6 +378,50 @@ def write_draft(account: str, content_type: str, title: str, body: str, *,
     return out
 
 
+def delete(record_id: str) -> dict:
+    """删一条笔记(建错了能撤)。**删之前先把"删掉的是什么"报出来** —— 事实,不是拦阻。
+
+    ★为什么有这只手★(2026-07-17)
+      它建了废稿**收不回来**。真事:素材不足时它建了 1 图稿,又在质检里写
+      「**本不该建稿,但已经建好**」—— **它知道自己错了,却没有撤的手**,只能把废稿
+      留在运营的待审队列里让人替它收拾。
+      没有回退的手,它只有两条路:**要么不敢建,要么把垃圾堆给人**。
+      (和 `material.delete` 同一个理由:**能撤销,才敢判断**。)
+
+    ★话在删之前说完★(`material.delete` 那条血教训:第一版是"先删 → 再拼那句话",
+      拼的时候崩了 → **事做了、话一个字没吐出来**,人以为它没做。
+      **做了事然后崩掉,比不做事更毒。** 所以:要说的话先攒齐,最后一步才动手。)
+
+    ⚠️ 『已发』的笔记是**世界的历史**(发布链接 / 实际发布日 / 回流数据都挂在它上面)——
+      删了就等于抹掉"我们真发过什么"。这里**照实报出来,删不删是你的判断**。
+    """
+    guard.assert_base_allowed(config.BASE_TOKEN, config.TEST_MODE)   # ★红线走在任何 IO 之前★
+    r = feishu_io.get_record(NF.TABLE, record_id)
+    if not r:
+        return {"没删": record_id, "因为": "库里没有这条笔记(它可能已经被删了)"}
+    f = r["fields"]
+
+    # ★★ 把话在删之前攒齐 ★★
+    status = bitable.text(f.get(NF.STATUS))
+    mats = f.get(NF.LINKED_MATERIALS)
+    n_mat = len(mats[0].get("text_arr", [])) if isinstance(mats, list) and mats else 0
+    out = {"删了": record_id,
+           "删掉的是": {"标题": bitable.text(f.get(NF.TITLE)),
+                        "状态": status,
+                        "账号": bitable.text(f.get(NF.ACCOUNT)),
+                        "内容类型": bitable.text(f.get(NF.CONTENT_TYPE)),
+                        "挂了几张素材": n_mat,
+                        "正文字数": len(bitable.text(f.get(NF.DRAFT)) or "")}}
+    link = bitable.text(f.get(NF.PUBLISH_LINK))
+    pub_at = bitable.text(f.get(NF.PUBLISHED_AT))
+    if link or pub_at or status == "已发":
+        out["⚠️这条发过"] = {"发布链接": link, "实际发布日": pub_at,
+                             "说明": "已发的笔记是**我们真发过什么**的记录,回流数据挂在它上面。"
+                                     "删了就没了 —— 确定要删?"}
+    feishu_io.delete_record(NF.TABLE, record_id)      # ← 最后一步才动手
+    return out
+
+
 # ★agent 能写的状态,**焊死成白名单**★(2026-07-14 架构审查真跑复现的红线洞)
 #
 # 老实现只拦 AI声明。真跑一试:

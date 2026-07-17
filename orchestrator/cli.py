@@ -181,6 +181,9 @@ def build() -> argparse.ArgumentParser:
     c = sub.add_parser("note.update", help="【手】改笔记字段(状态推进等)。**AI声明字段写不了 —— 人勾**")
     c.add_argument("id")
     c.add_argument("--set", nargs="+", required=True)
+    # 出稿就是判断,判断就会错。**能撤销,才敢判断** —— 它建了废稿收不回来,就只会把垃圾堆给运营。
+    c = sub.add_parser("note.delete", help="【手】删一条笔记(建错了能撤)。删前如实报出删掉的是什么;已发的会警告")
+    c.add_argument("id")
     c = sub.add_parser("note.link-materials", help="【手】给笔记挂素材")
     c.add_argument("id")
     c.add_argument("--materials", required=True)
@@ -323,6 +326,8 @@ def main(argv: list[str] | None = None) -> int:
             fields = _kv(a.set, "笔记表")
             notes.update(a.id, fields)
             _out({"改了": a.id, "字段": fields})
+        elif a.cmd == "note.delete":
+            _out(notes.delete(a.id))
         elif a.cmd == "note.link-materials":
             notes.link_materials(a.id, _csv(a.materials))
             _out({"挂上了": a.id, "素材": _csv(a.materials)})
