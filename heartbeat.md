@@ -11,7 +11,7 @@
 - 发现问题 → **提 GitHub Issue** 留痕交人,**结构性问题不擅自硬改**;同时把 issue 号和摘要写到本文件末尾的「心跳账」里。
   > ★2026-07-17 更正★ 这里原来写「提 issue 到 **Issue 表**」—— 过期了。`issue-tracker` 技能已废弃并从技能仓删除;
   > 现在的机制是:**每周自迭代发现的问题 → 提 GitHub Issue → 再修复**。别再往 base 的 Issue 表写。
-- **自检本身产生的修改**(schema dump、心跳账记录、cron配置修改):必须即时提交,保留干净工作区;否则下次 `git pull --ff-only` 会因为本地修改冲突失败,直接中断流程。
+- **自检本身产生的修改**(schema dump、心跳账记录、cron配置修改):必须即时提交并推送到远端(main分支),保留本地和远端完全一致;只commit不push会导致本地远端分叉,下次 `git pull --ff-only` 会报Not possible to fast-forward直接失败,中断流程。
 
 ## 自检 6 步
 
