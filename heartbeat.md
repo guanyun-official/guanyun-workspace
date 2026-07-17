@@ -59,6 +59,24 @@ echo "qiaohe-skill lock=$LOCK_QS remote=$REMOTE_QS"
 - `LOCK_QS != REMOTE_QS`:技能仓有新提交 → 提 issue 把新 sha 贴出来,先读 diff(看改了什么技能/引擎),**判断要不要升级**:
   - 只是新增/改进技能知识 → 更新 lock sha、跑 install_skills.sh、门全绿后 commit。
   - 要是改到判据 / 红线 / 引擎协议 → 自己先按「唯一判据」审一遍,过不了就在 issue 里说清为什么不升级。
+- ★**技能仓目录 vs lock 的 skills 列表 —— 对得上吗?**★(2026-07-18 补)
+  > `install_skills.sh` 只装 lock 里列出的技能。就算 pull 到了新 sha,如果 lock 的 skills 列表没更新,**新技能目录不会被装进 `skills/`、你也读不到**。
+  > 光比 sha + 现有 lock,发现不了「仓里多了一个全新技能目录」这件事 —— 它不在 lock 里,装不上。
+  >
+  > **每轮心跳都做这个对比**(sha 对得上也要做 —— 因为可能是上一轮手动加了新技能目录但没更新 lock):
+  > ```bash
+  > # 仓里有哪些技能目录(有 SKILL.md 的)
+  > REPO_DIRS=$(git ls-tree -d --name-only origin/main | sort)
+  > # lock 里列了哪些
+  > LOCK_SKILLS=$(python3 -c "import json;print('\n'.join(sorted(json.load(open('skills.lock.json'))['sources'][0]['skills'])))")
+  > # diff
+  > diff <(echo "$REPO_DIRS") <(echo "$LOCK_SKILLS") || true
+  > ```
+  > 多出来的 → 新技能。判断要不要纳入:
+  > - **正式技能**(有 SKILL.md + 结构完整)→ 加进 lock 的 skills 列表 + 更新 sha + `install_skills.sh`。
+  > - **半成品 / 实验性**(缺 SKILL.md、只有草稿)→ 别硬纳入,提 issue 问人。
+  > - 拿不准 → 提 issue,列仓里多了什么、你判断要不要、为什么。
+  > 少了的(仓里删了但 lock 还列着)→ `install_skills.sh` 第③步会清掉,但 lock 里的 skills 列表也要同步删。
 - 三个真源(base / workspace / qiaohe-skill)都对得上 → 继续。
 
 ### 3) 符不符合全景图?
