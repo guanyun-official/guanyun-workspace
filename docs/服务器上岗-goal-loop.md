@@ -1,6 +1,10 @@
-# 服务器数字生命(豆包)· Goal + Loop 提示词
+# 服务器数字生命 · Goal + Loop 提示词
 
-> 给 hermes 上的数字生命(豆包 `doubao-seed-evolving`)。**这两段是它的使命(goal)和作息(loop)。**
+> 给 hermes 上的数字生命。**这两段是它的使命(goal)和作息(loop)。**
+> ★2026-07-17 更正★ 这里原先写死「豆包 `doubao-seed-evolving`」—— **假的**,配置里根本没这个模型。
+> **脑子是借来的,而且按活分**:要眼睛的(打标/出稿)用能接图的;要深想的(心跳自检/复盘进化)用推理模型。
+> **具体是哪个 model id → 看 `~/.hermes/config.yaml` 和 cron 的 `model` 字段,别信任何文档抄的值**
+> (为什么:`evolving-the-system`「文档纪律」—— 抄进 markdown 的 id 会漂,然后静静地骗下一个进仓的 agent。这行就是被它骗过的证物)。
 > 先让它读:`docs/上岗包.md`(手/眼/法/知识 + 自主边界)· `CLAUDE.md`(判据+红线)· 技能 `evolving-the-system`。
 
 ---

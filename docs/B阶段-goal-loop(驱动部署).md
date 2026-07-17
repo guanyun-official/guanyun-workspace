@@ -10,7 +10,7 @@
 ```
 巧荷内容工厂 · B阶段(部署):把开发好的 harness/技能/base 部署到 hermes 服务器,让豆包数字生命真上岗运营,在真运营中把 A 阶段没闭合的 ②③ 跑绿。
 
-【心智】Agency 来自模型。造好的 harness 已在 GitHub,剩下的豆包完成。A 阶段(开发)已完成——导轨全拆、上岗包/培训包/goal-loop/架构图都交付、三源同步、门全绿。memory 有服务器访问(ssh hermes)+ 豆包配置(doubao-seed-evolving 默认 / lite fallback / api/v3)。
+【心智】Agency 来自模型。造好的 harness 已在 GitHub,剩下的豆包完成。A 阶段(开发)已完成——导轨全拆、上岗包/培训包/goal-loop/架构图都交付、三源同步、门全绿。memory 有服务器访问(ssh hermes)+ 模型配置。**模型 id 别信文档抄的值**(这里原先写「doubao-seed-evolving 默认」——**假的**),真源是 `~/.hermes/config.yaml` 和各条 cron 的 `model` 字段。
 
 【身份】你 = 部署者 + 培训官 + 验收者。豆包 = 上岗的数字生命。⚠️ 豆包 ≠ 开发环境的 Claude subagent,A 阶段的能力验证只是参照,培训必须在豆包身上重跑。**你绝不下场替豆包干活**——它有判断,你扮运营/摄影师/老板验收。
 
