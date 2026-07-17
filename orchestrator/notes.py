@@ -368,6 +368,13 @@ def write_draft(account: str, content_type: str, title: str, body: str, *,
         out = {"note_id": feishu_io.create_record(NF.TABLE, fields), "动作": "新建"}
     if unmatched:
         out["⚠️这些词『关键词库』里没有,没挂上"] = unmatched   # 要挂:先把词入库,或检查拼写(大小写已忽略)
+    # ★落稿后把**真实数字**摆回给它 —— 这是眼睛,不是判断★
+    # 2026-07-17 真栽:它连着两轮自评都靠**估**,而且每次都错 ——
+    #   报「73字/5张」真实 115字;报「156字」真实 258字;报「86字」真实 120字;报「4张」真实 3张。
+    # 估出来的数字进了给运营的报告 = **叙述在骗人**。
+    # **数字是事实,不是判断** —— harness 该把事实摆出来,而不是要求它心算。
+    # (够不够、达不达标 **仍然是它判断** —— 这里只给数,不给结论。)
+    out["真实"] = {"正文字数": len(body or ""), "挂了几张素材": len(material_ids or [])}
     return out
 
 
