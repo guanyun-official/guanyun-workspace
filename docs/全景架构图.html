@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>巧荷内容工厂 · 系统架构</title>
+<style>
+  :root{
+    --ground:#f1ece1; --surface:#faf7ef; --surface-2:#f3eee2;
+    --ink:#221f18; --ink-soft:#5f5849; --ink-faint:#928a77;
+    --line:#cabfa8; --line-soft:#ded5c2;
+    --celadon:#357a72; --celadon-ink:#2b615a; --celadon-bg:#dde9e4;
+    --ochre:#a5622c; --ochre-ink:#875020; --ochre-bg:#efe1cd;
+    --vermilion:#9a3a31; --vermilion-bg:#f0dcd6;
+    --serif:"Songti SC","STSong","Noto Serif CJK SC","Source Han Serif SC","SimSun",serif;
+    --sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",system-ui,sans-serif;
+    --mono:"SF Mono","JetBrains Mono","Menlo",Consolas,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --ground:#15130e; --surface:#201d16; --surface-2:#28241b;
+      --ink:#efe9db; --ink-soft:#b3ab97; --ink-faint:#7c7461;
+      --line:#3d382c; --line-soft:#2c2820;
+      --celadon:#6cb0a4; --celadon-ink:#8fc7bd; --celadon-bg:#1d2b28;
+      --ochre:#cd8a4f; --ochre-ink:#dc9a5e; --ochre-bg:#2c2318;
+      --vermilion:#cd6055; --vermilion-bg:#2e1c19;
+    }
+  }
+  :root[data-theme="light"]{
+    --ground:#f1ece1; --surface:#faf7ef; --surface-2:#f3eee2;
+    --ink:#221f18; --ink-soft:#5f5849; --ink-faint:#928a77;
+    --line:#cabfa8; --line-soft:#ded5c2;
+    --celadon:#357a72; --celadon-ink:#2b615a; --celadon-bg:#dde9e4;
+    --ochre:#a5622c; --ochre-ink:#875020; --ochre-bg:#efe1cd;
+    --vermilion:#9a3a31; --vermilion-bg:#f0dcd6;
+  }
+  :root[data-theme="dark"]{
+    --ground:#15130e; --surface:#201d16; --surface-2:#28241b;
+    --ink:#efe9db; --ink-soft:#b3ab97; --ink-faint:#7c7461;
+    --line:#3d382c; --line-soft:#2c2820;
+    --celadon:#6cb0a4; --celadon-ink:#8fc7bd; --celadon-bg:#1d2b28;
+    --ochre:#cd8a4f; --ochre-ink:#dc9a5e; --ochre-bg:#2c2318;
+    --vermilion:#cd6055; --vermilion-bg:#2e1c19;
+  }
+  *{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);line-height:1.5;}
+  .wrap{max-width:1240px;margin:0 auto;padding:clamp(22px,3.5vw,44px) clamp(14px,3vw,34px) 56px;}
+
+  header.mast{border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:22px;display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 26px;}
+  .mast .lede{display:flex;flex-direction:column;gap:8px;}
+  .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--celadon);}
+  h1{font-family:var(--serif);font-weight:600;font-size:clamp(24px,3.6vw,38px);margin:0;letter-spacing:.03em;}
+  .mast .thesis{font-family:var(--serif);font-size:clamp(13px,1.5vw,16px);color:var(--ink-soft);margin-left:auto;max-width:32ch;line-height:1.5;border-left:2px solid var(--celadon);padding-left:12px;}
+  .mast .thesis b{color:var(--celadon-ink);font-weight:600;}
+
+  .diagram-scroll{overflow-x:auto;padding-bottom:6px;}
+  svg.arch{display:block;width:100%;min-width:940px;height:auto;}
+
+  /* SVG semantic classes (theme-aware via tokens) */
+  .zband{fill:var(--surface-2);opacity:.5;}
+  .zlabel{font-family:var(--mono);font-size:12.5px;letter-spacing:.1em;fill:var(--ink-faint);text-transform:uppercase;}
+  .node{fill:var(--surface);stroke:var(--line);stroke-width:1.4;}
+  .node-actor{fill:var(--surface-2);stroke:var(--ochre);stroke-width:1.4;}
+  .store-body{fill:var(--ochre-bg);stroke:var(--ochre);stroke-width:1.4;}
+  .store-top{fill:var(--surface);stroke:var(--ochre);stroke-width:1.4;}
+  .harness-box{fill:var(--celadon-bg);stroke:var(--celadon);stroke-width:2;}
+  .subbox{fill:var(--surface);stroke:var(--line-soft);stroke-width:1.2;}
+  .subbox-cap{fill:var(--celadon);}
+  .subbox-cap.perm{fill:var(--vermilion);}
+  .agent-box{fill:var(--ink);stroke:var(--ink-soft);stroke-width:1.4;}
+  .plat-box{fill:var(--surface);stroke:var(--line);stroke-width:1.4;stroke-dasharray:2 3;}
+
+  .ntitle{font-family:var(--sans);font-weight:700;font-size:16px;fill:var(--ink);}
+  .ntitle-lg{font-family:var(--serif);font-weight:600;font-size:21px;letter-spacing:.04em;}
+  .nsub{font-family:var(--sans);font-size:11.5px;fill:var(--ink-soft);}
+  .nmono{font-family:var(--mono);font-size:11px;fill:var(--celadon-ink);}
+  .nmono.perm{fill:var(--vermilion);}
+  .role{font-family:var(--serif);font-weight:600;font-size:15px;fill:var(--celadon-ink);letter-spacing:.03em;}
+  .role.perm{fill:var(--vermilion);}
+  .rolekey{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;fill:var(--ink-faint);text-transform:uppercase;}
+  .agent-title{fill:var(--ground);}
+  .agent-sub{fill:var(--celadon);font-family:var(--mono);font-size:11.5px;}
+  .agent-small{fill:var(--ground);opacity:.82;font-family:var(--sans);font-size:11px;}
+
+  .edge{fill:none;stroke:var(--ink-soft);stroke-width:1.6;}
+  .edge-strong{fill:none;stroke:var(--celadon);stroke-width:2.2;}
+  .edge-evolve{fill:none;stroke:var(--celadon);stroke-width:1.8;stroke-dasharray:6 5;}
+  .edge-alert{fill:none;stroke:var(--vermilion);stroke-width:1.8;stroke-dasharray:6 5;}
+  .elabel{font-family:var(--mono);font-size:11px;fill:var(--ink-soft);}
+  .elabel-strong{font-family:var(--mono);font-size:11px;fill:var(--celadon-ink);font-weight:600;}
+  .elabel-alert{font-family:var(--mono);font-size:11px;fill:var(--vermilion);}
+  .epill{fill:var(--ground);}
+  .arrowhead{fill:var(--ink-soft);}
+  .arrowhead-cel{fill:var(--celadon);}
+  .arrowhead-ver{fill:var(--vermilion);}
+
+  .legend{display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:20px;padding-top:16px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink-soft);align-items:center;}
+  .legend .k{display:inline-flex;align-items:center;gap:8px;}
+  .legend .sw{width:26px;height:0;border-top-width:2.4px;border-top-style:solid;display:inline-block;}
+  .sw.flow{border-color:var(--ink-soft);}
+  .sw.strong{border-color:var(--celadon);}
+  .sw.evolve{border-color:var(--celadon);border-top-style:dashed;}
+  .sw.alert{border-color:var(--vermilion);border-top-style:dashed;}
+  .legend .chip{font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:3px;border:1px solid var(--line);}
+  .legend .chip.store{border-color:var(--ochre);color:var(--ochre-ink);}
+  .legend .chip.harn{border-color:var(--celadon);color:var(--celadon-ink);}
+  .legend .chip.redl{border-color:var(--vermilion);color:var(--vermilion);}
+
+  .foot{margin-top:22px;font-family:var(--serif);font-size:14px;color:var(--ink-soft);line-height:1.6;border-left:3px solid var(--celadon);padding-left:14px;}
+  .foot b{color:var(--celadon-ink);font-weight:600;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="mast">
+    <div class="lede">
+      <span class="eyebrow">观云 母公司 / 巧荷 品牌 · 内容工厂</span>
+      <h1>系统架构 · 全景</h1>
+    </div>
+    <p class="thesis">我们不"开发 agent",我们造 <b>harness</b> = Tools + Knowledge + Observation + Action + Permissions。模型完成剩下的。</p>
+  </header>
+
+  <div class="diagram-scroll">
+  <svg class="arch" viewBox="0 0 1200 980" role="img" aria-label="巧荷内容工厂系统架构图">
+    <defs>
+      <marker id="ah" markerWidth="10" markerHeight="10" refX="8" refY="3.2" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L8,3.2 L0,6.4 Z" class="arrowhead"/>
+      </marker>
+      <marker id="ahs" markerWidth="11" markerHeight="11" refX="8.5" refY="3.4" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L8.5,3.4 L0,6.8 Z" class="arrowhead-cel"/>
+      </marker>
+      <marker id="ahv" markerWidth="10" markerHeight="10" refX="8" refY="3.2" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L8,3.2 L0,6.4 Z" class="arrowhead-ver"/>
+      </marker>
+    </defs>
+
+    <!-- ===================== ZONE BANDS ===================== -->
+    <rect class="zband" x="52" y="44" width="1096" height="118" rx="10"/>
+    <rect class="zband" x="52" y="184" width="1096" height="130" rx="10"/>
+    <rect class="zband" x="52" y="352" width="1096" height="272" rx="10"/>
+    <rect class="zband" x="52" y="648" width="1096" height="120" rx="10"/>
+    <rect class="zband" x="52" y="792" width="1096" height="118" rx="10"/>
+
+    <text class="zlabel" x="66" y="38">① 人 · 只管头尾(不敲终端)</text>
+    <text class="zlabel" x="66" y="178">② 世界 · 状态 · 唯一真源(人机同一张表)</text>
+    <text class="zlabel" x="66" y="346">③ HARNESS · workspace + runtime · 手 · 眼 · 知识 · 法律</text>
+    <text class="zlabel" x="66" y="642">④ Agent(模型) + 推理</text>
+    <text class="zlabel" x="66" y="786">⑤ 平台 · 调度 · 守护</text>
+
+    <!-- ===================== BAND A · 人 ===================== -->
+    <g>
+      <rect class="node-actor" x="100" y="70" width="280" height="74" rx="9"/>
+      <text class="ntitle" x="240" y="103" text-anchor="middle">运营</text>
+      <text class="nsub"   x="240" y="125" text-anchor="middle">审稿 · 发布 · 回填链接</text>
+    </g>
+    <g>
+      <rect class="node-actor" x="460" y="70" width="280" height="74" rx="9"/>
+      <text class="ntitle" x="600" y="103" text-anchor="middle">摄影师</text>
+      <text class="nsub"   x="600" y="125" text-anchor="middle">拍摄 · 补拍</text>
+    </g>
+    <g>
+      <rect class="node-actor" x="820" y="70" width="280" height="74" rx="9"/>
+      <text class="ntitle" x="960" y="103" text-anchor="middle">老板</text>
+      <text class="nsub"   x="960" y="125" text-anchor="middle">看周报 · 定方向</text>
+    </g>
+
+    <!-- ===================== BAND B · 世界(数据源) ===================== -->
+    <!-- Base -->
+    <g>
+      <path class="store-body" d="M100,222 v66 a140,15 0 0 0 280,0 v-66"/>
+      <ellipse class="store-top" cx="240" cy="222" rx="140" ry="15"/>
+      <text class="ntitle" x="240" y="258" text-anchor="middle">飞书 Base</text>
+      <text class="nsub"   x="240" y="279" text-anchor="middle">ZhzJbf · 笔记/素材/账号… 11 表</text>
+    </g>
+    <!-- 网盘 -->
+    <g>
+      <path class="store-body" d="M460,222 v66 a140,15 0 0 0 280,0 v-66"/>
+      <ellipse class="store-top" cx="600" cy="222" rx="140" ry="15"/>
+      <text class="ntitle" x="600" y="258" text-anchor="middle">百度网盘</text>
+      <text class="nsub"   x="600" y="279" text-anchor="middle">拍摄素材 · 原件</text>
+    </g>
+    <!-- 小红书 -->
+    <g>
+      <path class="store-body" d="M820,222 v66 a140,15 0 0 0 280,0 v-66"/>
+      <ellipse class="store-top" cx="960" cy="222" rx="140" ry="15"/>
+      <text class="ntitle" x="960" y="258" text-anchor="middle">小红书</text>
+      <text class="nsub"   x="960" y="279" text-anchor="middle">已发布 · 真实数据</text>
+    </g>
+
+    <!-- A<->B connectors -->
+    <path class="edge" marker-end="url(#ah)" d="M240,144 L240,203"/>
+    <rect class="epill" x="176" y="165" width="128" height="16" rx="3"/>
+    <text class="elabel" x="240" y="177" text-anchor="middle">审 · 发 · 填链接</text>
+
+    <path class="edge" marker-end="url(#ah)" d="M600,144 L600,203"/>
+    <rect class="epill" x="558" y="165" width="84" height="16" rx="3"/>
+    <text class="elabel" x="600" y="177" text-anchor="middle">传素材</text>
+
+    <path class="edge" marker-end="url(#ah)" d="M960,144 L960,203"/>
+    <rect class="epill" x="892" y="165" width="136" height="16" rx="3"/>
+    <text class="elabel" x="960" y="177" text-anchor="middle">看周报 · 驾驶舱</text>
+
+    <!-- ===================== BAND C · HARNESS ===================== -->
+    <rect class="harness-box" x="60" y="360" width="1080" height="256" rx="12"/>
+
+    <!-- 5 sub-boxes -->
+    <!-- 1 Action -->
+    <g>
+      <rect class="subbox" x="80" y="404" width="196" height="196" rx="8"/>
+      <rect class="subbox-cap" x="80" y="404" width="196" height="5" rx="2.5"/>
+      <text class="rolekey" x="98" y="430">ACTION INTERFACE</text>
+      <text class="role"    x="98" y="450">手</text>
+      <text class="nmono"   x="98" y="474">orchestrator ⟨动词⟩</text>
+      <text class="nsub"    x="98" y="500">一个动词 = 一件事</text>
+      <text class="nsub"    x="98" y="518">零判断</text>
+      <text class="nsub"    x="98" y="544">board · note.*</text>
+      <text class="nsub"    x="98" y="562">material.* · publish.advance</text>
+      <text class="nsub"    x="98" y="586" style="fill:var(--ink-faint)">无 approve/publish/tag</text>
+    </g>
+    <!-- 2 Tools -->
+    <g>
+      <rect class="subbox" x="292" y="404" width="196" height="196" rx="8"/>
+      <rect class="subbox-cap" x="292" y="404" width="196" height="5" rx="2.5"/>
+      <text class="rolekey" x="310" y="430">TOOLS</text>
+      <text class="role"    x="310" y="450">工具</text>
+      <text class="nmono"   x="310" y="474">feishu_io · netpan</text>
+      <text class="nmono"   x="310" y="494">media · ark</text>
+      <text class="nmono"   x="310" y="514">ingest · notes</text>
+      <text class="nsub"    x="310" y="540">与世界打交道的手</text>
+    </g>
+    <!-- 3 Observation -->
+    <g>
+      <rect class="subbox" x="504" y="404" width="196" height="196" rx="8"/>
+      <rect class="subbox-cap" x="504" y="404" width="196" height="5" rx="2.5"/>
+      <text class="rolekey" x="522" y="430">OBSERVATION</text>
+      <text class="role"    x="522" y="450">眼</text>
+      <text class="nmono"   x="522" y="474">board</text>
+      <text class="nsub"    x="522" y="496">给它看:世界现在什么样</text>
+      <text class="nsub"    x="522" y="514">(只有事实 · 没建议)</text>
+      <text class="nmono"   x="522" y="540">卡片 · 补拍单 · 周报</text>
+      <text class="nsub"    x="522" y="562">给人看</text>
+    </g>
+    <!-- 4 Permissions -->
+    <g>
+      <rect class="subbox" x="716" y="404" width="196" height="196" rx="8"/>
+      <rect class="subbox-cap perm" x="716" y="404" width="196" height="5" rx="2.5"/>
+      <text class="rolekey" x="734" y="430">PERMISSIONS</text>
+      <text class="role perm" x="734" y="450">法</text>
+      <text class="nmono perm" x="734" y="474">guard.py</text>
+      <text class="nsub"    x="734" y="500">五道红线门</text>
+      <text class="nsub"    x="734" y="518">IO 之前先拦</text>
+      <text class="nsub"    x="734" y="544">阈值焊成常量</text>
+      <text class="nsub"    x="734" y="562">没有旋钮</text>
+    </g>
+    <!-- 5 Knowledge -->
+    <g>
+      <rect class="subbox" x="924" y="404" width="196" height="196" rx="8"/>
+      <rect class="subbox-cap" x="924" y="404" width="196" height="5" rx="2.5"/>
+      <text class="rolekey" x="942" y="430">KNOWLEDGE</text>
+      <text class="role"    x="942" y="450">知识</text>
+      <text class="nmono"   x="942" y="474">CLAUDE.md</text>
+      <text class="nsub"    x="942" y="496">常驻(所以必须短)</text>
+      <text class="nmono"   x="942" y="522">skills/</text>
+      <text class="nsub"    x="942" y="544">渐进披露 → 读进上下文</text>
+      <text class="nsub"    x="942" y="562">= 模型此刻的知识</text>
+    </g>
+
+    <!-- B<->C connector (world <-> harness) -->
+    <path class="edge-strong" marker-end="url(#ahs)" d="M540,314 L540,356"/>
+    <path class="edge-strong" marker-end="url(#ahs)" d="M660,356 L660,314"/>
+    <rect class="epill" x="470" y="326" width="260" height="17" rx="3"/>
+    <text class="elabel-strong" x="600" y="339" text-anchor="middle">↑读 board  ↓写 动词(过 guard 五门)</text>
+
+    <!-- ===================== BAND D · Agent + ARK ===================== -->
+    <g>
+      <rect class="agent-box" x="80" y="664" width="700" height="88" rx="10"/>
+      <text class="ntitle-lg agent-title" x="104" y="700">AGENT = 模型</text>
+      <text class="agent-sub" x="104" y="722">豆包 doubao-seed-evolving · 一切需要判断的事</text>
+      <text class="agent-small" x="104" y="741">今天干什么 · 这张图是什么 · 配哪些素材 · 稿子行不行 · 周报怎么写</text>
+    </g>
+    <g>
+      <rect class="node" x="820" y="664" width="300" height="88" rx="10"/>
+      <text class="ntitle" x="970" y="697" text-anchor="middle">火山方舟 ARK</text>
+      <text class="nsub"   x="970" y="719" text-anchor="middle">模型推理 API</text>
+      <text class="nsub"   x="970" y="738" text-anchor="middle" style="fill:var(--vermilion)">欠费 → 全线停摆</text>
+    </g>
+
+    <!-- C<->D connector (harness <-> agent) -->
+    <path class="edge-strong" marker-end="url(#ahs)" d="M360,616 L360,662"/>
+    <path class="edge-strong" marker-end="url(#ahs)" d="M480,662 L480,616"/>
+    <rect class="epill" x="300" y="632" width="264" height="17" rx="3"/>
+    <text class="elabel-strong" x="432" y="645" text-anchor="middle">↑board+skills→上下文  ↓判断→调动词</text>
+
+    <!-- Agent <-> ARK -->
+    <path class="edge" marker-end="url(#ah)" d="M780,700 L816,700"/>
+    <path class="edge" marker-end="url(#ah)" d="M816,730 L780,730"/>
+    <rect class="epill" x="770" y="672" width="60" height="16" rx="3"/>
+    <text class="elabel" x="800" y="684" text-anchor="middle">推理</text>
+
+    <!-- ===================== BAND E · 平台 ===================== -->
+    <g>
+      <rect class="plat-box" x="80" y="806" width="520" height="88" rx="10"/>
+      <text class="ntitle" x="104" y="838" text-anchor="start">hermes cron · 作息</text>
+      <text class="nsub"   x="104" y="860">9:00 推今日卡片 · 周一 周报+复盘 · 每3日 心跳自检</text>
+      <text class="nsub"   x="104" y="879" style="fill:var(--ink-faint)">调度器 = agent 的生物钟(定时唤醒)</text>
+    </g>
+    <g>
+      <rect class="plat-box" x="640" y="806" width="480" height="88" rx="10"/>
+      <text class="ntitle" x="664" y="838" text-anchor="start">ARK 欠费看门狗</text>
+      <text class="nsub"   x="664" y="860">系统 crontab 每日 8:00 · 纯 curl 探活</text>
+      <text class="nsub"   x="664" y="879" style="fill:var(--vermilion)">不依赖模型 · 欠费 → 私信告警(模型挂了也能报)</text>
+    </g>
+
+    <!-- E->D cron triggers agent -->
+    <path class="edge" marker-end="url(#ah)" d="M300,806 L300,756"/>
+    <rect class="epill" x="252" y="772" width="96" height="16" rx="3"/>
+    <text class="elabel" x="300" y="784" text-anchor="middle">作息触发</text>
+
+    <!-- watchdog probes ARK -->
+    <path class="edge" marker-end="url(#ah)" d="M900,806 L940,756"/>
+    <rect class="epill" x="884" y="775" width="52" height="16" rx="3"/>
+    <text class="elabel" x="910" y="787" text-anchor="middle">探活</text>
+
+    <!-- ===================== 告警旁路(右侧边) ===================== -->
+    <path class="edge-alert" marker-end="url(#ahv)" d="M1120,850 H1168 V108 H1102"/>
+    <text class="elabel-alert" x="1176" y="480" text-anchor="middle" transform="rotate(90 1176 480)">ARK 欠费 → 直接告警人(绕开模型/gateway)</text>
+
+    <!-- ===================== 进化回路(左侧边) ===================== -->
+    <path class="edge-evolve" marker-end="url(#ahs)" d="M80,708 H30 V488 H58"/>
+    <text class="elabel-strong" x="20" y="600" text-anchor="middle" transform="rotate(-90 20 600)">↺ 进化:复盘 → 改 harness → 自审 → 记进化账</text>
+  </svg>
+  </div>
+
+  <div class="legend">
+    <span class="k"><span class="sw flow"></span>数据 / 控制流</span>
+    <span class="k"><span class="sw strong"></span>核心回路(观察 ⇄ 动作)</span>
+    <span class="k"><span class="sw evolve"></span>进化回路</span>
+    <span class="k"><span class="sw alert"></span>告警旁路(不依赖模型)</span>
+    <span class="chip store">▢ 数据源 = 唯一真源</span>
+    <span class="chip harn">▢ Harness = 我们造的</span>
+    <span class="chip redl">▢ guard 五道红线</span>
+  </div>
+
+  <p class="foot">
+    <b>唯一判据</b>(动手前必过):这段代码是在<b>替模型做决策</b>,还是在<b>给它手 / 知识 / 眼睛 / 法律</b>?替决策 → 删;给手眼知识法 → 对。<br>
+    Base 不是 harness,是<b>世界</b> —— agent 作用的对象,也是人的驾驶舱。<b>不搞两套真源。</b>
+  </p>
+
+</div>
+</body>
+</html>

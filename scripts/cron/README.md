@@ -34,4 +34,8 @@ cp scripts/cron/qiaohe_monitor_*.py ~/.hermes/scripts/
 
 ## 终局
 
-这是 poll 的兜底方案。真·事件驱动走飞书 webhook(见 Issue 表「启用 webhook 事件驱动」),等公网入口配好后把 cron 改成 `schedule=webhook:qiaohe-base`,poll 脚本保留当兜底心跳(间隔拉到 6h)。
+这是 poll 的兜底方案。真·事件驱动走飞书 webhook,等公网入口配好后把 cron 改成 `schedule=webhook:qiaohe-base`,poll 脚本保留当兜底心跳(间隔拉到 6h)。
+
+> ⚠️ 这行原先写着"见 **Issue 表**「启用 webhook 事件驱动」" —— **那张表作废了**(2026-07-17)。
+> 问题的台账是 **GitHub Issue**(`guanyun-official/guanyun-workspace`),见 `evolving-the-system` 技能。
+> 这条 webhook 待办没进 GitHub Issue —— **想做的时候自己提一条**,别去 base 里翻。
