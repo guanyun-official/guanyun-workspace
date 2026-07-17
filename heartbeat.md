@@ -133,3 +133,4 @@ hermes cron list                                                           # 对
 - 2026-07-16 | 全绿 | — | schema dump 刷新:新增『进化账』表、素人推广案例加「款式/源底片/画面有他牌」字段、运行日志表多几条状态选项(加法,代码未消费→黄,无 drift);workspace/qiaohe-skill 与 GitHub main 完全一致;红线焊死(.env=测试库 token、PER_ACCOUNT_DAILY_PUBLISH=3 常量、publish.advance 过三门、AI声明拒写、防搬运门/零素材门在位);board 真跑通。
 - 2026-07-17 | 已修复断头 | — | 删除走死路的qiaohe-scan-netpan-new（只登记不打标）；新建qiaohe-scan-netpan-inbox每天08:00执行：递归扫/巧荷素材/待入库未登记素材，按tagging-material技能看图打标登记一步完成，每次最多处理20个控制压力；当前验证扫得到约150张未登记，流程接通。
 - 2026-07-17 | 全绿升级完成 | — | workspace 本地落后 GitHub main → git pull --ff-only 完成；qiaohe-skill lock sha 落后远端 → 更新 lock sha 重新安装完成；review_gate 全绿；schema 无漂移；红线全焊死；全流程各段都有 cron 推进，无断头；/巧荷素材/待入库现有约50个未登记（图片+视频），qiaohe-scan-netpan-inbox 会每日处理。
+- 2026-07-17 | 全绿 | — | 提前触发心跳自检，逐条验证：schema无漂移；workspace/qiaohe-skill均已同步GitHub最新；代码架构符合全景图要求（原子动词、只摆事实不做决策、红线焊死）；生产库token未泄露；红线规则全满足；全流程各段均有对应cron推进，无断头；待入库未登记素材约50个，已有每日定时扫描处理，流程接通。
