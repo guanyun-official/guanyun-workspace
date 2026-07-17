@@ -77,7 +77,18 @@ if [ "$FULL" = "1" ]; then
       for t in 1 2 3; do remote=$(git ls-remote "$repo" refs/heads/main 2>/dev/null | cut -f1); [ -n "$remote" ] && break; done
       [ -n "$remote" ] || { echo "  ✗ $name: 问不到 GitHub —— **不能证实就不能放行**"; exit 1; }
       [ "$lock" = "$remote" ] || { echo "  ✗ $name: lock=${lock:0:8} 远端=${remote:0:8} → **服务器会装到另一份技能**"; exit 1; }
-      echo "  ✓ $name: ${remote:0:8}"
+      # ★lock 对了 ≠ 装着的是那份★(2026-07-17 真栽,见下)
+      # 上面两条只对**指针**:lock 指向哪、GitHub 上是哪。**没有一条问"盘上那份到底是什么"**。
+      # 真事:培训官改完技能 → push → **顺手把 lock 也刷到新 sha** → 三个指针全对。
+      # 而 `install_skills.sh` 没人跑,`~/Githubs/qiaohe-skill` 还 checkout 在旧 sha ——
+      # agent 读进上下文的 SKILL.md **还是旧的**(作废的教条还在它眼前,新知识它没见过)。
+      # **指针全对,读到的东西是旧的 —— 数字对,话是假的。** 所以这条必须问盘。
+      dir=$(python3 -c "import json,os;print(os.path.expanduser(json.load(open(\"skills.lock.json\"))[\"sources\"][$i].get(\"local\",\"\")))")
+      if [ -n "$dir" ] && [ -d "$dir/.git" ]; then
+        inst=$(git -C "$dir" rev-parse HEAD 2>/dev/null)
+        [ "$inst" = "$lock" ] || { echo "  ✗ $name: **装着的**=${inst:0:8} ≠ lock=${lock:0:8} → 你读的 SKILL.md 不是锁的这份。跑 \`bash scripts/install_skills.sh\`"; exit 1; }
+      fi
+      echo "  ✓ $name: ${remote:0:8}(lock=远端=装着的)"
     done'
 
   # ── ④ 真跑冒烟(零 mock,真测试库:**agent 的眼睛真的睁得开吗**)────────
