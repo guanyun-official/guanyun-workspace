@@ -11,6 +11,7 @@
 - 发现问题 → **提 GitHub Issue** 留痕交人,**结构性问题不擅自硬改**;同时把 issue 号和摘要写到本文件末尾的「心跳账」里。
   > ★2026-07-17 更正★ 这里原来写「提 issue 到 **Issue 表**」—— 过期了。`issue-tracker` 技能已废弃并从技能仓删除;
   > 现在的机制是:**每周自迭代发现的问题 → 提 GitHub Issue → 再修复**。别再往 base 的 Issue 表写。
+- **自检本身产生的修改**(schema dump、心跳账记录、cron配置修改):必须即时提交,保留干净工作区;否则下次 `git pull --ff-only` 会因为本地修改冲突失败,直接中断流程。
 
 ## 自检 6 步
 
@@ -124,3 +125,4 @@ hermes cron list                                                           # 对
 - (此文件新建于 2026-07-15;还没跑过第一次自检)
 - 2026-07-16 | 全绿 | — | schema dump 刷新:新增『进化账』表、素人推广案例加「款式/源底片/画面有他牌」字段、运行日志表多几条状态选项(加法,代码未消费→黄,无 drift);workspace/qiaohe-skill 与 GitHub main 完全一致;红线焊死(.env=测试库 token、PER_ACCOUNT_DAILY_PUBLISH=3 常量、publish.advance 过三门、AI声明拒写、防搬运门/零素材门在位);board 真跑通。
 - 2026-07-17 | 已修复断头 | — | 删除走死路的qiaohe-scan-netpan-new（只登记不打标）；新建qiaohe-scan-netpan-inbox每天08:00执行：递归扫/巧荷素材/待入库未登记素材，按tagging-material技能看图打标登记一步完成，每次最多处理20个控制压力；当前验证扫得到约150张未登记，流程接通。
+- 2026-07-17 | 全绿升级完成 | — | workspace 本地落后 GitHub main → git pull --ff-only 完成；qiaohe-skill lock sha 落后远端 → 更新 lock sha 重新安装完成；review_gate 全绿；schema 无漂移；红线全焊死；全流程各段都有 cron 推进，无断头；/巧荷素材/待入库现有约50个未登记（图片+视频），qiaohe-scan-netpan-inbox 会每日处理。
