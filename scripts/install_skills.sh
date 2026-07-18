@@ -104,4 +104,35 @@ done
 N=$(find "$DEST" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) | wc -l | tr -d ' ')
 W=$(echo "$WANT" | wc -w | tr -d ' ')
 [ "$N" = "$W" ] || { echo "❌ 装出来 $N 个,锁里写着 $W 个 —— **对不上就别装完**" >&2; exit 1; }
-echo "✅ 安装完成:skills/ 下技能数 = $N == lock 里的 $W(真源=GitHub,sha 由 skills.lock.json 钉死)"
+echo "✅ skills/ 下技能数 = $N == lock 里的 $W(真源=GitHub,sha 由 skills.lock.json 钉死)"
+
+# ── ④ 同步 hermes skillhub(★agent 靠 skill_view 加载技能,读的是这一面★)────────────
+#
+# ★2026-07-18 血栽:技能有**两个登记面**,只登记一个 = agent 加载不到★
+#   ① skills/ 目录(上面 ①②③ 管的)—— 文件层。
+#   ② hermes skillhub(~/.hermes/skills/<category>/)—— **agent 真正 skill_view 读的那面**。
+#      巧荷小助手(飞书网关 agent)、cron agent 出稿时,都是 skill_view(技能名) → 读这一面。
+#   新技能 writing-qiaohe-zhaji 只做了 ①,②漏了 → hermes skills list 没有它 →
+#   agent skill_view 加载不到 → 运营在飞书问"有没有 zhaji",小助手答"没有"。**装了=没装。**
+#
+#   hermes skillhub 只要目录里有 symlink 就自动发现(建了 zhaji 软链,hermes skills list 当场认)。
+#   所以这一步:让 ~/.hermes/skills/qiaohe/ 的 symlink 集合 == lock 的技能集合(加缺的、删多的)。
+#   —— 和 ②③ 对 skills/ 做的是同一件事,只是换到 skillhub 这一面。
+#   **只在 hermes 服务器上生效**(本机/CI 没有 ~/.hermes/skills,跳过,不报错)。
+HUB="${HERMES_SKILLHUB_DIR:-$HOME/.hermes/skills/qiaohe}"
+if [ -d "$(dirname "$HUB")" ]; then
+  mkdir -p "$HUB"
+  for sk in $WANT; do
+    ln -sfn "$DEST/$sk" "$HUB/$sk"          # 指向 skills/ 那份(它再指向仓)——和现有 11 个同款
+  done
+  for p in "$HUB"/*; do
+    [ -e "$p" ] || [ -L "$p" ] || continue
+    b=$(basename "$p")
+    case " $WANT " in *" $b "*) ;; *) rm -f "$p"; echo "  ✗ skillhub 清掉 $b(lock 里没有了)";; esac
+  done
+  HN=$(find "$HUB" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) | wc -l | tr -d ' ')
+  [ "$HN" = "$W" ] || { echo "❌ skillhub 装出 $HN 个,锁里 $W 个 —— 两面没对齐" >&2; exit 1; }
+  echo "✅ hermes skillhub($HUB)技能数 = $HN == lock 的 $W —— 两面已对齐,agent skill_view 加载得到"
+else
+  echo "  (非 hermes 机器,跳过 skillhub 同步)"
+fi
