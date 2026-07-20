@@ -35,3 +35,4 @@ brands/*/materials/**/*.mp4
 # 运营侧本地资产(不入库)
 assets/fonts/
 .reports/
+qiaohe_monitor_status.py
