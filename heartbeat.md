@@ -177,3 +177,4 @@ hermes cron list                                                           # 对
   ③ `/巧荷素材/待入库`实际统计：总195文件，135已登记，剩余**60未登记**，今早已处理46个，纠正之前错误估算；
   ④ GitHub认证已完成，GH_TOKEN配置正确，可以正常提Issue；原「网盘盲区」按②不是问题，无需补提。
 **全部检查通过，流程对齐。**
+- 2026-07-22 | 全绿 | — | schema 漂移无(仅 _tables.json 时间戳刷新)；workspace/qiaohe-skill sha 完全对齐；qiaohe-skill 仓多出 video-engine/.claude-plugin 非技能目录(无 SKILL.md,设计如此)；架构自审:cli 全原子动词、board/cockpit 零建议、guard 红线焊死；生产 token 仅文档/snapshot/config 引用非操作码；publish.advance 三门(零素材/AI声明/控量)在位；AI声明拒写；哨兵 monitor_status 脚本 automatic_fields=true 生效,真跑检出 7 条状态变更；全流程各段有 cron 推进(scan-netpan-inbox→morning-kickoff→monitor-status→monday-review+heartbeat)；待入库全数已登记同名,无积压；board 暂缓归档 16 条(均缺身高体重,待人补)。GitHub 还开着 #48(xhs-collector 登录态失效) #49(飞书 Bot 缺群聊读权限),待人处理。
