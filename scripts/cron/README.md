@@ -1,6 +1,6 @@
 # scripts/cron/
 
-这些是 3 个 monitor cron 的**预检查脚本**(probe),Hermes cron 用 `--script` 挂载。
+这是 monitor cron 的**预检查脚本**(probe),Hermes cron 用 `--script` 挂载。
 
 ## 用途
 
@@ -18,12 +18,10 @@
 cp scripts/cron/qiaohe_monitor_*.py ~/.hermes/scripts/
 ```
 
-## 三个 monitor
+## monitor
 
 | Job | 脚本 | 调度(已压到工作时段) | 原调度 |
 |---|---|---|---|
-| qiaohe-monitor-materials | qiaohe_monitor_materials.py | `0 * 9-22 * * *` (14/天) | `*/30 * * * *` (48/天) |
-| qiaohe-monitor-issues | qiaohe_monitor_issues.py | `0 9-21/2 * * *` (7/天) | `0 * * * *` (24/天) |
 | qiaohe-monitor-status | qiaohe_monitor_status.py | `0 * 9-22 * * *` (14/天) | `*/15 * * * *` (96/天) |
 
 总唤醒:35/天(原 168/天,降 79%)。空转的大部分被 `NO_CHANGE` 短路。
