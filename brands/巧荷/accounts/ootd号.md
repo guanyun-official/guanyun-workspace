@@ -1,22 +1,9 @@
----
+|---
 {
   "account": "ootd号",
-  "mode": "视频唯美OOTD",
+  "mode": "图文唯美OOTD",
   "sourcing": "shoot_then_drip",
   "playbooks": [
-    {
-      "id": "视频唯美OOTD",
-      "content_type": "视频唯美OOTD",
-      "gen_skill": "writing-ootd-caption",
-      "material_needs": [
-        "上身"
-      ],
-      "body_len": [
-        100,
-        140
-      ],
-      "material_form": "视频"
-    },
     {
       "id": "图文唯美OOTD",
       "content_type": "图文唯美OOTD",
@@ -29,7 +16,7 @@
   ],
   "runway_alert_days": 4,
   "autonomy": "approve",
-  "notes": "巧荷｜OOTD;设计师人设;视频唯美+考据味;剪辑走 video-editing;文案 writing-ootd-caption;视频需人过目"
+  "notes": "巧荷｜OOTD;设计师人设;仅保留图文唯美OOTD;视频唯美OOTD已停用;文案 writing-ootd-caption"
 }
 ---
 
