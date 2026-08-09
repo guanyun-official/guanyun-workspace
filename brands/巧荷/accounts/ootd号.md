@@ -1,4 +1,4 @@
-|---
+---
 {
   "account": "ootd号",
   "mode": "图文唯美OOTD",

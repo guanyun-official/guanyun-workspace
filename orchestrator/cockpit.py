@@ -191,8 +191,8 @@ def today_card(brand: str = "巧荷", panel: dict | None = None) -> dict:
             })
             for mode, lines in acc_blocks[acc]:
                 mode_tag = f"<text color='grey'>{mode}</text>" if mode else ""
-                # 每个模式只发1个块：同模式下多条笔记合并，最多显示2条，多余的折叠
-                show_lines = lines[:2]
+                # 每个模式只发1个块：同模式下多条笔记合并，最多显示1条，多余的折叠
+                show_lines = lines[:1]
                 more = len(lines) - len(show_lines)
                 content = ""
                 if mode_tag:
